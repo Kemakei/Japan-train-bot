@@ -17,6 +17,14 @@ import * as pinMessageCommand from './commands/pinmessage.js';
 import * as deleteMessageCommand from './commands/deletewords.js';
 import * as playlistsCommand from './commands/playlists.js';
 
+// YouTubeプレイリストIDなどを.envから読み込み＆ダブルクォーテーション除去関数
+function trimQuotes(value) {
+  if (!value) return '';
+  return value.replace(/^"(.*)"$/, '$1');
+}
+
+const playlistId = trimQuotes(process.env.YOUTUBE_PLAYLIST_ID);
+const youtubeApiKey = trimQuotes(process.env.YOUTUBE_API_TOKEN);
 
 const client = new Client({
   intents: [
@@ -38,7 +46,6 @@ client.commands.set(addRoleCommand.data.name, addRoleCommand);
 client.commands.set(pinMessageCommand.data.name, pinMessageCommand);
 client.commands.set(deleteMessageCommand.data.name, deleteMessageCommand);
 client.commands.set(playlistsCommand.data.name, playlistsCommand);
-
 
 client.once(Events.ClientReady, async () => {
   console.log(`🤖 Logged in as ${client.user.tag}`);
@@ -70,7 +77,7 @@ client.on(Events.InteractionCreate, async interaction => {
     if (!command) return;
 
     try {
-      await command.execute(interaction);
+      await command.execute(interaction, { playlistId, youtubeApiKey });
     } catch (error) {
       console.error(error);
       await interaction.reply({ content: '❌ コマンド実行中にエラーが発生しました。', ephemeral: true });
@@ -96,7 +103,6 @@ client.on(Events.GuildMemberAdd, async member => {
     console.error(`❌ ロール付与エラー:`, err);
   }
 });
-
 
 // メッセージが投稿されたら監視対象メッセージをEmbedで再表示
 client.on(Events.MessageCreate, async message => {
