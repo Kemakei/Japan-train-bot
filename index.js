@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import fetch from 'node-fetch';
+import express from 'express';
 import {
   Client,
   GatewayIntentBits,
@@ -17,7 +18,19 @@ import * as pinMessageCommand from './commands/pinmessage.js';
 import * as deleteMessageCommand from './commands/deletewords.js';
 import * as playlistsCommand from './commands/playlists.js';
 
-// YouTubeプレイリストIDなどを.envから読み込み＆ダブルクォーテーション除去関数
+// -------------------- Webサーバー設定（UptimeRobot用） --------------------
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+  res.send('Bot is alive!');
+});
+
+app.listen(PORT, () => {
+  console.log(`✅ Web server running on port ${PORT}`);
+});
+// ------------------------------------------------------------------------
+
 function trimQuotes(value) {
   if (!value) return '';
   return value.replace(/^"(.*)"$/, '$1');
@@ -35,10 +48,8 @@ const client = new Client({
   ],
 });
 
-// 監視メッセージ管理用Maps
-client.monitoredMessages = new Map();  // channelId -> messageId（監視対象メッセージ）
-client.lastSentCopies = new Map();     // channelId -> messageId（最後に再送信したEmbedメッセージ）
-
+client.monitoredMessages = new Map();
+client.lastSentCopies = new Map();
 client.autoRoleMap = new Map();
 
 client.commands = new Collection();
@@ -70,7 +81,6 @@ client.once(Events.ClientReady, async () => {
   }
 });
 
-// コマンド実行処理
 client.on(Events.InteractionCreate, async interaction => {
   if (interaction.isChatInputCommand() || interaction.isMessageContextMenuCommand()) {
     const command = client.commands.get(interaction.commandName);
@@ -85,7 +95,6 @@ client.on(Events.InteractionCreate, async interaction => {
   }
 });
 
-// 新規参加者に自動でロール付与
 client.on(Events.GuildMemberAdd, async member => {
   const roleName = client.autoRoleMap.get(member.guild.id);
   if (!roleName) return;
@@ -104,7 +113,6 @@ client.on(Events.GuildMemberAdd, async member => {
   }
 });
 
-// メッセージが投稿されたら監視対象メッセージをEmbedで再表示
 client.on(Events.MessageCreate, async message => {
   if (message.author.bot) return;
 
@@ -116,21 +124,18 @@ client.on(Events.MessageCreate, async message => {
     const monitoredMessage = await message.channel.messages.fetch(monitoredMessageId);
     if (!monitoredMessage) return;
 
-    // 古い再表示メッセージを削除
     const lastCopyId = client.lastSentCopies.get(channelId);
     if (lastCopyId) {
       try {
         const lastCopyMsg = await message.channel.messages.fetch(lastCopyId);
         if (lastCopyMsg) await lastCopyMsg.delete();
       } catch {}
-
       client.lastSentCopies.delete(channelId);
     }
 
-    // メッセージ内容と添付ファイルをEmbedにまとめる
     let description = monitoredMessage.content || '';
-
     const files = [];
+
     if (monitoredMessage.attachments.size > 0) {
       for (const attachment of monitoredMessage.attachments.values()) {
         files.push({
