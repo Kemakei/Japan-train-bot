@@ -5,20 +5,37 @@ export const data = new SlashCommandBuilder()
   .setDescription('新しい参加者に自動で付与するロールを設定します（空文字で解除）')
   .addStringOption(option =>
     option.setName('rolename')
-      .setDescription('付与するロール名')
+      .setDescription('付与するロール名またはロールメンション')
       .setRequired(false)
   );
 
 export async function execute(interaction) {
-  const roleName = interaction.options.getString('rolename');
-  const guildId = interaction.guild.id;
+  const input = interaction.options.getString('rolename');
+  const guild = interaction.guild;
+  const guildId = guild.id;
 
-  if (!roleName || roleName.trim() === '') {
+  if (!input || input.trim() === '') {
     interaction.client.autoRoleMap.delete(guildId);
     await interaction.reply({ content: '✅ 自動付与ロール設定を解除しました。', ephemeral: true });
     return;
   }
 
-  interaction.client.autoRoleMap.set(guildId, roleName);
-  await interaction.reply({ content: `✅ 今後このサーバーに参加したユーザーにはロール「${roleName}」を付与します。`, ephemeral: true });
+  let role;
+  const mentionMatch = input.match(/^<@&(\d+)>$/);
+  if (mentionMatch) {
+    // メンション形式: <@&123456789>
+    const roleId = mentionMatch[1];
+    role = guild.roles.cache.get(roleId);
+  } else {
+    // 通常のロール名
+    role = guild.roles.cache.find(r => r.name === input);
+  }
+
+  if (!role) {
+    await interaction.reply({ content: '❌ 指定されたロールが見つかりません。', ephemeral: true });
+    return;
+  }
+
+  interaction.client.autoRoleMap.set(guildId, role.id); // 🔁 ロールIDで保存！
+  await interaction.reply({ content: `✅ 今後このサーバーに参加したユーザーにはロール「${role.name}」を付与します。`, ephemeral: true });
 }

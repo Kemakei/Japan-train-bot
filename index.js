@@ -96,12 +96,12 @@ client.on(Events.InteractionCreate, async interaction => {
 });
 
 client.on(Events.GuildMemberAdd, async member => {
-  const roleName = client.autoRoleMap.get(member.guild.id);
-  if (!roleName) return;
+  const roleId = client.autoRoleMap.get(member.guild.id);
+  if (!roleId) return;
 
-  const role = member.guild.roles.cache.find(r => r.name === roleName);
+  const role = member.guild.roles.cache.get(roleId);
   if (!role) {
-    console.log(`❌ ロール「${roleName}」が見つかりません`);
+    console.log(`❌ ロールID「${roleId}」が見つかりません`);
     return;
   }
 
