@@ -1,8 +1,10 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-import fetch from 'node-fetch';
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import {
   Client,
   GatewayIntentBits,
@@ -12,11 +14,6 @@ import {
   Routes,
   EmbedBuilder,
 } from 'discord.js';
-
-import * as addRoleCommand from './commands/addrole.js';
-import * as pinMessageCommand from './commands/pinmessage.js';
-import * as deleteMessageCommand from './commands/deletewords.js';
-import * as playlistsCommand from './commands/playlists.js';
 
 // -------------------- Webサーバー設定（UptimeRobot用） --------------------
 const app = express();
@@ -31,6 +28,7 @@ app.listen(PORT, () => {
 });
 // ------------------------------------------------------------------------
 
+// 共通関数
 function trimQuotes(value) {
   if (!value) return '';
   return value.replace(/^"(.*)"$/, '$1');
@@ -39,6 +37,11 @@ function trimQuotes(value) {
 const playlistId = trimQuotes(process.env.YOUTUBE_PLAYLIST_ID);
 const youtubeApiKey = trimQuotes(process.env.YOUTUBE_API_TOKEN);
 
+// ESMで__dirnameを使う
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Discordクライアント初期化
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -51,12 +54,25 @@ const client = new Client({
 client.monitoredMessages = new Map();
 client.lastSentCopies = new Map();
 client.autoRoleMap = new Map();
-
 client.commands = new Collection();
-client.commands.set(addRoleCommand.data.name, addRoleCommand);
-client.commands.set(pinMessageCommand.data.name, pinMessageCommand);
-client.commands.set(deleteMessageCommand.data.name, deleteMessageCommand);
-client.commands.set(playlistsCommand.data.name, playlistsCommand);
+
+// ------------------ 🔁 ./commands/*.js を自動読み込み --------------------
+const commandsJSON = [];
+const commandsPath = path.join(__dirname, 'commands');
+const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+
+for (const file of commandFiles) {
+  const filePath = path.join(commandsPath, file);
+  const command = await import(`file://${filePath}`);
+  if ('data' in command && 'execute' in command) {
+    client.commands.set(command.data.name, command);
+    commandsJSON.push(command.data.toJSON());
+    console.log(`✅ Loaded command: ${command.data.name}`);
+  } else {
+    console.warn(`⚠️ Skipped invalid command file: ${file}`);
+  }
+}
+// ------------------------------------------------------------------------
 
 client.once(Events.ClientReady, async () => {
   console.log(`🤖 Logged in as ${client.user.tag}`);
@@ -66,14 +82,7 @@ client.once(Events.ClientReady, async () => {
   try {
     await rest.put(
       Routes.applicationCommands(client.user.id),
-      {
-        body: [
-          addRoleCommand.data.toJSON(),
-          pinMessageCommand.data.toJSON(),
-          deleteMessageCommand.data.toJSON(),
-          playlistsCommand.data.toJSON(),
-        ],
-      }
+      { body: commandsJSON }
     );
     console.log('✅ スラッシュコマンドとコンテキストメニューを登録しました');
   } catch (err) {
