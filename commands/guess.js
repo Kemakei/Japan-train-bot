@@ -19,28 +19,25 @@ export const data = new SlashCommandBuilder()
       .setRequired(true)
   );
 
-export async function execute(interaction, client) {
+export async function execute(interaction) {
   const userId = interaction.user.id;
   const guess = interaction.options.getInteger('number');
   const bet = interaction.options.getInteger('bet');
+  const client = interaction.client;
 
-  let coins = interaction.client.getCoins(userId) || 0;
+  let coins = client.getCoins(userId) || 0;
 
-  if (bet <= 0) {
-    await interaction.reply({ content: "❌ 正しい賭け金を入力してください！", flags: 64 });
-    return;
-  }
-
-  // 「賭け金 × 1.5 <= 所持コイン」チェック
+  if (bet <= 0) return interaction.reply({ content: "❌ 正しい賭け金を入力してください！", flags: 64 });
   if (bet * 1.5 > coins) {
     const maxBet = Math.floor(coins / 1.5);
-    await interaction.reply({ content: `❌ 所持コインが足りません！最大賭け金は ${maxBet} コインです。`, flags: 64 });
-    return;
+    return interaction.reply({ content: `❌ 所持コインが足りません！最大賭け金は ${maxBet} コインです。`, flags: 64 });
   }
+
+  await interaction.deferReply();
 
   const answer = Math.floor(Math.random() * 3) + 1;
 
-  let embed = new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setTitle("🎲 数字予想ゲーム")
     .addFields(
       { name: "選んだ数字", value: `${guess}`, inline: true },
@@ -48,22 +45,16 @@ export async function execute(interaction, client) {
     );
 
   if (guess === answer) {
-    // 勝利
     const win = Math.ceil(bet * 2.8);
     client.updateCoins(userId, win);
-    coins = interaction.client.getCoins(userId);
-    embed
-      .setDescription(`当たり！ ${win}\n現在のコイン: ${coins}`)
-      .setColor("#00FF00"); // 緑
+    coins = client.getCoins(userId);
+    embed.setDescription(`当たり！ ${win}\n現在のコイン: ${coins}`).setColor("#00FF00");
   } else {
-    // 敗北
     const loss = Math.ceil(bet * 1.5);
     client.updateCoins(userId, -loss);
-    coins = interaction.client.getCoins(userId);
-    embed
-      .setDescription(`外れ... ${loss}\n現在のコイン: ${coins}`)
-      .setColor("#FF0000"); // 赤
+    coins = client.getCoins(userId);
+    embed.setDescription(`外れ... ${loss}\n現在のコイン: ${coins}`).setColor("#FF0000");
   }
 
-  await interaction.reply({ embeds: [embed] });
+  await interaction.editReply({ embeds: [embed] });
 }
