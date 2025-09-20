@@ -37,7 +37,7 @@ export async function execute(interaction) {
 
     return interaction.reply({
       content: `次に実行できるまであと **${minutes}分${seconds}秒** です。`,
-      ephemeral: true
+      flags: 64
     });
   }
 

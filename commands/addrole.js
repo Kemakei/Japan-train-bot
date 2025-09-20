@@ -16,7 +16,7 @@ export async function execute(interaction) {
 
   if (!input || input.trim() === '') {
     interaction.client.autoRoleMap.delete(guildId);
-    await interaction.reply({ content: '✅ 自動付与ロール設定を解除しました。', ephemeral: true });
+    await interaction.reply({ content: '✅ 自動付与ロール設定を解除しました。', flags: 64 });
     return;
   }
 
@@ -32,10 +32,10 @@ export async function execute(interaction) {
   }
 
   if (!role) {
-    await interaction.reply({ content: '❌ 指定されたロールが見つかりません。', ephemeral: true });
+    await interaction.reply({ content: '❌ 指定されたロールが見つかりません。', flags: 64 });
     return;
   }
 
   interaction.client.autoRoleMap.set(guildId, role.id); // 🔁 ロールIDで保存！
-  await interaction.reply({ content: `✅ 今後このサーバーに参加したユーザーにはロール「${role.name}」を付与します。`, ephemeral: true });
+  await interaction.reply({ content: `✅ 今後このサーバーに参加したユーザーにはロール「${role.name}」を付与します。`, flags: 64});
 }

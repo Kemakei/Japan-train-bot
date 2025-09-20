@@ -70,12 +70,12 @@ export async function execute(interaction) {
 
     collector.on("collect", async (btnInt) => {
       if (btnInt.user.id !== userId) {
-        return btnInt.reply({ content: "あなたのゲームではありません！", ephemeral: true });
+        return btnInt.reply({ content: "あなたのゲームではありません！", flags: 64 });
       }
 
       if (btnInt.customId === "bet") {
         if (interaction.client.getCoins(userId) < 100 * 1.5) {
-          return btnInt.reply({ content: "❌ コインが足りません！", ephemeral: true });
+          return btnInt.reply({ content: "❌ コインが足りません！", flags: 64 });
         }
         bet += 100;
         interaction.client.updateCoins(userId, -100);

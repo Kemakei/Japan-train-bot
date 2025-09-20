@@ -27,26 +27,28 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-export async function execute(interaction, client) {
+export async function execute(interaction, { playlistId, youtubeApiKey }) {
   const bet = interaction.options.getInteger('bet');
   const userId = interaction.user.id;
 
-  let points = interaction.client.getCoins()(userId) || 0;
+  // 修正: getCoins を直接呼ぶ
+  const client = interaction.client;
+  let points = client.getCoins(userId) || 0;
 
   if (bet <= 0) {
-    await interaction.reply({ content: "❌ 正しい賭け金を入力してください！", ephemeral: true });
+    await interaction.reply({ content: "❌ 正しい賭け金を入力してください！", flags: 64 });
     return;
   }
   if (bet > points) {
-    await interaction.reply({ content: "❌ コインが足りません！", ephemeral: true });
+    await interaction.reply({ content: "❌ コインが足りません！", flags: 64 });
     return;
   }
 
   // 確定結果を先に決めておく
   const finalResult = [
-    symbols[Math.floor(Math.random()*symbols.length)],
-    symbols[Math.floor(Math.random()*symbols.length)],
-    symbols[Math.floor(Math.random()*symbols.length)]
+    symbols[Math.floor(Math.random() * symbols.length)],
+    symbols[Math.floor(Math.random() * symbols.length)],
+    symbols[Math.floor(Math.random() * symbols.length)]
   ];
 
   // 初期メッセージ
@@ -60,7 +62,7 @@ export async function execute(interaction, client) {
       if (round === 4) {
         display[i] = finalResult[i];
       } else {
-        display[i] = symbols[Math.floor(Math.random()*symbols.length)];
+        display[i] = symbols[Math.floor(Math.random() * symbols.length)];
       }
     }
     await sleep(500);
@@ -86,10 +88,11 @@ export async function execute(interaction, client) {
     outcome = `💔 ハズレ… ${bet}コイン失いました。`;
   }
 
-  points = interaction.client.getCoins(userId);
+  points = client.getCoins(userId);
 
   // 最終結果
   await msg.edit({
     content: `🎰 ${finalResult.join(' ')}\n${outcome}\n現在のコイン: ${points}`
   });
 }
+

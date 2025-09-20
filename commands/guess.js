@@ -27,14 +27,14 @@ export async function execute(interaction, client) {
   let coins = interaction.client.getCoins(userId) || 0;
 
   if (bet <= 0) {
-    await interaction.reply({ content: "❌ 正しい賭け金を入力してください！", ephemeral: true });
+    await interaction.reply({ content: "❌ 正しい賭け金を入力してください！", flags: 64 });
     return;
   }
 
   // 「賭け金 × 1.5 <= 所持コイン」チェック
   if (bet * 1.5 > coins) {
     const maxBet = Math.floor(coins / 1.5);
-    await interaction.reply({ content: `❌ 所持コインが足りません！最大賭け金は ${maxBet} コインです。`, ephemeral: true });
+    await interaction.reply({ content: `❌ 所持コインが足りません！最大賭け金は ${maxBet} コインです。`, flags: 64 });
     return;
   }
 
