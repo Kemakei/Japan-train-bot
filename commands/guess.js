@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, EmbedBuilder, InteractionResponseFlags } from 'discord.js';
+import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 
 export const data = new SlashCommandBuilder()
   .setName('guess')
@@ -27,11 +27,11 @@ export async function execute(interaction) {
 
   let coins = client.getCoins(userId) || 0;
 
-  // ⚠️ 条件チェック：最低額100コイン以上に変更
+  // ⚠️ 条件チェック：最低額100コイン以上
   if (bet < 100) {
     return interaction.reply({ 
       content: "❌ 最低額は100コインです。", 
-      flags: InteractionResponseFlags.Ephemeral 
+      flags: 64 // ephemeral
     });
   }
 
@@ -39,7 +39,7 @@ export async function execute(interaction) {
     const maxBet = Math.floor(coins / 1.5);
     return interaction.reply({ 
       content: `❌ 所持コインが足りません。最大賭け金は ${maxBet} コインです。`, 
-      flags: InteractionResponseFlags.Ephemeral 
+      flags: 64 // ephemeral
     });
   }
 
