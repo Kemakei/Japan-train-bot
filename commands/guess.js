@@ -21,8 +21,10 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   try {
-    // 最初に deferReply（処理中のぐるぐるを出す）
-    await interaction.deferReply({ ephemeral: true });
+    // defer を最初に呼ぶ
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ flags: 64 });
+    }
 
     const userId = interaction.user.id;
     const guess = interaction.options.getInteger('number');
@@ -32,10 +34,10 @@ export async function execute(interaction) {
     let coins = client.getCoins(userId) || 0;
 
     if (bet < 100) {
-      return interaction.editReply("❌ 最低掛け金は100です！");
+      return await interaction.editReply("❌ 最低掛け金は100です！");
     }
     if (bet > coins) {
-      return interaction.editReply("❌ 所持コインが足りません！");
+      return await interaction.editReply("❌ 所持コインが足りません！");
     }
 
     const answer = Math.floor(Math.random() * 3) + 1;
@@ -59,14 +61,13 @@ export async function execute(interaction) {
       embed.setDescription(`外れ... ${loss} 負け\n現在のコイン: ${coins}`).setColor("#FF0000");
     }
 
-    // 最後は必ず editReply
     await interaction.editReply({ embeds: [embed] });
   } catch (err) {
     console.error(err);
-    if (interaction.deferred) {
-      await interaction.editReply("❌ コマンド実行中にエラーが発生しました。");
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました。", flags: 64 });
     } else {
-      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました。", ephemeral: true });
+      await interaction.editReply("❌ コマンド実行中にエラーが発生しました。");
     }
   }
 }
