@@ -25,8 +25,8 @@ app.get('/', (req, res) => {
 
 app.all('/', (req, res) => {
   console.log(`Received a ${req.method} request at '/'`);
-  console.log("Body:", req.body);  // POSTならボディ、GETなら空
-  res.sendStatus(200);             // 200 OK を返す
+  console.log("Body:", req.body);
+  res.sendStatus(200);
 });
 
 app.listen(PORT, () => {
@@ -135,20 +135,32 @@ client.once(Events.ClientReady, async () => {
   }
 });
 
+// -------------------- InteractionCreate（安全版） --------------------
 client.on(Events.InteractionCreate, async interaction => {
-  if (interaction.isChatInputCommand() || interaction.isMessageContextMenuCommand()) {
-    const command = client.commands.get(interaction.commandName);
-    if (!command) return;
+  if (!interaction.isChatInputCommand() && !interaction.isMessageContextMenuCommand()) return;
 
+  const command = client.commands.get(interaction.commandName);
+  if (!command) return;
+
+  try {
+    // execute 内で reply / defer を行う
+    await command.execute(interaction, { playlistId, youtubeApiKey });
+  } catch (error) {
+    console.error(error);
     try {
-      await command.execute(interaction, { playlistId, youtubeApiKey });
-    } catch (error) {
-      console.error(error);
-      await interaction.reply({ content: '❌ コマンド実行中にエラーが発生しました。', flags: 64 });
+      // reply済み or defer済みなら followUp、それ以外は reply
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content: '❌ コマンド実行中にエラーが発生しました。', ephemeral: true });
+      } else {
+        await interaction.reply({ content: '❌ コマンド実行中にエラーが発生しました。', ephemeral: true });
+      }
+    } catch (err) {
+      console.error('❌ 返信失敗:', err);
     }
   }
 });
 
+// -------------------- 自動ロール付与 --------------------
 client.on(Events.GuildMemberAdd, async member => {
   const roleId = client.autoRoleMap.get(member.guild.id);
   if (!roleId) return;
@@ -167,6 +179,7 @@ client.on(Events.GuildMemberAdd, async member => {
   }
 });
 
+// -------------------- メッセージ監視 --------------------
 client.on(Events.MessageCreate, async message => {
   if (message.author.bot) return;
 
