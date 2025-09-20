@@ -23,6 +23,12 @@ app.get('/', (req, res) => {
   res.send('Bot is alive!');
 });
 
+app.all('/', (req, res) => {
+  console.log(`Received a ${req.method} request at '/'`);
+  console.log("Body:", req.body);  // POSTならボディ、GETなら空
+  res.sendStatus(200);             // 200 OK を返す
+});
+
 app.listen(PORT, () => {
   console.log(`✅ Web server running on port ${PORT}`);
 });
@@ -55,6 +61,45 @@ client.monitoredMessages = new Map();
 client.lastSentCopies = new Map();
 client.autoRoleMap = new Map();
 client.commands = new Collection();
+
+// -------------------- コイン管理 --------------------
+const coinsFile = path.join(__dirname, 'coins.json');
+
+function loadCoins() {
+  if (!fs.existsSync(coinsFile)) fs.writeFileSync(coinsFile, JSON.stringify({}));
+  return JSON.parse(fs.readFileSync(coinsFile, 'utf-8'));
+}
+
+function saveCoins(data) {
+  fs.writeFileSync(coinsFile, JSON.stringify(data, null, 2));
+}
+
+// 起動時ロード
+client.coins = new Map(Object.entries(loadCoins()));
+
+// ユーティリティ関数（永続化込み）
+client.getCoins = (userId) => {
+  const v = client.coins.get(userId);
+  return typeof v === 'undefined' ? 0 : Number(v);
+};
+
+client.setCoins = (userId, amount) => {
+  client.coins.set(userId, Number(amount));
+  saveCoins(Object.fromEntries(client.coins)); // 永続化
+};
+
+client.updateCoins = (userId, delta) => {
+  const current = client.getCoins(userId);
+  client.coins.set(userId, current + Number(delta));
+  saveCoins(Object.fromEntries(client.coins)); // 永続化
+};
+
+// 新規ユーザーは0スタート
+client.on(Events.GuildMemberAdd, member => {
+  if (!client.coins.has(member.id)) {
+    client.setCoins(member.id, 0); // setCoins 内で自動保存
+  }
+});
 
 // ------------------ 🔁 ./commands/*.js を自動読み込み --------------------
 const commandsJSON = [];
