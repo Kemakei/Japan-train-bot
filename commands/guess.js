@@ -20,38 +20,53 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction) {
-  const userId = interaction.user.id;
-  const guess = interaction.options.getInteger('number');
-  const bet = interaction.options.getInteger('bet');
-  const client = interaction.client;
+  try {
+    // 最初に deferReply（処理中のぐるぐるを出す）
+    await interaction.deferReply({ ephemeral: true });
 
-  let coins = client.getCoins(userId) || 0;
+    const userId = interaction.user.id;
+    const guess = interaction.options.getInteger('number');
+    const bet = interaction.options.getInteger('bet');
+    const client = interaction.client;
 
-  if (bet < 100) return interaction.reply({ content: "❌ 最低掛け金は100です！", flags: 64 });
-  if (bet > coins) return interaction.reply({ content: "❌ 所持コインが足りません！", flags: 64 });
+    let coins = client.getCoins(userId) || 0;
 
-  await interaction.deferReply();
+    if (bet < 100) {
+      return interaction.editReply("❌ 最低掛け金は100です！");
+    }
+    if (bet > coins) {
+      return interaction.editReply("❌ 所持コインが足りません！");
+    }
 
-  const answer = Math.floor(Math.random() * 3) + 1;
+    const answer = Math.floor(Math.random() * 3) + 1;
 
-  const embed = new EmbedBuilder()
-    .setTitle("🎲 数字予想ゲーム")
-    .addFields(
-      { name: "選んだ数字", value: `${guess}`, inline: true },
-      { name: "正解", value: `${answer}`, inline: true }
-    );
+    const embed = new EmbedBuilder()
+      .setTitle("🎲 数字予想ゲーム")
+      .addFields(
+        { name: "選んだ数字", value: `${guess}`, inline: true },
+        { name: "正解", value: `${answer}`, inline: true }
+      );
 
-  if (guess === answer) {
-    const win = Math.ceil(bet * 2.8);
-    client.updateCoins(userId, win);
-    coins = client.getCoins(userId);
-    embed.setDescription(`当たり！ ${win} コイン獲得\n現在のコイン: ${coins}`).setColor("#00FF00");
-  } else {
-    const loss = Math.ceil(bet * 1.5);
-    client.updateCoins(userId, -loss);
-    coins = client.getCoins(userId);
-    embed.setDescription(`外れ... ${loss} コイン失う\n現在のコイン: ${coins}`).setColor("#FF0000");
+    if (guess === answer) {
+      const win = Math.ceil(bet * 2.8);
+      client.updateCoins(userId, win);
+      coins = client.getCoins(userId);
+      embed.setDescription(`当たり！ ${win} 勝ち\n現在のコイン: ${coins}`).setColor("#00FF00");
+    } else {
+      const loss = Math.ceil(bet * 1.5);
+      client.updateCoins(userId, -loss);
+      coins = client.getCoins(userId);
+      embed.setDescription(`外れ... ${loss} 負け\n現在のコイン: ${coins}`).setColor("#FF0000");
+    }
+
+    // 最後は必ず editReply
+    await interaction.editReply({ embeds: [embed] });
+  } catch (err) {
+    console.error(err);
+    if (interaction.deferred) {
+      await interaction.editReply("❌ コマンド実行中にエラーが発生しました。");
+    } else {
+      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました。", ephemeral: true });
+    }
   }
-
-  await interaction.editReply({ embeds: [embed] });
 }

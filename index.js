@@ -102,7 +102,7 @@ client.on(Events.GuildMemberAdd, member => {
   }
 });
 
-// ------------------ 🔁 ./commands/*.js を自動読み込み（重複防止付き） --------------------
+// ------------------ 🔁 ./commands/*.js を自動読み込み --------------------
 const commandsJSON = [];
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
@@ -135,9 +135,6 @@ client.once(Events.ClientReady, async () => {
 
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
   try {
-    // 必要であれば一度全削除してから登録
-    // await rest.put(Routes.applicationCommands(client.user.id), { body: [] });
-
     await rest.put(Routes.applicationCommands(client.user.id), { body: commandsJSON });
     console.log('✅ スラッシュコマンドを登録しました');
   } catch (err) {
@@ -155,16 +152,8 @@ client.on(Events.InteractionCreate, async interaction => {
   try {
     await command.execute(interaction, { playlistId, youtubeApiKey });
   } catch (error) {
-    console.error(error);
-    try {
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({ content: '❌ コマンド実行中にエラーが発生しました。', ephemeral: true });
-      } else {
-        await interaction.reply({ content: '❌ コマンド実行中にエラーが発生しました。', ephemeral: true });
-      }
-    } catch (err) {
-      console.error('❌ 返信失敗:', err);
-    }
+    // エラーはログに出すだけ
+    console.error(`❌ コマンド実行中にエラーが発生しました:`, error);
   }
 });
 
