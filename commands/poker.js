@@ -22,10 +22,10 @@ export async function execute(interaction) {
 
   let bet = 100;
   if (client.getCoins(userId) < bet) 
-    return interaction.reply({content: "❌ コインが足りません！", flags: 64});
+    return interaction.reply({ content: "❌ コインが足りません！", flags: 64 });
 
   client.updateCoins(userId, -bet); // 初期ベット消費
-  await interaction.deferReply(); // まず defer
+  await interaction.deferReply(); // ephemeral なしで defer
 
   // デッキ作成
   const suits = ["S", "H", "D", "C"];
@@ -41,7 +41,7 @@ export async function execute(interaction) {
   const pythonCmd = "python3";
 
   exec(`${pythonCmd} "${pythonPath}" ${playerHand.join(" ")} ${botHand.join(" ")} 0`, async (err) => {
-    if (err) return interaction.editReply({content: "❌ エラーが発生しました", flags: 64});
+    if (err) return await interaction.followUp({ content: "❌ ポーカー画像の生成中にエラーが発生しました", flags: 64 });
 
     const combinedPath = path.join(__dirname, "../images/combined.png");
     const file = new AttachmentBuilder(combinedPath);
@@ -57,52 +57,60 @@ export async function execute(interaction) {
     const collector = interaction.channel.createMessageComponentCollector({ time: 60000 });
 
     collector.on("collect", async (btnInt) => {
-      if (btnInt.user.id !== userId)
-        return btnInt.reply({content: "あなたのゲームではありません！", flags: 64});
+      if (btnInt.user.id !== userId) 
+        return btnInt.followUp({ content: "❌ あなたのゲームではありません！", flags: 64 });
 
-      if (btnInt.customId === "bet") {
-        if (client.getCoins(userId) < 150) return btnInt.reply({content: "❌ コインが足りません！", flags: 64});
-        bet += 100;
-        client.updateCoins(userId, -100);
-        await btnInt.update({ content: `ベットを追加。\n現在のベット: ${bet}`, components: [row] });
-      }
+      try {
+        if (btnInt.customId === "bet") {
+          if (client.getCoins(userId) < 150)
+            return btnInt.followUp({ content: "❌ コインが足りません！", flags: 64 });
 
-      if (btnInt.customId === "call") {
-        collector.stop("called");
-        exec(`${pythonCmd} "${pythonPath}" ${playerHand.join(" ")} ${botHand.join(" ")} 1`, async (err, stdout) => {
-          if (err) return btnInt.update({content:"❌ エラーが発生しました", flags: 64});
+          bet += 100;
+          client.updateCoins(userId, -100);
+          await btnInt.update({ content: `ベットを追加。\n現在のベット: ${bet}`, components: [row] });
+        }
 
-          const result = stdout.toString().trim();
-          const combinedPath = path.join(__dirname, "../images/combined.png");
-          const file = new AttachmentBuilder(combinedPath);
+        if (btnInt.customId === "call") {
+          collector.stop("called");
 
-          let msg = "";
-          if (result === "player") {
-            client.updateCoins(userId, bet * 3);
-            msg = `勝ち！ +${bet * 3}\n所持金: ${client.getCoins(userId)}`;
-          } else if (result === "bot") {
-            client.updateCoins(userId, -Math.floor(bet * 1.5));
-            msg = `負け！ -${Math.floor(bet * 1.5)}\n所持金: ${client.getCoins(userId)}`;
-          } else {
-            const refund = Math.floor(bet / 2);
-            client.updateCoins(userId, refund);
-            msg = `引き分け！ ${refund} コイン返却\n所持金: ${client.getCoins(userId)}`;
-          }
+          exec(`${pythonCmd} "${pythonPath}" ${playerHand.join(" ")} ${botHand.join(" ")} 1`, async (err, stdout) => {
+            if (err) return btnInt.followUp({ content: "❌ 勝敗判定中にエラーが発生しました", flags: 64 });
 
-          await btnInt.update({ content: msg, files: [file], components: [] });
-        });
-      }
+            const result = stdout.toString().trim();
+            const combinedPath = path.join(__dirname, "../images/combined.png");
+            const file = new AttachmentBuilder(combinedPath);
 
-      if (btnInt.customId === "fold") {
-        collector.stop("folded");
-        client.updateCoins(userId, -Math.floor(bet * 1.5));
-        await btnInt.update({ content: `フォールド\n所持金: ${client.getCoins(userId)}`, components: [] });
+            let msg = "";
+            if (result === "player") {
+              client.updateCoins(userId, bet * 3);
+              msg = `勝ち！ +${bet * 3}\n所持金: ${client.getCoins(userId)}`;
+            } else if (result === "bot") {
+              client.updateCoins(userId, -Math.floor(bet * 1.5));
+              msg = `負け！ -${Math.floor(bet * 1.5)}\n所持金: ${client.getCoins(userId)}`;
+            } else {
+              const refund = Math.floor(bet / 2);
+              client.updateCoins(userId, refund);
+              msg = `引き分け！ ${refund} コイン返却\n所持金: ${client.getCoins(userId)}`;
+            }
+
+            await btnInt.update({ content: msg, files: [file], components: [] });
+          });
+        }
+
+        if (btnInt.customId === "fold") {
+          collector.stop("folded");
+          client.updateCoins(userId, -Math.floor(bet * 1.5));
+          await btnInt.update({ content: `フォールド\n所持金: ${client.getCoins(userId)}`, components: [] });
+        }
+      } catch (err) {
+        console.error(err);
+        await btnInt.followUp({ content: "❌ コマンド実行中に予期せぬエラーが発生しました", flags: 64 });
       }
     });
 
     collector.on("end", async (_, reason) => {
       if (reason !== "called" && reason !== "folded") {
-        client.updateCoins(userId, bet);
+        client.updateCoins(userId, bet); // タイムアウト時にベット返却
         await interaction.editReply({ content: `タイムアウト\n所持金: ${client.getCoins(userId)}`, components: [] });
       }
     });

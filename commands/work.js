@@ -26,7 +26,7 @@ export async function execute(interaction) {
   try {
     // defer（ephemeral）応答
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ flags: 64 });
+      await interaction.deferReply();
     }
 
     const userId = interaction.user.id;
@@ -38,9 +38,9 @@ export async function execute(interaction) {
       const remaining = cooldown - (now - lastUsed);
       const minutes = Math.floor(remaining / 60000);
       const seconds = Math.floor((remaining % 60000) / 1000);
-      return await interaction.editReply(
-        `次に実行できるまであと **${minutes}分${seconds}秒** です。`
-      );
+      return await interaction.editReply({content:
+        `次に実行できるまであと **${minutes}分${seconds}秒** です。`, flags: 64
+    });
     }
 
     // ランダム報酬 (600〜1000)
