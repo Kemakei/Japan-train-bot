@@ -15,7 +15,7 @@ import {
   EmbedBuilder,
 } from 'discord.js';
 
-// -------------------- Webサーバー設定（UptimeRobot用） --------------------
+// -------------------- Webサーバー設定 --------------------
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -62,7 +62,6 @@ function loadCoins() {
   for (const [userId, data] of Object.entries(raw)) {
     map.set(userId, {
       coins: data.coins ?? 0,
-      lastWork: data.lastWork ?? 0
     });
   }
   return map;
@@ -73,7 +72,6 @@ function saveCoins(map) {
   for (const [userId, data] of map) {
     obj[userId] = {
       coins: data.coins ?? 0,
-      lastWork: data.lastWork ?? 0
     };
   }
   fs.writeFileSync(coinsFile, JSON.stringify(obj, null, 2));
@@ -85,21 +83,14 @@ client.coins = loadCoins();
 // ユーティリティ関数
 client.getCoins = (userId) => client.coins.get(userId)?.coins || 0;
 client.setCoins = (userId, amount) => {
-  const data = client.coins.get(userId) || {};
+  const data = client.coins.get(userId) || { coins: 0 };
   data.coins = Number(amount);
   client.coins.set(userId, data);
   saveCoins(client.coins);
 };
 client.updateCoins = (userId, delta) => {
-  const data = client.coins.get(userId) || {};
+  const data = client.coins.get(userId) || { coins: 0 };
   data.coins = (data.coins || 0) + Number(delta);
-  client.coins.set(userId, data);
-  saveCoins(client.coins);
-};
-client.getLastWork = (userId) => client.coins.get(userId)?.lastWork || 0;
-client.updateLastWork = (userId, timestamp) => {
-  const data = client.coins.get(userId) || {};
-  data.lastWork = timestamp;
   client.coins.set(userId, data);
   saveCoins(client.coins);
 };
@@ -111,7 +102,7 @@ client.on(Events.GuildMemberAdd, member => {
   }
 });
 
-// ------------------ 🔁 ./commands/*.js を自動読み込み --------------------
+// ------------------ 🔁 ./commands/*.js を自動読み込み（重複防止付き） --------------------
 const commandsJSON = [];
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
@@ -119,10 +110,19 @@ const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('
 for (const file of commandFiles) {
   const filePath = path.join(commandsPath, file);
   const command = await import(`file://${filePath}`);
+
   if ('data' in command && 'execute' in command) {
-    client.commands.set(command.data.name, command);
+    const name = command.data.name;
+
+    // 重複チェック
+    if (client.commands.has(name)) {
+      console.warn(`⚠️ Duplicate command skipped: ${name}`);
+      continue;
+    }
+
+    client.commands.set(name, command);
     commandsJSON.push(command.data.toJSON());
-    console.log(`✅ Loaded command: ${command.data.name}`);
+    console.log(`✅ Loaded command: ${name}`);
   } else {
     console.warn(`⚠️ Skipped invalid command file: ${file}`);
   }
@@ -135,6 +135,9 @@ client.once(Events.ClientReady, async () => {
 
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
   try {
+    // 必要であれば一度全削除してから登録
+    // await rest.put(Routes.applicationCommands(client.user.id), { body: [] });
+
     await rest.put(Routes.applicationCommands(client.user.id), { body: commandsJSON });
     console.log('✅ スラッシュコマンドを登録しました');
   } catch (err) {
@@ -142,7 +145,7 @@ client.once(Events.ClientReady, async () => {
   }
 });
 
-// -------------------- InteractionCreate（安全版） --------------------
+// -------------------- InteractionCreate --------------------
 client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand() && !interaction.isMessageContextMenuCommand()) return;
 
