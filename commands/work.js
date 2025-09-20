@@ -25,7 +25,7 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   try {
-    await interaction.deferReply({ ephemeral: true }); // まず defer
+    await interaction.deferReply(); // まず defer
 
     const userId = interaction.user.id;
     const now = Date.now();

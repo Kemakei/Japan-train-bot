@@ -25,7 +25,7 @@ export async function execute(interaction) {
     return interaction.reply({ content: "❌ コインが足りません！", ephemeral: true });
 
   client.updateCoins(userId, -bet); // 初期ベット消費
-  await interaction.deferReply({ ephemeral: true }); // まず defer
+  await interaction.deferReply(); // まず defer
 
   // デッキ作成
   const suits = ["S", "H", "D", "C"];

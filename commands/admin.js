@@ -19,15 +19,20 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   try {
-    await interaction.deferReply({ ephemeral: true }); // まず defer
+    // まず defer（ephemeral）
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ flags: 64 });
+    }
 
-    const password = interaction.options.getString("password");
-    if (password !== process.env.ADMIN_PASSWORD) {
+    // パスワード比較（trimで余計な空白・改行除去）
+    const password = (interaction.options.getString("password") || "").trim();
+    const adminPass = (process.env.ADMIN_PASSWORD || "").trim();
+    if (password !== adminPass) {
       return await interaction.editReply("❌ パスワードが間違っています");
     }
 
     const userInput = interaction.options.getString("userid");
-    const userId = userInput.replace(/[<@!>]/g, "");
+    const userId = userInput.replace(/[<@!>]/g, "").trim();
     const amount = interaction.options.getInteger("amount");
 
     const prev = interaction.client.getCoins(userId);
@@ -38,10 +43,11 @@ export async function execute(interaction) {
     );
   } catch (err) {
     console.error(err);
-    if (interaction.deferred || interaction.replied) {
-      await interaction.editReply("❌ コマンド実行中にエラーが発生しました");
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", flags: 64 });
     } else {
-      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", ephemeral: true });
+      await interaction.editReply("❌ コマンド実行中にエラーが発生しました");
     }
   }
-};
+}
+

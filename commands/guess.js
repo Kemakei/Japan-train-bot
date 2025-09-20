@@ -23,7 +23,7 @@ export async function execute(interaction) {
   try {
     // defer を最初に呼ぶ
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ flags: 64 });
+      await interaction.deferReply();
     }
 
     const userId = interaction.user.id;
