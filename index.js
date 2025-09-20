@@ -19,19 +19,9 @@ import {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.get('/', (req, res) => {
-  res.send('Bot is alive!');
-});
-
-app.all('/', (req, res) => {
-  console.log(`Received a ${req.method} request at '/'`);
-  console.log("Body:", req.body);
-  res.sendStatus(200);
-});
-
-app.listen(PORT, () => {
-  console.log(`✅ Web server running on port ${PORT}`);
-});
+app.get('/', (req, res) => res.send('Bot is alive!'));
+app.all('/', (req, res) => { console.log(`Received a ${req.method} request at '/'`); res.sendStatus(200); });
+app.listen(PORT, () => console.log(`✅ Web server running on port ${PORT}`));
 // ------------------------------------------------------------------------
 
 // 共通関数
@@ -62,42 +52,62 @@ client.lastSentCopies = new Map();
 client.autoRoleMap = new Map();
 client.commands = new Collection();
 
-// -------------------- コイン管理 --------------------
+// -------------------- コイン管理（永続化込み） --------------------
 const coinsFile = path.join(__dirname, 'coins.json');
 
 function loadCoins() {
   if (!fs.existsSync(coinsFile)) fs.writeFileSync(coinsFile, JSON.stringify({}));
-  return JSON.parse(fs.readFileSync(coinsFile, 'utf-8'));
+  const raw = JSON.parse(fs.readFileSync(coinsFile, 'utf-8'));
+  const map = new Map();
+  for (const [userId, data] of Object.entries(raw)) {
+    map.set(userId, {
+      coins: data.coins ?? 0,
+      lastWork: data.lastWork ?? 0
+    });
+  }
+  return map;
 }
 
-function saveCoins(data) {
-  fs.writeFileSync(coinsFile, JSON.stringify(data, null, 2));
+function saveCoins(map) {
+  const obj = {};
+  for (const [userId, data] of map) {
+    obj[userId] = {
+      coins: data.coins ?? 0,
+      lastWork: data.lastWork ?? 0
+    };
+  }
+  fs.writeFileSync(coinsFile, JSON.stringify(obj, null, 2));
 }
 
 // 起動時ロード
-client.coins = new Map(Object.entries(loadCoins()));
+client.coins = loadCoins();
 
-// ユーティリティ関数（永続化込み）
-client.getCoins = (userId) => {
-  const v = client.coins.get(userId);
-  return typeof v === 'undefined' ? 0 : Number(v);
-};
-
+// ユーティリティ関数
+client.getCoins = (userId) => client.coins.get(userId)?.coins || 0;
 client.setCoins = (userId, amount) => {
-  client.coins.set(userId, Number(amount));
-  saveCoins(Object.fromEntries(client.coins)); // 永続化
+  const data = client.coins.get(userId) || {};
+  data.coins = Number(amount);
+  client.coins.set(userId, data);
+  saveCoins(client.coins);
 };
-
 client.updateCoins = (userId, delta) => {
-  const current = client.getCoins(userId);
-  client.coins.set(userId, current + Number(delta));
-  saveCoins(Object.fromEntries(client.coins)); // 永続化
+  const data = client.coins.get(userId) || {};
+  data.coins = (data.coins || 0) + Number(delta);
+  client.coins.set(userId, data);
+  saveCoins(client.coins);
+};
+client.getLastWork = (userId) => client.coins.get(userId)?.lastWork || 0;
+client.updateLastWork = (userId, timestamp) => {
+  const data = client.coins.get(userId) || {};
+  data.lastWork = timestamp;
+  client.coins.set(userId, data);
+  saveCoins(client.coins);
 };
 
 // 新規ユーザーは0スタート
 client.on(Events.GuildMemberAdd, member => {
   if (!client.coins.has(member.id)) {
-    client.setCoins(member.id, 0); // setCoins 内で自動保存
+    client.setCoins(member.id, 0);
   }
 });
 
@@ -117,19 +127,16 @@ for (const file of commandFiles) {
     console.warn(`⚠️ Skipped invalid command file: ${file}`);
   }
 }
+
 // ------------------------------------------------------------------------
 
 client.once(Events.ClientReady, async () => {
   console.log(`🤖 Logged in as ${client.user.tag}`);
 
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
-
   try {
-    await rest.put(
-      Routes.applicationCommands(client.user.id),
-      { body: commandsJSON }
-    );
-    console.log('✅ スラッシュコマンドとコンテキストメニューを登録しました');
+    await rest.put(Routes.applicationCommands(client.user.id), { body: commandsJSON });
+    console.log('✅ スラッシュコマンドを登録しました');
   } catch (err) {
     console.error('❌ コマンド登録失敗:', err);
   }
@@ -143,12 +150,10 @@ client.on(Events.InteractionCreate, async interaction => {
   if (!command) return;
 
   try {
-    // execute 内で reply / defer を行う
     await command.execute(interaction, { playlistId, youtubeApiKey });
   } catch (error) {
     console.error(error);
     try {
-      // reply済み or defer済みなら followUp、それ以外は reply
       if (interaction.replied || interaction.deferred) {
         await interaction.followUp({ content: '❌ コマンド実行中にエラーが発生しました。', ephemeral: true });
       } else {
@@ -164,13 +169,11 @@ client.on(Events.InteractionCreate, async interaction => {
 client.on(Events.GuildMemberAdd, async member => {
   const roleId = client.autoRoleMap.get(member.guild.id);
   if (!roleId) return;
-
   const role = member.guild.roles.cache.get(roleId);
   if (!role) {
     console.log(`❌ ロールID「${roleId}」が見つかりません`);
     return;
   }
-
   try {
     await member.roles.add(role);
     console.log(`✅ ${member.user.tag} にロール「${role.name}」を付与しました`);
@@ -182,7 +185,6 @@ client.on(Events.GuildMemberAdd, async member => {
 // -------------------- メッセージ監視 --------------------
 client.on(Events.MessageCreate, async message => {
   if (message.author.bot) return;
-
   const channelId = message.channel.id;
   const monitoredMessageId = client.monitoredMessages.get(channelId);
   if (!monitoredMessageId) return;
@@ -202,29 +204,19 @@ client.on(Events.MessageCreate, async message => {
 
     let description = monitoredMessage.content || '';
     const files = [];
-
     if (monitoredMessage.attachments.size > 0) {
       for (const attachment of monitoredMessage.attachments.values()) {
-        files.push({
-          attachment: attachment.url,
-          name: attachment.name,
-        });
+        files.push({ attachment: attachment.url, name: attachment.name });
       }
     }
-
     if (description) description += '\n';
 
     const embed = new EmbedBuilder()
-      .setAuthor({
-        name: monitoredMessage.author.tag,
-        iconURL: monitoredMessage.author.displayAvatarURL(),
-      })
+      .setAuthor({ name: monitoredMessage.author.tag, iconURL: monitoredMessage.author.displayAvatarURL() })
       .setDescription(description.trim() || '📌 このメッセージに内容がありません。')
       .setColor('#00AAFF');
 
-    if (files.length > 0) {
-      embed.setImage(files[0].attachment);
-    }
+    if (files.length > 0) embed.setImage(files[0].attachment);
 
     const sentMessage = await message.channel.send({ embeds: [embed], files });
     client.lastSentCopies.set(channelId, sentMessage.id);

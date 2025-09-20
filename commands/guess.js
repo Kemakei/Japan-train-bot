@@ -27,10 +27,10 @@ export async function execute(interaction) {
 
   let coins = client.getCoins(userId) || 0;
 
-  if (bet <= 0) return interaction.reply({ content: "❌ 正しい賭け金を入力してください！", flags: 64 });
+  if (bet <= 100) return interaction.reply({ content: "❌ 最低額は100コインです。", flags: 64 });
   if (bet * 1.5 > coins) {
     const maxBet = Math.floor(coins / 1.5);
-    return interaction.reply({ content: `❌ 所持コインが足りません！最大賭け金は ${maxBet} コインです。`, flags: 64 });
+    return interaction.reply({ content: `❌ 所持コインが足りません。最大賭け金は ${maxBet} コインです。`, flags: 64 });
   }
 
   await interaction.deferReply();
@@ -38,7 +38,6 @@ export async function execute(interaction) {
   const answer = Math.floor(Math.random() * 3) + 1;
 
   const embed = new EmbedBuilder()
-    .setTitle("🎲 数字予想ゲーム")
     .addFields(
       { name: "選んだ数字", value: `${guess}`, inline: true },
       { name: "正解", value: `${answer}`, inline: true }

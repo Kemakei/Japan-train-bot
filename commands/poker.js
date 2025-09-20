@@ -19,9 +19,10 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction) {
   const client = interaction.client;
   const userId = interaction.user.id;
-  let bet = 100;
 
-  if (client.getCoins(userId) < bet) return interaction.reply({ content: "❌ コインが足りません！", flags: 64 });
+  let bet = 100;
+  if (client.getCoins(userId) < bet) 
+    return interaction.reply({ content: "❌ コインが足りません！", flags: 64 });
 
   client.updateCoins(userId, -bet); // 初期ベット消費
   await interaction.deferReply();
@@ -39,11 +40,9 @@ export async function execute(interaction) {
   const pythonPath = path.join(__dirname, "../python/combine.py");
   const pythonCmd = "python3";
 
-  exec(cmdHidden, async (err) => {
-    if (err) {
-      console.error(err);
-      return interaction.editReply("❌ エラーが発生しました");
-    }
+  exec(`${pythonCmd} "${pythonPath}" ${playerHand.join(" ")} ${botHand.join(" ")} 0`, async (err) => {
+    if (err) return interaction.editReply("❌ エラーが発生しました");
+
     const combinedPath = path.join(__dirname, "../images/combined.png");
     const file = new AttachmentBuilder(combinedPath);
 
@@ -53,21 +52,16 @@ export async function execute(interaction) {
       new ButtonBuilder().setCustomId("fold").setLabel("フォールド").setStyle(ButtonStyle.Danger)
     );
 
-    await interaction.editReply({
-      content: `あなたの手札です。 現在のベット: ${bet}`,
-      files: [file],
-      components: [row],
-    });
+    await interaction.editReply({ content: `あなたの手札です。 現在のベット: ${bet}`, files: [file], components: [row] });
 
     const collector = interaction.channel.createMessageComponentCollector({ time: 60000 });
 
     collector.on("collect", async (btnInt) => {
-      if (btnInt.user.id !== userId) {
+      if (btnInt.user.id !== userId)
         return btnInt.reply({ content: "あなたのゲームではありません！", flags: 64 });
-      }
 
       if (btnInt.customId === "bet") {
-        if (client.getCoins(userId) < 100) return btnInt.update({ content: "❌ コインが足りません！", components: [row] });
+        if (client.getCoins(userId) < 100 * 1.5) return btnInt.reply({ content: "❌ コインが足りません！", flags: 64 });
         bet += 100;
         client.updateCoins(userId, -100);
         await btnInt.update({ content: `ベットを追加。\n現在のベット: ${bet}`, components: [row] });
@@ -76,17 +70,18 @@ export async function execute(interaction) {
       if (btnInt.customId === "call") {
         collector.stop("called");
         exec(`${pythonCmd} "${pythonPath}" ${playerHand.join(" ")} ${botHand.join(" ")} 1`, async (err, stdout) => {
-          if (err) return btnInt.update({ content: "❌ エラーが発生しました", components: [] });
+          if (err) return btnInt.update("❌ エラーが発生しました");
 
           const result = stdout.toString().trim();
-          const file = new AttachmentBuilder(path.join(__dirname, "../images/combined.png"));
-          let msg = "";
+          const combinedPath = path.join(__dirname, "../images/combined.png");
+          const file = new AttachmentBuilder(combinedPath);
 
+          let msg = "";
           if (result === "player") {
             client.updateCoins(userId, bet * 3);
             msg = `勝ち！ +${bet * 3}\n所持金: ${client.getCoins(userId)}`;
           } else if (result === "bot") {
-            client.updateCoins(userId, -Math.floor(bet * 1.5));
+            client.updateCoins(userId, -(Math.floor(bet * 1.5)));
             msg = `負け！ -${Math.floor(bet * 1.5)}\n所持金: ${client.getCoins(userId)}`;
           } else {
             const refund = Math.floor(bet / 2);
@@ -100,7 +95,7 @@ export async function execute(interaction) {
 
       if (btnInt.customId === "fold") {
         collector.stop("folded");
-        client.updateCoins(userId, -Math.floor(bet * 1.5));
+        client.updateCoins(userId, -(Math.floor(bet * 1.5)));
         await btnInt.update({ content: `フォールド\n所持金: ${client.getCoins(userId)}`, components: [] });
       }
     });
