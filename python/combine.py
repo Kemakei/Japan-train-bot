@@ -1,38 +1,60 @@
 import sys
+import os
 from PIL import Image
 from treys import Card, Evaluator
 
+# --- 引数 ---
 args = sys.argv[1:]
 player_cards = args[0:2]
 bot_cards = args[2:4]
 reveal = args[4] if len(args) > 4 else "0"  # 0=裏, 1=公開
 
-# テーブルと裏カード画像
-table = Image.open("images/table.jpg").convert("RGBA")
-back = Image.open("images/back.jpg").convert("RGBA")
+# --- ファイルパス絶対化 ---
+base_dir = os.path.dirname(os.path.abspath(__file__))
+images_dir = os.path.join(base_dir, "images")
 
-# プレイヤーのカード
-p1 = Image.open(f"images/{player_cards[0]}.png").convert("RGBA")
-p2 = Image.open(f"images/{player_cards[1]}.png").convert("RGBA")
+# --- テーブルと裏カード画像 ---
+table_path = os.path.join(images_dir, "table.jpg")
+back_path = os.path.join(images_dir, "back.jpg")
 
-# Botのカード（公開か非公開か）
+try:
+    table = Image.open(table_path).convert("RGBA")
+    back = Image.open(back_path).convert("RGBA")
+except FileNotFoundError as e:
+    print(f"ERROR: ファイルが見つかりません: {e}", file=sys.stderr)
+    sys.exit(1)
+
+# --- プレイヤーのカード ---
+try:
+    p1 = Image.open(os.path.join(images_dir, f"{player_cards[0]}.png")).convert("RGBA")
+    p2 = Image.open(os.path.join(images_dir, f"{player_cards[1]}.png")).convert("RGBA")
+except FileNotFoundError as e:
+    print(f"ERROR: プレイヤーカード画像が見つかりません: {e}", file=sys.stderr)
+    sys.exit(1)
+
+# --- Botのカード ---
 if reveal == "1":
-    b1 = Image.open(f"images/{bot_cards[0]}.png").convert("RGBA")
-    b2 = Image.open(f"images/{bot_cards[1]}.png").convert("RGBA")
+    try:
+        b1 = Image.open(os.path.join(images_dir, f"{bot_cards[0]}.png")).convert("RGBA")
+        b2 = Image.open(os.path.join(images_dir, f"{bot_cards[1]}.png")).convert("RGBA")
+    except FileNotFoundError as e:
+        print(f"ERROR: Botカード画像が見つかりません: {e}", file=sys.stderr)
+        sys.exit(1)
 else:
     b1 = back.copy()
     b2 = back.copy()
 
-# 合成位置
+# --- 合成位置 ---
 table.paste(p1, (100, 400), p1)
 table.paste(p2, (200, 400), p2)
 table.paste(b1, (100, 100), b1)
 table.paste(b2, (200, 100), b2)
 
-output_path = "images/combined.png"
-table.save(output_path)
+# --- 出力 ---
+combined_path = os.path.join(images_dir, "combined.png")
+table.save(combined_path)
 
-# 勝敗判定
+# --- 勝敗判定 ---
 evaluator = Evaluator()
 
 def to_treys(card_str):

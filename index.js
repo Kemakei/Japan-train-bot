@@ -129,7 +129,6 @@ for (const file of commandFiles) {
 }
 
 // ------------------------------------------------------------------------
-
 client.once(Events.ClientReady, async () => {
   console.log(`🤖 Logged in as ${client.user.tag}`);
 
@@ -152,8 +151,13 @@ client.on(Events.InteractionCreate, async interaction => {
   try {
     await command.execute(interaction, { playlistId, youtubeApiKey });
   } catch (error) {
-    // エラーはログに出すだけ
     console.error(`❌ コマンド実行中にエラーが発生しました:`, error);
+
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", flags: 64 });
+    } else {
+      await interaction.editReply({ content: "❌ コマンド実行中にエラーが発生しました", flags: 64 });
+    }
   }
 });
 

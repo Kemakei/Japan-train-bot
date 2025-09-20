@@ -7,24 +7,35 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const cooldownFile = path.join(__dirname, '../cooldowns.json');
 
+// -------------------- cooldowns.json 読み書き --------------------
 function loadCooldowns() {
-  if (!fs.existsSync(cooldownFile)) fs.writeFileSync(cooldownFile, JSON.stringify({}));
-  return JSON.parse(fs.readFileSync(cooldownFile, 'utf-8'));
+  try {
+    if (!fs.existsSync(cooldownFile)) fs.writeFileSync(cooldownFile, JSON.stringify({}));
+    return JSON.parse(fs.readFileSync(cooldownFile, 'utf-8'));
+  } catch (err) {
+    console.error("cooldowns.json 読み込み失敗:", err);
+    return {};
+  }
 }
 
 function saveCooldowns(data) {
-  fs.writeFileSync(cooldownFile, JSON.stringify(data, null, 2));
+  try {
+    fs.writeFileSync(cooldownFile, JSON.stringify(data, null, 2));
+  } catch (err) {
+    console.error("cooldowns.json 保存失敗:", err);
+  }
 }
 
 let cooldowns = loadCooldowns();
 
+// -------------------- SlashCommandBuilder --------------------
 export const data = new SlashCommandBuilder()
   .setName('work')
   .setDescription('20分に1回お金をもらえます');
 
 export async function execute(interaction) {
   try {
-    // defer（ephemeral）応答
+    // defer 応答
     if (!interaction.deferred && !interaction.replied) {
       await interaction.deferReply();
     }
@@ -38,15 +49,17 @@ export async function execute(interaction) {
       const remaining = cooldown - (now - lastUsed);
       const minutes = Math.floor(remaining / 60000);
       const seconds = Math.floor((remaining % 60000) / 1000);
-      return await interaction.editReply({content:
-        `次に実行できるまであと **${minutes}分${seconds}秒** です。`, flags: 64
-    });
+
+      return await interaction.editReply({
+        content: `次に実行できるまであと **${minutes}分${seconds}秒** です。`,
+        flags: 64
+      });
     }
 
     // ランダム報酬 (600〜1000)
     const earned = Math.floor(Math.random() * (1000 - 600 + 1)) + 600;
 
-    // coins.json は updateCoins でのみ更新
+    // coins.json は updateCoins で更新
     interaction.client.updateCoins(userId, earned);
 
     // cooldown 更新＆保存
@@ -61,12 +74,13 @@ export async function execute(interaction) {
       );
 
     await interaction.editReply({ embeds: [embed] });
+
   } catch (err) {
     console.error(err);
     if (!interaction.deferred && !interaction.replied) {
       await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", flags: 64 });
     } else {
-      await interaction.editReply("❌ コマンド実行中にエラーが発生しました");
+      await interaction.editReply({ content: "❌ コマンド実行中にエラーが発生しました" , flags: 64});
     }
   }
 }
