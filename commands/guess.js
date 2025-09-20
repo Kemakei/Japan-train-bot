@@ -24,7 +24,7 @@ export async function execute(interaction, client) {
   const guess = interaction.options.getInteger('number');
   const bet = interaction.options.getInteger('bet');
 
-  let coins = client.getCoins(userId) || 0;
+  let coins = interaction.client.getCoins(userId) || 0;
 
   if (bet <= 0) {
     await interaction.reply({ content: "❌ 正しい賭け金を入力してください！", ephemeral: true });
@@ -51,7 +51,7 @@ export async function execute(interaction, client) {
     // 勝利
     const win = Math.ceil(bet * 2.8);
     client.updateCoins(userId, win);
-    coins = client.getCoins(userId);
+    coins = interaction.client.getCoins(userId);
     embed
       .setDescription(`当たり！ ${win}\n現在のコイン: ${coins}`)
       .setColor("#00FF00"); // 緑
@@ -59,7 +59,7 @@ export async function execute(interaction, client) {
     // 敗北
     const loss = Math.ceil(bet * 1.5);
     client.updateCoins(userId, -loss);
-    coins = client.getCoins(userId);
+    coins = interaction.client.getCoins(userId);
     embed
       .setDescription(`外れ... ${loss}\n現在のコイン: ${coins}`)
       .setColor("#FF0000"); // 赤

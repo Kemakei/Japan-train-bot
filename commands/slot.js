@@ -31,7 +31,7 @@ export async function execute(interaction, client) {
   const bet = interaction.options.getInteger('bet');
   const userId = interaction.user.id;
 
-  let points = client.getCoins(userId) || 0;
+  let points = interaction.client.getCoins()(userId) || 0;
 
   if (bet <= 0) {
     await interaction.reply({ content: "❌ 正しい賭け金を入力してください！", ephemeral: true });
@@ -86,7 +86,7 @@ export async function execute(interaction, client) {
     outcome = `💔 ハズレ… ${bet}コイン失いました。`;
   }
 
-  points = client.getCoins(userId);
+  points = interaction.client.getCoins(userId);
 
   // 最終結果
   await msg.edit({

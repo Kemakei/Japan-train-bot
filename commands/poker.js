@@ -14,7 +14,7 @@ const __dirname = path.dirname(__filename);
 
 export const data = new SlashCommandBuilder()
   .setName("poker")
-  .setDescription("Botとポーカーで勝負！");
+  .setDescription("Botとポーカーで勝負");
 
 export async function execute(interaction) {
   const client = interaction.client;
@@ -24,10 +24,10 @@ export async function execute(interaction) {
 
   // ベット初期額
   let bet = 100;
-  if (client.getCoins(userId) < bet) {
+  if (interaction.client.getCoins(userId) < bet) {
     return interaction.editReply("❌ コインが足りません！");
   }
-  client.updateCoins(userId, -bet); // 必ず消費
+  interaction.client.updateCoins(userId, -bet); // 必ず消費
 
   // デッキ作成
   const suits = ["S", "H", "D", "C"];
@@ -40,7 +40,8 @@ export async function execute(interaction) {
   const botHand = deck.splice(0, 2);
 
   const pythonPath = path.join(__dirname, "../python/combine.py");
-  const cmdHidden = `py "${pythonPath}" ${playerHand.join(" ")} ${botHand.join(" ")} 0`;
+  const pythonCmd = "python3"; // Render向け
+  const cmdHidden = `${pythonCmd} "${pythonPath}" ${playerHand.join(" ")} ${botHand.join(" ")} 0`;
 
   exec(cmdHidden, async (err) => {
     if (err) {
@@ -58,7 +59,7 @@ export async function execute(interaction) {
     );
 
     await interaction.editReply({
-      content: `🃏 あなたの手札です！ 現在のベット: ${bet}`,
+      content: `あなたの手札です。 現在のベット: ${bet}`,
       files: [file],
       components: [row],
     });
@@ -73,20 +74,20 @@ export async function execute(interaction) {
       }
 
       if (btnInt.customId === "bet") {
-        if (client.getCoins(userId) < 100 * 1.5) {
+        if (interaction.client.getCoins(userId) < 100 * 1.5) {
           return btnInt.reply({ content: "❌ コインが足りません！", ephemeral: true });
         }
         bet += 100;
-        client.updateCoins(userId, -100);
+        interaction.client.updateCoins(userId, -100);
         await btnInt.update({
-          content: ` ベットを追加 \n現在のベット: ${bet}`,
+          content: `ベットを追加。\n現在のベット: ${bet}`,
           components: [row],
         });
       }
 
       if (btnInt.customId === "call") {
         collector.stop("called");
-        const cmdReveal = `py "${pythonPath}" ${playerHand.join(" ")} ${botHand.join(" ")} 1`;
+        const cmdReveal = `${pythonCmd} "${pythonPath}" ${playerHand.join(" ")} ${botHand.join(" ")} 1`;
 
         exec(cmdReveal, async (err, stdout) => {
           if (err) {
@@ -100,15 +101,15 @@ export async function execute(interaction) {
 
           let msg = "";
           if (result === "player") {
-            client.updateCoins(userId, bet * 3);
-            msg = `勝ち +${bet * 3}\n所持金: ${client.getCoins(userId)}`;
+            interaction.client.updateCoins(userId, bet * 3);
+            msg = `勝ち！ +${bet * 3}\n所持金: ${interaction.client.getCoins(userId)}`;
           } else if (result === "bot") {
-            client.updateCoins(userId, -(Math.floor(bet * 1.5)));
-            msg = `負け -${Math.floor(bet * 1.5)}\n所持金: ${client.getCoins(userId)}`;
+            interaction.client.updateCoins(userId, -(Math.floor(bet * 1.5)));
+            msg = `負け！ -${Math.floor(bet * 1.5)}\n所持金: ${interaction.client.getCoins(userId)}`;
           } else {
             const refund = Math.floor(bet / 2);
-            client.updateCoins(userId, refund);
-            msg = `引き分け ${refund} \n所持金: ${client.getCoins(userId)}`;
+            interaction.client.updateCoins(userId, refund);
+            msg = `引き分け！ ${refund} コイン返却\n所持金: ${interaction.client.getCoins(userId)}`;
           }
 
           await btnInt.update({
@@ -121,9 +122,9 @@ export async function execute(interaction) {
 
       if (btnInt.customId === "fold") {
         collector.stop("folded");
-        client.updateCoins(userId, -(Math.floor(bet * 1.5)));
+        interaction.client.updateCoins(userId, -(Math.floor(bet * 1.5)));
         await btnInt.update({
-          content: `フォールド\n所持金: ${client.getCoins(userId)}`,
+          content: `フォールド\n所持金: ${interaction.client.getCoins(userId)}`,
           components: [],
         });
       }
@@ -132,9 +133,9 @@ export async function execute(interaction) {
     collector.on("end", async (_, reason) => {
       if (reason !== "called" && reason !== "folded") {
         // タイムアウト → ベット返却
-        client.updateCoins(userId, bet);
+        interaction.client.updateCoins(userId, bet);
         await interaction.editReply({
-          content: `タイムアウト\n所持金: ${client.getCoins(userId)}`,
+          content: `タイムアウト\n所持金: ${interaction.client.getCoins(userId)}`,
           components: [],
         });
       }
