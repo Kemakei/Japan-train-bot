@@ -22,10 +22,10 @@ export async function execute(interaction) {
 
   let bet = 100;
   if (client.getCoins(userId) < bet) 
-    return interaction.reply({ content: "❌ コインが足りません！", flags: 64 });
+    return interaction.reply({ content: "❌ コインが足りません！", ephemeral: true });
 
   client.updateCoins(userId, -bet); // 初期ベット消費
-  await interaction.deferReply();
+  await interaction.deferReply({ ephemeral: true }); // まず defer
 
   // デッキ作成
   const suits = ["S", "H", "D", "C"];
@@ -58,10 +58,10 @@ export async function execute(interaction) {
 
     collector.on("collect", async (btnInt) => {
       if (btnInt.user.id !== userId)
-        return btnInt.reply({ content: "あなたのゲームではありません！", flags: 64 });
+        return btnInt.reply({ content: "あなたのゲームではありません！", ephemeral: true });
 
       if (btnInt.customId === "bet") {
-        if (client.getCoins(userId) < 100 * 1.5) return btnInt.reply({ content: "❌ コインが足りません！", flags: 64 });
+        if (client.getCoins(userId) < 150) return btnInt.reply({ content: "❌ コインが足りません！", ephemeral: true });
         bet += 100;
         client.updateCoins(userId, -100);
         await btnInt.update({ content: `ベットを追加。\n現在のベット: ${bet}`, components: [row] });
@@ -81,7 +81,7 @@ export async function execute(interaction) {
             client.updateCoins(userId, bet * 3);
             msg = `勝ち！ +${bet * 3}\n所持金: ${client.getCoins(userId)}`;
           } else if (result === "bot") {
-            client.updateCoins(userId, -(Math.floor(bet * 1.5)));
+            client.updateCoins(userId, -Math.floor(bet * 1.5));
             msg = `負け！ -${Math.floor(bet * 1.5)}\n所持金: ${client.getCoins(userId)}`;
           } else {
             const refund = Math.floor(bet / 2);
@@ -95,7 +95,7 @@ export async function execute(interaction) {
 
       if (btnInt.customId === "fold") {
         collector.stop("folded");
-        client.updateCoins(userId, -(Math.floor(bet * 1.5)));
+        client.updateCoins(userId, -Math.floor(bet * 1.5));
         await btnInt.update({ content: `フォールド\n所持金: ${client.getCoins(userId)}`, components: [] });
       }
     });

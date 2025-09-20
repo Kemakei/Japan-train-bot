@@ -19,12 +19,11 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   try {
+    await interaction.deferReply({ ephemeral: true }); // まず defer
+
     const password = interaction.options.getString("password");
     if (password !== process.env.ADMIN_PASSWORD) {
-      return interaction.reply({ 
-        content: "❌ パスワードが間違っています", 
-        ephemeral: true 
-      });
+      return await interaction.editReply("❌ パスワードが間違っています");
     }
 
     const userInput = interaction.options.getString("userid");
@@ -34,24 +33,15 @@ export async function execute(interaction) {
     const prev = interaction.client.getCoins(userId);
     interaction.client.setCoins(userId, prev + amount);
 
-    // 安全に返信
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({ 
-        content: `✅ <@${userId}> のコインを ${amount} 変更しました（現在: ${interaction.client.getCoins(userId)}）`, 
-        ephemeral: true 
-      });
-    } else {
-      await interaction.reply({ 
-        content: `✅ <@${userId}> のコインを ${amount} 変更しました（現在: ${interaction.client.getCoins(userId)}）`, 
-        ephemeral: true 
-      });
-    }
+    await interaction.editReply(
+      `✅ <@${userId}> のコインを ${amount} 変更しました（現在: ${interaction.client.getCoins(userId)}）`
+    );
   } catch (err) {
     console.error(err);
-    if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", ephemeral: true });
+    if (interaction.deferred || interaction.replied) {
+      await interaction.editReply("❌ コマンド実行中にエラーが発生しました");
     } else {
-      await interaction.followUp({ content: "❌ コマンド実行中にエラーが発生しました", ephemeral: true });
+      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", ephemeral: true });
     }
   }
-}
+};

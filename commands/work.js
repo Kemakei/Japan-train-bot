@@ -24,37 +24,46 @@ export const data = new SlashCommandBuilder()
   .setDescription('20分に1回お金をもらえます');
 
 export async function execute(interaction) {
-  const userId = interaction.user.id;
-  const now = Date.now();
+  try {
+    await interaction.deferReply({ ephemeral: true }); // まず defer
 
-  const cooldown = 20 * 60 * 1000; // 20分
-  const lastUsed = cooldowns[userId] || 0;
+    const userId = interaction.user.id;
+    const now = Date.now();
+    const cooldown = 20 * 60 * 1000; // 20分
+    const lastUsed = cooldowns[userId] || 0;
 
-  if (now - lastUsed < cooldown) {
-    const remaining = cooldown - (now - lastUsed);
-    const minutes = Math.floor(remaining / 60000);
-    const seconds = Math.floor((remaining % 60000) / 1000);
+    if (now - lastUsed < cooldown) {
+      const remaining = cooldown - (now - lastUsed);
+      const minutes = Math.floor(remaining / 60000);
+      const seconds = Math.floor((remaining % 60000) / 1000);
 
-    return interaction.reply({
-      content: `次に実行できるまであと **${minutes}分${seconds}秒** です。`,
-      flags: 64
-    });
+      return await interaction.editReply({
+        content: `次に実行できるまであと **${minutes}分${seconds}秒** です。`
+      });
+    }
+
+    // ランダム報酬 (600〜1000)
+    const earned = Math.floor(Math.random() * (1000 - 600 + 1)) + 600;
+
+    // コインを更新
+    interaction.client.updateCoins(userId, earned);
+
+    // クールダウン更新＆保存
+    cooldowns[userId] = now;
+    saveCooldowns(cooldowns);
+
+    // Embed作成
+    const embed = new EmbedBuilder()
+      .setColor('Green')
+      .setDescription(`💰 **${earned}コイン手に入れました！**\n所持金: **${interaction.client.getCoins(userId)}コイン**`);
+
+    await interaction.editReply({ embeds: [embed] });
+  } catch (err) {
+    console.error(err);
+    if (interaction.deferred || interaction.replied) {
+      await interaction.editReply("❌ コマンド実行中にエラーが発生しました。");
+    } else {
+      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました。", ephemeral: true });
+    }
   }
-
-  // ランダム報酬 (600〜1000)
-  const earned = Math.floor(Math.random() * (1000 - 600 + 1)) + 600;
-
-  // コインを更新
-  interaction.client.updateCoins(userId, earned);
-
-  // クールダウン更新＆保存
-  cooldowns[userId] = now;
-  saveCooldowns(cooldowns);
-
-  // Embedを作成（緑色）
-  const embed = new EmbedBuilder()
-    .setColor('Green') // 緑色
-    .setDescription(`💰 **${earned}コイン手に入れました！**\n所持金: **${interaction.client.getCoins(userId)}コイン**`);
-
-  return interaction.reply({ embeds: [embed] });
-}
+};
