@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+import { SlashCommandBuilder, EmbedBuilder, InteractionResponseFlags } from 'discord.js';
 
 export const data = new SlashCommandBuilder()
   .setName('guess')
@@ -27,12 +27,23 @@ export async function execute(interaction) {
 
   let coins = client.getCoins(userId) || 0;
 
-  if (bet <= 100) return interaction.reply({ content: "❌ 最低額は100コインです。", flags: 64 });
-  if (bet * 1.5 > coins) {
-    const maxBet = Math.floor(coins / 1.5);
-    return interaction.reply({ content: `❌ 所持コインが足りません。最大賭け金は ${maxBet} コインです。`, flags: 64 });
+  // ⚠️ 条件チェック：最低額100コイン以上に変更
+  if (bet < 100) {
+    return interaction.reply({ 
+      content: "❌ 最低額は100コインです。", 
+      flags: InteractionResponseFlags.Ephemeral 
+    });
   }
 
+  if (bet * 1.5 > coins) {
+    const maxBet = Math.floor(coins / 1.5);
+    return interaction.reply({ 
+      content: `❌ 所持コインが足りません。最大賭け金は ${maxBet} コインです。`, 
+      flags: InteractionResponseFlags.Ephemeral 
+    });
+  }
+
+  // ✅ 時間がかかる処理用に defer
   await interaction.deferReply();
 
   const answer = Math.floor(Math.random() * 3) + 1;
@@ -47,12 +58,16 @@ export async function execute(interaction) {
     const win = Math.ceil(bet * 2.8);
     client.updateCoins(userId, win);
     coins = client.getCoins(userId);
-    embed.setDescription(`当たり！ ${win}\n現在のコイン: ${coins}`).setColor("#00FF00");
+    embed
+      .setDescription(`当たり！ +${win}\n現在のコイン: ${coins}`)
+      .setColor("#00FF00");
   } else {
     const loss = Math.ceil(bet * 1.5);
     client.updateCoins(userId, -loss);
     coins = client.getCoins(userId);
-    embed.setDescription(`外れ... ${loss}\n現在のコイン: ${coins}`).setColor("#FF0000");
+    embed
+      .setDescription(`外れ... -${loss}\n現在のコイン: ${coins}`)
+      .setColor("#FF0000");
   }
 
   await interaction.editReply({ embeds: [embed] });
