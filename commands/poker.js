@@ -22,7 +22,7 @@ export async function execute(interaction) {
 
   let bet = 100;
   if (client.getCoins(userId) < bet) 
-    return interaction.reply({ content: "❌ コインが足りません！", ephemeral: true });
+    return interaction.reply({content: "❌ コインが足りません！", flags: 64});
 
   client.updateCoins(userId, -bet); // 初期ベット消費
   await interaction.deferReply(); // まず defer
@@ -41,7 +41,7 @@ export async function execute(interaction) {
   const pythonCmd = "python3";
 
   exec(`${pythonCmd} "${pythonPath}" ${playerHand.join(" ")} ${botHand.join(" ")} 0`, async (err) => {
-    if (err) return interaction.editReply("❌ エラーが発生しました");
+    if (err) return interaction.editReply({content: "❌ エラーが発生しました", flags: 64});
 
     const combinedPath = path.join(__dirname, "../images/combined.png");
     const file = new AttachmentBuilder(combinedPath);
@@ -58,10 +58,10 @@ export async function execute(interaction) {
 
     collector.on("collect", async (btnInt) => {
       if (btnInt.user.id !== userId)
-        return btnInt.reply({ content: "あなたのゲームではありません！", ephemeral: true });
+        return btnInt.reply({content: "あなたのゲームではありません！", flags: 64});
 
       if (btnInt.customId === "bet") {
-        if (client.getCoins(userId) < 150) return btnInt.reply({ content: "❌ コインが足りません！", ephemeral: true });
+        if (client.getCoins(userId) < 150) return btnInt.reply({content: "❌ コインが足りません！", flags: 64});
         bet += 100;
         client.updateCoins(userId, -100);
         await btnInt.update({ content: `ベットを追加。\n現在のベット: ${bet}`, components: [row] });
@@ -70,7 +70,7 @@ export async function execute(interaction) {
       if (btnInt.customId === "call") {
         collector.stop("called");
         exec(`${pythonCmd} "${pythonPath}" ${playerHand.join(" ")} ${botHand.join(" ")} 1`, async (err, stdout) => {
-          if (err) return btnInt.update("❌ エラーが発生しました");
+          if (err) return btnInt.update({content:"❌ エラーが発生しました", flags: 64});
 
           const result = stdout.toString().trim();
           const combinedPath = path.join(__dirname, "../images/combined.png");

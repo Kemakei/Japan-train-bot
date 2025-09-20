@@ -5,7 +5,6 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 const cooldownFile = path.join(__dirname, '../cooldowns.json');
 
 function loadCooldowns() {
@@ -25,7 +24,10 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   try {
-    await interaction.deferReply(); // まず defer
+    // defer（ephemeral）応答
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ flags: 64 });
+    }
 
     const userId = interaction.user.id;
     const now = Date.now();
@@ -36,34 +38,35 @@ export async function execute(interaction) {
       const remaining = cooldown - (now - lastUsed);
       const minutes = Math.floor(remaining / 60000);
       const seconds = Math.floor((remaining % 60000) / 1000);
-
-      return await interaction.editReply({
-        content: `次に実行できるまであと **${minutes}分${seconds}秒** です。`
-      });
+      return await interaction.editReply(
+        `次に実行できるまであと **${minutes}分${seconds}秒** です。`
+      );
     }
 
     // ランダム報酬 (600〜1000)
     const earned = Math.floor(Math.random() * (1000 - 600 + 1)) + 600;
 
-    // コインを更新
+    // coins.json は updateCoins でのみ更新
     interaction.client.updateCoins(userId, earned);
 
-    // クールダウン更新＆保存
+    // cooldown 更新＆保存
     cooldowns[userId] = now;
     saveCooldowns(cooldowns);
 
-    // Embed作成
+    // Embed を作成（緑色）
     const embed = new EmbedBuilder()
       .setColor('Green')
-      .setDescription(`💰 **${earned}コイン手に入れました！**\n所持金: **${interaction.client.getCoins(userId)}コイン**`);
+      .setDescription(
+        `💰 **${earned}コイン手に入れました！**\n所持金: **${interaction.client.getCoins(userId)}コイン**`
+      );
 
     await interaction.editReply({ embeds: [embed] });
   } catch (err) {
     console.error(err);
-    if (interaction.deferred || interaction.replied) {
-      await interaction.editReply("❌ コマンド実行中にエラーが発生しました。");
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", flags: 64 });
     } else {
-      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました。", ephemeral: true });
+      await interaction.editReply("❌ コマンド実行中にエラーが発生しました");
     }
   }
-};
+}

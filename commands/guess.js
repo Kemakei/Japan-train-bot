@@ -34,10 +34,10 @@ export async function execute(interaction) {
     let coins = client.getCoins(userId) || 0;
 
     if (bet < 100) {
-      return await interaction.editReply("❌ 最低掛け金は100です！");
+      return await interaction.editReply({content: "❌ 最低掛け金は100です！", flags: 64 });
     }
     if (bet > coins) {
-      return await interaction.editReply("❌ 所持コインが足りません！");
+      return await interaction.editReply({content:"❌ 所持コインが足りません！", flags: 64});
     }
 
     const answer = Math.floor(Math.random() * 3) + 1;
@@ -67,7 +67,7 @@ export async function execute(interaction) {
     if (!interaction.deferred && !interaction.replied) {
       await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました。", flags: 64 });
     } else {
-      await interaction.editReply("❌ コマンド実行中にエラーが発生しました。");
+      await interaction.editReply({content: "❌ コマンド実行中にエラーが発生しました。", flags: 64});
     }
   }
 }
