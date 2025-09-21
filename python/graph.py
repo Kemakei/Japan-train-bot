@@ -1,27 +1,27 @@
 import json
-import matplotlib.pyplot as plt
 from datetime import datetime
+import matplotlib.pyplot as plt
 import os
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-coins_file = os.path.join(script_dir, "../coins.json")
-output_file = os.path.join(script_dir, "stock.png")
+# ファイルパス
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+history_file = os.path.join(BASE_DIR, "trade_history.json")
+output_file = os.path.join(BASE_DIR, "stock.png")
 
-# coins.json 読み込み
-with open(coins_file, "r", encoding="utf-8") as f:
-    data = json.load(f)
+# 履歴読み込み
+with open(history_file, "r") as f:
+    history = json.load(f)
 
-history = data.get("history", [])
 if not history:
-    stock_price = data.get("stock_price", 950)
-    history = [{"time": datetime.now().isoformat(), "price": stock_price}]
+    print("No data")
+    exit()
 
 times = [datetime.fromisoformat(d["time"]) for d in history]
 prices = [d["price"] for d in history]
 
-plt.figure(figsize=(10,5))
-plt.plot(times, prices, marker='o', linestyle='-', color='green')
-plt.title("株価推移（直近24時間）")
+plt.figure(figsize=(8, 4))
+plt.plot(times, prices, marker='o', linestyle='-', color='blue')
+plt.title("株価推移（直近1日）")
 plt.xlabel("時間")
 plt.ylabel("コイン")
 plt.grid(True)
