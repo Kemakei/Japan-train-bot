@@ -85,14 +85,15 @@ export async function execute(interaction) {
       }
 
       try {
-        await btnInt.deferUpdate();
-
+        // ボタンIDごとの処理
         if (btnInt.customId === "bet100") {
           if ((bet + 100) * 2 > client.getCoins(userId)) {
+            // deferUpdateしていないので reply でOK
             return btnInt.reply({ content: "❌ コインが足りません！", flags: 64 });
           }
           bet += 100;
-          return interaction.editReply({ content: `🎲 現在のベット: ${bet} コイン`, components: [row] });
+          await btnInt.update({ content: `🎲 現在のベット: ${bet} コイン`, components: [row] });
+          return;
         }
 
         if (btnInt.customId === "bet1000") {
@@ -100,11 +101,15 @@ export async function execute(interaction) {
             return btnInt.reply({ content: "❌ コインが足りません！", flags: 64 });
           }
           bet += 1000;
-          return interaction.editReply({ content: `🎲 現在のベット: ${bet} コイン`, components: [row] });
+          await btnInt.update({ content: `🎲 現在のベット: ${bet} コイン`, components: [row] });
+          return;
         }
 
         if (btnInt.customId === "call") {
           collector.stop("called");
+
+          // deferUpdateしてから勝敗判定
+          await btnInt.deferUpdate();
 
           const pyArgs = [pythonPath, ...playerHand, ...botHand, "1"];
           const resultProc = spawn(pythonCmd, pyArgs);
@@ -141,19 +146,23 @@ export async function execute(interaction) {
 
             await interaction.editReply({ content: msg, files: [file], components: [] });
           });
+          return;
         }
 
         if (btnInt.customId === "fold") {
           collector.stop("folded");
-          await interaction.editReply({
+          await btnInt.update({
             content: `🏳️ フォールドしました。\n所持金: ${client.getCoins(userId)}`,
             components: []
           });
+          return;
         }
 
       } catch (err) {
         console.error(err);
-        await btnInt.followUp({ content: "❌ コマンド実行中に予期せぬエラーが発生しました", flags: 64 });
+        if (!btnInt.replied) {
+          await btnInt.followUp({ content: "❌ コマンド実行中に予期せぬエラーが発生しました", flags: 64 });
+        }
       }
     });
 
