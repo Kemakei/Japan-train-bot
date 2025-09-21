@@ -99,15 +99,20 @@ client.on(Events.GuildMemberAdd, member => {
   if (!client.coins.has(member.id)) client.setCoins(member.id, 0);
 });
 
-// -------------------- 株価管理 --------------------
-client.getStockPrice = () => client.coins.get("stock_price")?.coins || 950;
+// 株価管理
+client.getStockPrice = () => {
+  const obj = client.coins.get("stock_price");
+  return typeof obj?.coins === "number" ? obj.coins : 950;
+};
 
 client.updateStockPrice = (delta) => {
   let price = client.getStockPrice() + delta;
-  price = Math.max(1, price);
+  price = Math.max(1, price); // 株価は最低1
+
   client.coins.set("stock_price", { coins: price });
 
-  const history = client.coins.get("trade_history")?.coins || [];
+  const historyObj = client.coins.get("trade_history");
+  const history = Array.isArray(historyObj?.coins) ? historyObj.coins : [];
   history.push({ time: new Date().toISOString(), price });
   if (history.length > 144) history.shift(); // 直近1日分
   client.coins.set("trade_history", { coins: history });
@@ -115,19 +120,20 @@ client.updateStockPrice = (delta) => {
   saveCoins(client.coins);
 };
 
-// 売買に応じて株価を変動
+// 売買による株価変動
 client.modifyStockByTrade = (type, count) => {
-  let delta = Math.floor(count * 0.5);
+  let delta = Math.max(1, Math.floor(count * 0.5)); // 最小1の変動
   if (type === "sell") delta = -delta;
   client.updateStockPrice(delta);
 };
 
-// 10分ごとの自動変動 (-30~30、大きい数は稀)
+// 10分ごとの自動変動 (-30~30 の整数)
 setInterval(() => {
   const sign = Math.random() < 0.5 ? -1 : 1;
-  const magnitude = Math.floor(Math.random() * Math.pow(Math.random(), 2) * 30);
-  client.updateStockPrice(sign * magnitude);
-  console.log(`株価自動変動: ${sign * magnitude}, 現在株価: ${client.getStockPrice()}`);
+  const magnitude = Math.floor(Math.random() * 31); // 0~30
+  const delta = sign * Math.max(1, magnitude);      // 最小1の変動
+  client.updateStockPrice(delta);
+  console.log(`株価自動変動: ${delta}, 現在株価: ${client.getStockPrice()}`);
 }, 10 * 60 * 1000);
 
 // -------------------- ヘッジ契約管理 --------------------

@@ -14,12 +14,18 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction, { client }) {
   await interaction.deferReply();
 
-  // graph.js の場所を基準に python/graph.py を探す
   const pythonPath = path.resolve(__dirname, "../python/graph.py");
   const pythonCmd = process.platform === "win32" ? "py" : "python3";
 
-  const tradeHistory = client.coins.get("trade_history")?.coins || [];
-  const stockPrice = client.coins.get("stock_price")?.coins || 950;
+  // trade_history と stock_price を安全に取得
+  const tradeHistoryObj = client.coins.get("trade_history");
+  const tradeHistory = Array.isArray(tradeHistoryObj?.coins) ? tradeHistoryObj.coins
+                      : Array.isArray(tradeHistoryObj) ? tradeHistoryObj
+                      : [];
+
+  const stockPriceObj = client.coins.get("stock_price");
+  const stockPrice = typeof stockPriceObj?.coins === "number" ? stockPriceObj.coins : 950;
+
   const dataToSend = JSON.stringify({ trade_history: tradeHistory, stock_price: stockPrice });
 
   const py = spawn(pythonCmd, [pythonPath]);
