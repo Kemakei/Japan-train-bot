@@ -13,7 +13,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // --- combine.py の絶対パス ---
-const pythonPath = path.resolve(__dirname, "../python/combine.py"); // commands から見て1階層上の python フォルダ
+const pythonPath = path.resolve(__dirname, "../python/combine.py");
 const pythonCmd = process.platform === "win32" ? "py" : "python3";
 
 export const data = new SlashCommandBuilder()
@@ -47,7 +47,11 @@ export async function execute(interaction) {
     async (err) => {
     if (err) {
       console.error("Python 実行エラー:", err);
-      return await interaction.followUp({ content: "❌ ポーカー画像の生成中にエラーが発生しました", flags: 64 });
+      // ❌ followUp ではなく editReply に変更
+      return await interaction.editReply({
+        content: "❌ ポーカー画像の生成中にエラーが発生しました",
+        components: [] // ボタンを消して押せないようにする
+      });
     }
 
     const combinedPath = path.resolve(__dirname, "../python/images/combined.png");
@@ -72,14 +76,14 @@ export async function execute(interaction) {
 
       try {
         if (btnInt.customId === "call") {
+          await btnInt.deferUpdate(); // 先にACK
           collector.stop("called");
 
-          // Pythonで勝敗・スコア取得
           exec(`${pythonCmd} "${pythonPath}" ${playerHand.join(" ")} ${botHand.join(" ")} 1`,
             async (err, stdout) => {
             if (err) {
               console.error("Python 勝敗判定エラー:", err);
-              return btnInt.followUp({ content: "❌ 勝敗判定中にエラーが発生しました", flags: 64 });
+              return await interaction.followUp({ content: "❌ 勝敗判定中にエラーが発生しました", flags: 64 });
             }
 
             const [winner, scoreStr] = stdout.toString().trim().split(",");
@@ -104,17 +108,18 @@ export async function execute(interaction) {
               msg = `🤝 引き分け！ ${amount} コイン返却\n所持金: ${client.getCoins(userId)}`;
             }
 
-            await btnInt.update({ content: msg, files: [file], components: [] });
+            await interaction.editReply({ content: msg, files: [file], components: [] });
           });
         }
 
         if (btnInt.customId === "fold") {
-          collector.stop("folded");
           await btnInt.update({ content: `🏳️ フォールドしました。\n所持金: ${client.getCoins(userId)}`, components: [] });
+          collector.stop("folded");
         }
       } catch (err) {
         console.error(err);
-        await btnInt.followUp({ content: "❌ コマンド実行中に予期せぬエラーが発生しました", flags: 64 });
+        try { await btnInt.deferUpdate(); } catch {}
+        await interaction.followUp({ content: "❌ コマンド実行中に予期せぬエラーが発生しました", flags: 64 });
       }
     });
 
