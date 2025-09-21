@@ -1,10 +1,10 @@
 import json
+import matplotlib
+matplotlib.use("Agg")  # GUIのない環境でも画像保存できるようにする
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 import sys
 import os
-import matplotlib
-import matplotlib.dates as mdates
 
 # 日本語フォント指定（文字化け防止）
 matplotlib.rcParams['font.family'] = 'IPAexGothic'
@@ -29,28 +29,33 @@ if not history:
 # 直近24時間に絞る
 now = datetime.now()
 one_day_ago = now - timedelta(hours=24)
-filtered = [h for h in history if datetime.fromisoformat(h["time"]) >= one_day_ago]
+
+def parse_time(t: str) -> datetime:
+    # "2025-09-21T12:34:56.789Z" → "2025-09-21T12:34:56.789+00:00"
+    return datetime.fromisoformat(t.replace("Z", "+00:00"))
+
+filtered = [h for h in history if parse_time(h["time"]) >= one_day_ago]
 
 if not filtered:
     filtered = [{"time": now.isoformat(), "price": data.get("stock_price", 950)}]
 
 # x軸: 時間（datetime）、y軸: 価格
-times = [datetime.fromisoformat(h["time"]) for h in filtered]
+times = [parse_time(h["time"]) for h in filtered]
 prices = [h["price"] for h in filtered]
 
 # グラフ作成
 plt.figure(figsize=(8, 4))
-plt.plot(times, prices, linestyle='-', color='blue')  # ← marker を削除
+plt.plot(times, prices, linestyle='-', color='blue')  # 点なしの折れ線
 
 # 軸ラベルとタイトル
-plt.xlabel("時間")        # 横軸ラベルは「時間」
-plt.ylabel("株価")        # 縦軸は株価を表示
+plt.xlabel("時間")        # 横軸は「時間」だけ
+plt.ylabel("株価")        # 縦軸は株価
 plt.title("株価（直近1日）")
 
 # 横軸の目盛りを消す（「時間」だけ残す）
 plt.gca().set_xticks([])
 
-# 縦軸は通常通り残す
+# 縦軸は残す
 plt.grid(True, linestyle="--", alpha=0.6)
 plt.tight_layout()
 
