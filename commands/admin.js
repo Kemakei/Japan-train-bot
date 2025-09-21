@@ -28,10 +28,6 @@ export async function execute(interaction) {
     const password = (interaction.options.getString("password") || "").trim();
     const adminPass = (process.env.ADMIN_PASSWORD || "").trim();
 
-    // ログ出力（デバッグ用）
-    console.log(`[ADMIN] password entered: "${password}"`);
-    console.log(`[ADMIN] adminPass env: "${adminPass}"`);
-
     if (password !== adminPass) {
       return await interaction.editReply("❌ パスワードが間違っています");
     }
