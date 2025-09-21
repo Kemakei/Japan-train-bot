@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import sys
 import os
 import matplotlib
+import matplotlib.dates as mdates
 
 # 日本語フォント指定（文字化け防止）
 matplotlib.rcParams['font.family'] = 'IPAexGothic'
@@ -33,28 +34,24 @@ filtered = [h for h in history if datetime.fromisoformat(h["time"]) >= one_day_a
 if not filtered:
     filtered = [{"time": now.isoformat(), "price": data.get("stock_price", 950)}]
 
-# インデックスと株価
-indices = list(range(1, len(filtered) + 1))
+# x軸: 時間（datetime）、y軸: 価格
+times = [datetime.fromisoformat(h["time"]) for h in filtered]
 prices = [h["price"] for h in filtered]
 
 # グラフ作成
 plt.figure(figsize=(8, 4))
-plt.plot(indices, prices, linestyle='-', marker='o', color='red')
+plt.plot(times, prices, linestyle='-', color='blue')  # ← marker を削除
 
 # 軸ラベルとタイトル
-plt.xlabel("時間")   # ラベルは残す
-plt.ylabel("コイン")
+plt.xlabel("時間")        # 横軸ラベルは「時間」
+plt.ylabel("株価")        # 縦軸は株価を表示
 plt.title("株価（直近1日）")
 
-# 横軸の目盛りは非表示
-plt.xticks([])
+# 横軸の目盛りを消す（「時間」だけ残す）
+plt.gca().set_xticks([])
 
-# 左端を1に固定
-plt.xlim(left=1)
-
-# グリッド表示
+# 縦軸は通常通り残す
 plt.grid(True, linestyle="--", alpha=0.6)
-
 plt.tight_layout()
 
 # 出力ファイル
