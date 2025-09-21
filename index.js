@@ -20,10 +20,13 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => res.send('Bot is alive!'));
-app.all('/', (req, res) => { console.log(`Received a ${req.method} request at '/'`); res.sendStatus(200); });
+app.all('/', (req, res) => { 
+  console.log(`Received a ${req.method} request at '/'`);
+  res.sendStatus(200); 
+});
 app.listen(PORT, () => console.log(`✅ Web server running on port ${PORT}`));
-// ------------------------------------------------------------------------
 
+// ------------------------------------------------------------------------
 // 共通関数
 function trimQuotes(value) {
   if (!value) return '';
@@ -60,27 +63,24 @@ function loadCoins() {
   const raw = JSON.parse(fs.readFileSync(coinsFile, 'utf-8'));
   const map = new Map();
   for (const [userId, data] of Object.entries(raw)) {
-    map.set(userId, {
-      coins: data.coins ?? 0,
-    });
+    map.set(userId, { coins: data.coins ?? 0 });
   }
+
+  // 株価関連初期化
+  if (!map.has("stock_price")) map.set("stock_price", 950);
+  if (!map.has("trade_history")) map.set("trade_history", []);
+
   return map;
 }
 
 function saveCoins(map) {
   const obj = {};
-  for (const [userId, data] of map) {
-    obj[userId] = {
-      coins: data.coins ?? 0,
-    };
-  }
+  for (const [userId, data] of map) obj[userId] = data;
   fs.writeFileSync(coinsFile, JSON.stringify(obj, null, 2));
 }
 
-// 起動時ロード
 client.coins = loadCoins();
 
-// ユーティリティ関数
 client.getCoins = (userId) => client.coins.get(userId)?.coins || 0;
 client.setCoins = (userId, amount) => {
   const data = client.coins.get(userId) || { coins: 0 };
@@ -95,31 +95,81 @@ client.updateCoins = (userId, delta) => {
   saveCoins(client.coins);
 };
 
-// 新規ユーザーは0スタート
 client.on(Events.GuildMemberAdd, member => {
-  if (!client.coins.has(member.id)) {
-    client.setCoins(member.id, 0);
-  }
+  if (!client.coins.has(member.id)) client.setCoins(member.id, 0);
 });
+
+// -------------------- 株価管理 --------------------
+client.getStockPrice = () => client.coins.get("stock_price") || 950;
+
+client.updateStockPrice = (delta) => {
+  let price = client.getStockPrice() + delta;
+  price = Math.max(1, price);
+  client.coins.set("stock_price", price);
+
+  const history = client.coins.get("trade_history") || [];
+  history.push({ time: new Date().toISOString(), price });
+  if (history.length > 144) history.shift(); // 直近1日分
+  client.coins.set("trade_history", history);
+
+  saveCoins(client.coins);
+};
+
+// 売買に応じて株価を変動
+client.modifyStockByTrade = (type, count) => {
+  let delta = Math.floor(count * 0.5);
+  if (type === "sell") delta = -delta;
+  client.updateStockPrice(delta);
+};
+
+// 10分ごとの自動変動 (-30~30、大きい数は稀)
+setInterval(() => {
+  const sign = Math.random() < 0.5 ? -1 : 1;
+  const magnitude = Math.floor(Math.random() * Math.pow(Math.random(), 2) * 30);
+  client.updateStockPrice(sign * magnitude);
+  console.log(`株価自動変動: ${sign * magnitude}, 現在株価: ${client.getStockPrice()}`);
+}, 10 * 60 * 1000);
+
+// -------------------- ヘッジ契約管理 --------------------
+const hedgeFile = path.join(__dirname, 'hedgeContracts.json');
+
+function loadHedges() {
+  if (!fs.existsSync(hedgeFile)) fs.writeFileSync(hedgeFile, JSON.stringify({}));
+  const raw = JSON.parse(fs.readFileSync(hedgeFile, 'utf-8'));
+  return new Map(Object.entries(raw));
+}
+
+function saveHedges() {
+  const obj = Object.fromEntries(client.hedgeContracts);
+  fs.writeFileSync(hedgeFile, JSON.stringify(obj, null, 2));
+}
+
+client.hedgeContracts = loadHedges();
+
+client.getHedge = (userId) => client.hedgeContracts.get(userId) || null;
+client.setHedge = (userId, data) => {
+  client.hedgeContracts.set(userId, data);
+  saveHedges();
+};
+client.clearHedge = (userId) => {
+  client.hedgeContracts.delete(userId);
+  saveHedges();
+};
 
 // ------------------ 🔁 ./commands/*.js を自動読み込み --------------------
 const commandsJSON = [];
 const commandsPath = path.join(__dirname, 'commands');
-const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+const commandFiles = fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'));
 
 for (const file of commandFiles) {
   const filePath = path.join(commandsPath, file);
   const command = await import(`file://${filePath}`);
-
   if ('data' in command && 'execute' in command) {
     const name = command.data.name;
-
-    // 重複チェック
     if (client.commands.has(name)) {
       console.warn(`⚠️ Duplicate command skipped: ${name}`);
       continue;
     }
-
     client.commands.set(name, command);
     commandsJSON.push(command.data.toJSON());
     console.log(`✅ Loaded command: ${name}`);
@@ -141,7 +191,6 @@ client.once(Events.ClientReady, async () => {
   }
 });
 
-// -------------------- InteractionCreate --------------------
 client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand() && !interaction.isMessageContextMenuCommand()) return;
 
@@ -152,7 +201,6 @@ client.on(Events.InteractionCreate, async interaction => {
     await command.execute(interaction, { playlistId, youtubeApiKey });
   } catch (error) {
     console.error(`❌ コマンド実行中にエラーが発生しました:`, error);
-
     if (!interaction.deferred && !interaction.replied) {
       await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", flags: 64 });
     } else {
