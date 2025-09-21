@@ -8,7 +8,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const coinsFile = path.join(__dirname, "../coins.json");
-const INITIAL_PRICE = 950;
 
 export const data = new SlashCommandBuilder()
   .setName("sell")
@@ -21,15 +20,29 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction, { client }) {
   const count = interaction.options.getInteger("count");
-  if (count <= 0) return interaction.reply("❌ 売却数は1以上にしてください");
+  if (count <= 0) return interaction.reply({ content: "❌ 売却数は1以上にしてください", flags: 64 });
+
+  const userData = client.coins.get(interaction.user.id) || { coins: 0, stocks: 0 };
+
+  if ((userData.stocks || 0) < count) {
+    return interaction.reply({ content: `❌ 売却できる株が不足しています\n現在の保有株数: ${userData.stocks || 0} 株`, flags: 64 });
+  }
 
   const stockPrice = client.getStockPrice();
   const totalGain = stockPrice * count;
 
-  // 実際には「株の保有数」を管理していればチェックが必要
-  // ここでは簡略化して売却可能と仮定
+  // コインを増やす
   client.updateCoins(interaction.user.id, totalGain);
+
+  // 株価変動
   client.modifyStockByTrade("sell", count);
 
-  interaction.reply(`✅ 株を ${count} 株売却しました（${totalGain} コイン獲得）`);
+  // 株保有数を減らす
+  userData.stocks -= count;
+  client.coins.set(interaction.user.id, userData);
+
+  // coins.json 保存
+  fs.writeFileSync(coinsFile, JSON.stringify(Object.fromEntries(client.coins), null, 2));
+
+  interaction.reply(`✅ 株を ${count} 株売却しました（${totalGain} コイン獲得）\n現在の保有株数: ${userData.stocks} 株`);
 }

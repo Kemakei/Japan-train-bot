@@ -9,7 +9,12 @@ export async function execute(interaction) {
     const userId = interaction.user.id;
     const client = interaction.client;
 
-    let coins = client.getCoins(userId) || 0;
+    // ユーザーデータ取得（coins と stocks）
+    const userData = client.coins.get(userId) || { coins: 0, stocks: 0 };
+    const coins = userData.coins || 0;
+    const stocks = userData.stocks || 0;
+
+    // ヘッジ契約の確認
     const hedge = client.getHedge(userId);
     let hedgeAccumulated = 0;
 
@@ -36,7 +41,8 @@ export async function execute(interaction) {
     const embed = new EmbedBuilder()
       .setColor('Green')
       .setDescription(
-        `**あなたの所持金: ${client.getCoins(userId)} コイン**` +
+        `**あなたの所持金: ${coins} コイン**` +
+        `\n**保有株数: ${stocks} 株**` + // 株数を追加
         (hedgeAccumulated > 0 ? `\n**契約中の保険金: ${hedgeAccumulated} コイン（次回加算済み）**` : '')
       );
 

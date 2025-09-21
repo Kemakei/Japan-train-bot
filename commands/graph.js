@@ -45,7 +45,7 @@ export async function execute(interaction, { client }) {
   py.on("close", (code) => {
     if (code !== 0) {
       console.error(errorOutput);
-      return interaction.editReply("❌ グラフ生成失敗");
+      return interaction.editReply({content:"❌ グラフ生成失敗", flags:64});
     }
     interaction.editReply({ files: [outputPath] });
   });
