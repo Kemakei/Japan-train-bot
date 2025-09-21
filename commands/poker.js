@@ -22,45 +22,47 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction) {
   const client = interaction.client;
   const userId = interaction.user.id;
-  const bet = 100;
 
-  try {
-    await interaction.deferReply();
+  let bet = 100;
+  if (client.getCoins(userId) < bet)
+    return interaction.reply({ content: "❌ コインが足りません！", flags: 64 });
 
-    if (client.getCoins(userId) < bet) {
-      return await interaction.editReply({ content: "❌ コインが足りません！" });
-    }
+  client.updateCoins(userId, -bet);
+  await interaction.deferReply();
 
-    client.updateCoins(userId, -bet);
+  // --- デッキ作成 ---
+  const suits = ["S", "H", "D", "C"];
+  const ranks = ["2","3","4","5","6","7","8","9","T","J","Q","K","A"];
+  const deck = [];
+  for (const r of ranks) for (const s of suits) deck.push(r + s);
+  deck.sort(() => Math.random() - 0.5);
 
-    // デッキ作成
-    const suits = ["S", "H", "D", "C"];
-    const ranks = ["2","3","4","5","6","7","8","9","T","J","Q","K","A"];
-    const deck = [];
-    for (const r of ranks) for (const s of suits) deck.push(r + s);
-    deck.sort(() => Math.random() - 0.5);
+  const playerHand = deck.splice(0, 5);
+  const botHand = deck.splice(0, 5);
 
-    const playerHand = deck.splice(0, 5);
-    const botHand = deck.splice(0, 5);
-
-    // 画像生成 (Botは裏)
-    exec(`${pythonCmd} "${pythonPath}" ${playerHand.join(" ")} ${botHand.join(" ")} 0`, async (err) => {
-      const combinedPath = path.resolve(__dirname, "../python/images/combined.png");
+  // --- 画像生成 ---
+  exec(`${pythonCmd} "${pythonPath}" ${playerHand.join(" ")} ${botHand.join(" ")} 0`,
+    async (err) => {
       if (err) {
         console.error("Python 実行エラー:", err);
         return await interaction.editReply({
           content: "❌ ポーカー画像の生成中にエラーが発生しました",
+          components: []
         });
       }
 
+      const combinedPath = path.resolve(__dirname, "../python/images/combined.png");
       const file = new AttachmentBuilder(combinedPath);
+
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("call").setLabel("コール").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId("fold").setLabel("フォールド").setStyle(ButtonStyle.Danger)
+        new ButtonBuilder().setCustomId("fold").setLabel("フォールド").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId("bet100").setLabel("ベット +100").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("bet1000").setLabel("ベット +1000").setStyle(ButtonStyle.Primary),
       );
 
       await interaction.editReply({
-        content: `🎲 あなたの手札です。 現在のベット: ${bet}`,
+        content: `🎲 あなたの手札です。現在のベット: ${bet} コイン`,
         files: [file],
         components: [row],
       });
@@ -69,48 +71,65 @@ export async function execute(interaction) {
 
       collector.on("collect", async (btnInt) => {
         if (btnInt.user.id !== userId) {
-          return btnInt.reply({ content: "❌ あなたのゲームではありません！", ephemeral: true });
+          return btnInt.reply({ content: "❌ あなたのゲームではありません！", flags: 64 });
         }
 
         try {
           await btnInt.deferUpdate();
 
+          if (btnInt.customId === "bet100") {
+            if ((bet + 100) * 2 > client.getCoins(userId)) {
+              return await interaction.followUp({ content: "❌ コインが足りません！", flags: 64 });
+            }
+            bet += 100;
+            return await interaction.editReply({ content: `🎲 現在のベット: ${bet} コイン`, components: [row] });
+          }
+
+          if (btnInt.customId === "bet1000") {
+            if ((bet + 1000) * 2 > client.getCoins(userId)) {
+              return await interaction.followUp({ content: "❌ コインが足りません！", flags: 64 });
+            }
+            bet += 1000;
+            return await interaction.editReply({ content: `🎲 現在のベット: ${bet} コイン`, components: [row] });
+          }
+
           if (btnInt.customId === "call") {
             collector.stop("called");
-            exec(`${pythonCmd} "${pythonPath}" ${playerHand.join(" ")} ${botHand.join(" ")} 1`, async (err, stdout) => {
-              if (err) {
-                console.error("Python 勝敗判定エラー:", err);
-                return await interaction.followUp({ content: "❌ 勝敗判定中にエラーが発生しました", ephemeral: true });
-              }
+            exec(`${pythonCmd} "${pythonPath}" ${playerHand.join(" ")} ${botHand.join(" ")} 1`,
+              async (err, stdout) => {
+                if (err) {
+                  console.error("Python 勝敗判定エラー:", err);
+                  return await interaction.followUp({ content: "❌ 勝敗判定中にエラーが発生しました", flags: 64 });
+                }
 
-              const [winner, scoreStr] = stdout.toString().trim().split(",");
-              const score = Number(scoreStr);
-              let amount = 0;
-              let msg = "";
+                const [winner, scoreStr] = stdout.toString().trim().split(",");
+                const score = Number(scoreStr);
+                let amount = 0;
+                let msg = "";
 
-              if (winner === "player") {
-                let multiplier = score <= 200 ? 0.5 : score <= 800 ? 1 : 2;
-                amount = Math.floor(bet * multiplier);
-                client.updateCoins(userId, amount);
-                msg = `🎉 勝ち！ +${amount}\n所持金: ${client.getCoins(userId)}`;
-              } else if (winner === "bot") {
-                let multiplier = score <= 200 ? 2 : score <= 800 ? 1 : 0.5;
-                amount = -Math.floor(bet * multiplier);
-                client.updateCoins(userId, amount);
-                msg = `💀 負け！ ${amount}\n所持金: ${client.getCoins(userId)}`;
-              } else {
-                amount = Math.floor(bet / 2);
-                client.updateCoins(userId, amount);
-                msg = `🤝 引き分け！ ${amount} コイン返却\n所持金: ${client.getCoins(userId)}`;
-              }
+                if (winner === "player") {
+                  let multiplier = score <= 200 ? 0.5 : score <= 800 ? 1 : 2;
+                  amount = Math.floor(bet * multiplier);
+                  client.updateCoins(userId, amount);
+                  msg = `🎉 勝ち！ +${amount} コイン\n所持金: ${client.getCoins(userId)}`;
+                } else if (winner === "bot") {
+                  let multiplier = score <= 200 ? 2 : score <= 800 ? 1 : 0.5;
+                  amount = -Math.floor(bet * multiplier);
+                  client.updateCoins(userId, amount);
+                  msg = `💀 負け！ ${amount} コイン\n所持金: ${client.getCoins(userId)}`;
+                } else {
+                  amount = Math.floor(bet / 2);
+                  client.updateCoins(userId, amount);
+                  msg = `🤝 引き分け！ ${amount} コイン返却\n所持金: ${client.getCoins(userId)}`;
+                }
 
-              await interaction.editReply({ content: msg, files: [file], components: [] });
-            });
+                await interaction.editReply({ content: msg, files: [file], components: [] });
+              });
           }
 
           if (btnInt.customId === "fold") {
             collector.stop("folded");
-            await btnInt.update({
+            await interaction.editReply({
               content: `🏳️ フォールドしました。\n所持金: ${client.getCoins(userId)}`,
               components: []
             });
@@ -118,30 +137,16 @@ export async function execute(interaction) {
 
         } catch (err) {
           console.error(err);
-          try { await btnInt.deferUpdate(); } catch {}
-          await interaction.followUp({ content: "❌ コマンド実行中に予期せぬエラーが発生しました", ephemeral: true });
+          await interaction.followUp({ content: "❌ コマンド実行中に予期せぬエラーが発生しました", flags: 64 });
         }
       });
 
       collector.on("end", async (_, reason) => {
         if (reason !== "called" && reason !== "folded") {
           client.updateCoins(userId, bet);
-          await interaction.editReply({
-            content: `⌛ タイムアウト\n所持金: ${client.getCoins(userId)}`,
-            components: []
-          });
+          await interaction.editReply({ content: `⌛ タイムアウト\n所持金: ${client.getCoins(userId)}`, components: [] });
         }
       });
     });
-
-  } catch (err) {
-    console.error(err);
-    try {
-      if (!interaction.replied) {
-        await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", ephemeral: true });
-      } else {
-        await interaction.editReply({ content: "❌ コマンド実行中にエラーが発生しました", ephemeral: true });
-      }
-    } catch {}
-  }
 }
+

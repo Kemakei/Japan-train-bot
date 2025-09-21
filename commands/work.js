@@ -34,7 +34,7 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction) {
   try {
     // まず ACK
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply();
 
     const userId = interaction.user.id;
     const now = Date.now();
@@ -46,9 +46,10 @@ export async function execute(interaction) {
       const minutes = Math.floor(remaining / 60000);
       const seconds = Math.floor((remaining % 60000) / 1000);
 
-      return await interaction.editReply({
-        content: `次に実行できるまであと **${minutes}分${seconds}秒** です。`,
-      });
+     return await interaction.editReply({
+     content: `次に実行できるまであと **${minutes}分${seconds}秒** です。`,
+     flags: 64
+     });
     }
 
     const earned = Math.floor(Math.random() * (1000 - 600 + 1)) + 600;
