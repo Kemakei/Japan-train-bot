@@ -35,11 +35,6 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   try {
-    // defer 応答
-    if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply();
-    }
-
     const userId = interaction.user.id;
     const now = Date.now();
     const cooldown = 20 * 60 * 1000; // 20分
@@ -50,16 +45,23 @@ export async function execute(interaction) {
       const minutes = Math.floor(remaining / 60000);
       const seconds = Math.floor((remaining % 60000) / 1000);
 
-      return await interaction.editReply({
-        content: `次に実行できるまであと **${minutes}分${seconds}秒** です。`,
-        flags: 64
-      });
+      // ephemeral で通知
+      if (!interaction.deferred && !interaction.replied) {
+        await interaction.reply({
+          content: `次に実行できるまであと **${minutes}分${seconds}秒** です。`,
+          flags: 64
+        });
+      } else {
+        await interaction.editReply({
+          content: `次に実行できるまであと **${minutes}分${seconds}秒** です。`,
+          flags: 64
+        });
+      }
+      return;
     }
 
     // ランダム報酬 (600〜1000)
     const earned = Math.floor(Math.random() * (1000 - 600 + 1)) + 600;
-
-    // coins.json は updateCoins で更新
     interaction.client.updateCoins(userId, earned);
 
     // cooldown 更新＆保存
@@ -73,14 +75,20 @@ export async function execute(interaction) {
         `💰 **${earned}コイン手に入れました！**\n所持金: **${interaction.client.getCoins(userId)}コイン**`
       );
 
-    await interaction.editReply({ embeds: [embed] });
+    // 公開メッセージ
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.reply({ embeds: [embed] });
+    } else {
+      await interaction.editReply({ embeds: [embed] });
+    }
 
   } catch (err) {
     console.error(err);
+    // エラーは ephemeral
     if (!interaction.deferred && !interaction.replied) {
       await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", flags: 64 });
     } else {
-      await interaction.editReply({ content: "❌ コマンド実行中にエラーが発生しました" , flags: 64});
+      await interaction.editReply({ content: "❌ コマンド実行中にエラーが発生しました", flags: 64 });
     }
   }
 }
