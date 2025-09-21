@@ -1,76 +1,9 @@
-// src/commands/trade.js
 import { SlashCommandBuilder, AttachmentBuilder } from "discord.js";
-import { ChartJSNodeCanvas } from 'chartjs-node-canvas';
+import { spawn } from "child_process";
 import money from "../../lib/money.js";
 import db from "../../lib/db.js";
 import time from "../../lib/time.js";
-import sign from "../../lib/sign.js";
 
-const width = 800;
-const height = 400;
-const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height });
-
-// 株価を10分ごとに自動更新
-setInterval(async () => {
-    try {
-        let data = await db("SELECT * FROM count WHERE id = 1");
-        if(!data[0]) return;
-
-        let price = data[0].stock_price || 950;
-        const hour = new Date().getHours();
-
-        let volatility = 0.002;
-        if(hour >= 0 && hour < 6) volatility = 0.001;
-        else if(hour >= 6 && hour < 12) volatility = 0.003;
-        else if(hour >= 12 && hour < 18) volatility = 0.005;
-        else volatility = 0.002;
-
-        const changePercent = (Math.random() * 2 - 1) * volatility;
-        const newPrice = Math.max(1, price * (1 + changePercent));
-
-        await db(`UPDATE count SET stock_price = ${newPrice}, last_update = NOW() WHERE id = 1`);
-        await db(`INSERT INTO trade_history (time, price) VALUES (NOW(), ${newPrice})`);
-        console.log(`株価更新: ${price.toFixed(2)} → ${newPrice.toFixed(2)}`);
-    } catch(e) {
-        console.error("株価更新エラー:", e);
-    }
-}, 600000); // 10分ごと
-
-// グラフ生成関数
-async function generateStockGraph() {
-    const history = await db("SELECT * FROM trade_history WHERE time >= DATE_SUB(NOW(), INTERVAL 1 DAY) ORDER BY time ASC");
-    if(!history.length) return null;
-
-    const labels = history.map(d => d.time.toISOString().slice(11,16));
-    const dataArr = history.map(d => d.price);
-
-    const config = {
-        type: 'line',
-        data: {
-            labels,
-            datasets: [{
-                label: '株価',
-                data: dataArr,
-                borderColor: 'rgba(75,192,192,1)',
-                backgroundColor: 'rgba(75,192,192,0.2)',
-                fill: true,
-                tension: 0.2
-            }]
-        },
-        options: {
-            scales: {
-                x: { title: { display: true, text: '時間' } },
-                y: { title: { display: true, text: 'コイン' } }
-            },
-            plugins: { legend: { display: false } }
-        }
-    };
-
-    const image = await chartJSNodeCanvas.renderToBuffer(config);
-    return new AttachmentBuilder(image, { name: 'stock.png' });
-}
-
-// スラッシュコマンド定義
 export const data = [
     new SlashCommandBuilder().setName("graph").setDescription("株価グラフを表示します"),
     new SlashCommandBuilder().setName("trade_buy").setDescription("株を購入します")
@@ -79,7 +12,22 @@ export const data = [
         .addIntegerOption(opt => opt.setName("count").setDescription("売却する株数").setRequired(true))
 ];
 
-// コマンド処理
+async function generateGraph(history) {
+    return new Promise((resolve, reject) => {
+        const py = spawn("python3", ["./python/graph.py", JSON.stringify(history)]);
+
+        let chunks = [];
+        py.stdout.on("data", chunk => chunks.push(chunk));
+        py.stderr.on("data", err => console.error(err.toString()));
+
+        py.on("close", code => {
+            if(code !== 0) return reject(new Error(`Python exited with code ${code}`));
+            const buffer = Buffer.concat(chunks);
+            resolve(new AttachmentBuilder(buffer, { name: "stock.png" }));
+        });
+    });
+}
+
 export async function execute(interaction) {
     const command = interaction.commandName;
 
@@ -99,17 +47,16 @@ export async function execute(interaction) {
 
         const userData = await money.get(interaction.user.id);
         const commission = Math.floor(count * price * 0.03 + count * 0.5);
-
         if(userData.amount < count * price + commission) {
             return interaction.reply({ content: "所持金が不足しています（手数料込み）", ephemeral: true });
         }
 
-        const history = await db(`SELECT * FROM history WHERE user = ${interaction.user.id} AND (reason='株の購入' OR reason='株の売却') ORDER BY time DESC;`);
-        if(history[0] && new Date() - history[0].time <= 300000) {
-            return interaction.reply({ content: `次の取引まであと${time(300000 - (new Date() - history[0].time))}です`, ephemeral: true });
+        const historyCheck = await db(`SELECT * FROM history WHERE user=${interaction.user.id} AND (reason='株の購入' OR reason='株の売却') ORDER BY time DESC`);
+        if(historyCheck[0] && new Date() - historyCheck[0].time <= 300000) {
+            return interaction.reply({ content: `次の取引まであと${time(300000 - (new Date() - historyCheck[0].time))}です`, ephemeral: true });
         }
 
-        await db(`UPDATE money SET stock = ${userData.stock + count} WHERE id = ${interaction.user.id}`);
+        await db(`UPDATE money SET stock=${userData.stock + count} WHERE id=${interaction.user.id}`);
         await money.delete(interaction.user.id, count * price, "株の購入");
         await money.delete(interaction.user.id, commission, "株の購入手数料");
 
@@ -130,12 +77,12 @@ export async function execute(interaction) {
             return interaction.reply({ content: "売却株数が不正です", ephemeral: true });
         }
 
-        const history = await db(`SELECT * FROM history WHERE user = ${interaction.user.id} AND (reason='株の購入' OR reason='株の売却') ORDER BY time DESC;`);
-        if(history[0] && new Date() - history[0].time <= 300000) {
-            return interaction.reply({ content: `次の取引まであと${time(300000 - (new Date() - history[0].time))}です`, ephemeral: true });
+        const historyCheck = await db(`SELECT * FROM history WHERE user=${interaction.user.id} AND (reason='株の購入' OR reason='株の売却') ORDER BY time DESC`);
+        if(historyCheck[0] && new Date() - historyCheck[0].time <= 300000) {
+            return interaction.reply({ content: `次の取引まであと${time(300000 - (new Date() - historyCheck[0].time))}です`, ephemeral: true });
         }
 
-        await db(`UPDATE money SET stock = ${userData.stock - count} WHERE id = ${interaction.user.id}`);
+        await db(`UPDATE money SET stock=${userData.stock - count} WHERE id=${interaction.user.id}`);
         await money.add(interaction.user.id, count * price, "株の売却");
 
         const priceChange = count * 0.0005;
@@ -149,9 +96,11 @@ export async function execute(interaction) {
     // ----------------------
     else if(command === "graph") {
         await interaction.deferReply();
-        const attachment = await generateStockGraph();
-        if(!attachment) return interaction.editReply("グラフデータがありません");
 
+        const historyData = await db("SELECT * FROM trade_history WHERE time >= DATE_SUB(NOW(), INTERVAL 1 DAY) ORDER BY time ASC");
+        if(!historyData.length) return interaction.editReply("グラフデータがありません");
+
+        const attachment = await generateGraph(historyData);
         return interaction.editReply({ content: "株価の推移（直近1日）", files: [attachment] });
     }
 }
