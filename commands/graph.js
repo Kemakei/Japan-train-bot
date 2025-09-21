@@ -3,7 +3,6 @@ import { spawn } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// __dirname を ESM で定義
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -17,14 +16,18 @@ export async function execute(interaction, { client }) {
   const pythonPath = path.resolve(__dirname, "../python/graph.py");
   const pythonCmd = process.platform === "win32" ? "py" : "python3";
 
-  // trade_history と stock_price を安全に取得
+  // 安全に trade_history と stock_price を取得
   const tradeHistoryObj = client.coins.get("trade_history");
-  const tradeHistory = Array.isArray(tradeHistoryObj?.coins) ? tradeHistoryObj.coins
-                      : Array.isArray(tradeHistoryObj) ? tradeHistoryObj
-                      : [];
+  const tradeHistory = Array.isArray(tradeHistoryObj?.coins)
+    ? tradeHistoryObj.coins
+    : Array.isArray(tradeHistoryObj)
+      ? tradeHistoryObj
+      : [];
 
   const stockPriceObj = client.coins.get("stock_price");
-  const stockPrice = typeof stockPriceObj?.coins === "number" ? stockPriceObj.coins : 950;
+  const stockPrice = typeof stockPriceObj?.coins === "number"
+    ? stockPriceObj.coins
+    : 950;
 
   const dataToSend = JSON.stringify({ trade_history: tradeHistory, stock_price: stockPrice });
 
