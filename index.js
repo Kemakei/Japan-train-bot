@@ -204,7 +204,7 @@ client.on(Events.InteractionCreate, async interaction => {
   if (!command) return;
 
   try {
-    await command.execute(interaction, { playlistId, youtubeApiKey });
+    await command.execute(interaction, { client, playlistId, youtubeApiKey });
   } catch (error) {
     console.error(`❌ コマンド実行中にエラーが発生しました:`, error);
     if (!interaction.deferred && !interaction.replied) {
