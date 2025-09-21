@@ -1,43 +1,33 @@
-# python/graph.py
 import json
 import matplotlib.pyplot as plt
-from datetime import datetime, timedelta
-import sys
+from datetime import datetime
 import os
 
-coins_file = sys.argv[1]  # tmp_trade_history.json
-output_file = sys.argv[2]  # stock.png
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+coins_file = os.path.join(BASE_DIR, "../coins.json")
+img_file = os.path.join(BASE_DIR, "stock.png")
 
-if not os.path.exists(coins_file):
-    print("No trade history file")
-    sys.exit(1)
-
-with open(coins_file, "r") as f:
+# データ読み込み
+with open(coins_file, "r", encoding="utf-8") as f:
     data = json.load(f)
 
-history = data.get("trade_history", [])
+history = data.get("trade_history", {}).get("coins", [])
 if not history:
-    print("No trade history")
-    sys.exit(0)
-
-# 過去1日分に絞る
-now = datetime.utcnow()
-one_day_ago = now - timedelta(days=1)
-history = [h for h in history if datetime.fromisoformat(h["time"]) >= one_day_ago]
-
-if not history:
-    print("No recent data")
-    sys.exit(0)
+    history = []
 
 times = [datetime.fromisoformat(h["time"]) for h in history]
 prices = [h["price"] for h in history]
 
-plt.figure(figsize=(10,5))
-plt.plot(times, prices, marker='o', linestyle='-', color='blue')
-plt.title("株価推移（直近1日）")
-plt.xlabel("時間 (UTC)")
-plt.ylabel("株価（コイン）")
+if not times:
+    times = [datetime.now()]
+    prices = [950]
+
+plt.figure(figsize=(8,4))
+plt.plot(times, prices, marker='o')
+plt.title("株価の推移（直近1日）")
+plt.xlabel("時間")
+plt.ylabel("価格")
 plt.grid(True)
 plt.tight_layout()
-plt.savefig(output_file)
+plt.savefig(img_file)
 plt.close()

@@ -100,17 +100,17 @@ client.on(Events.GuildMemberAdd, member => {
 });
 
 // -------------------- 株価管理 --------------------
-client.getStockPrice = () => client.coins.get("stock_price") || 950;
+client.getStockPrice = () => client.coins.get("stock_price")?.coins || 950;
 
 client.updateStockPrice = (delta) => {
   let price = client.getStockPrice() + delta;
   price = Math.max(1, price);
-  client.coins.set("stock_price", price);
+  client.coins.set("stock_price", { coins: price });
 
-  const history = client.coins.get("trade_history") || [];
+  const history = client.coins.get("trade_history")?.coins || [];
   history.push({ time: new Date().toISOString(), price });
   if (history.length > 144) history.shift(); // 直近1日分
-  client.coins.set("trade_history", history);
+  client.coins.set("trade_history", { coins: history });
 
   saveCoins(client.coins);
 };
