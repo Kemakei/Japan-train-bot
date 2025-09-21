@@ -1,8 +1,11 @@
 import { SlashCommandBuilder } from "discord.js";
 import { spawn } from "child_process";
 import path from "path";
+import { fileURLToPath } from "url";
 
-const __dirname = path.resolve();
+// __dirname を ESM で定義
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export const data = new SlashCommandBuilder()
   .setName("graph")
@@ -11,6 +14,7 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction, { client }) {
   await interaction.deferReply();
 
+  // graph.js の場所を基準に python/graph.py を探す
   const pythonPath = path.resolve(__dirname, "../python/graph.py");
   const pythonCmd = process.platform === "win32" ? "py" : "python3";
 
@@ -23,11 +27,13 @@ export async function execute(interaction, { client }) {
   py.stdin.end();
 
   const outputPath = path.resolve(__dirname, "../stock.png");
-  let errorOutput = '';
+  let errorOutput = "";
 
-  py.stderr.on('data', (data) => { errorOutput += data.toString(); });
+  py.stderr.on("data", (data) => {
+    errorOutput += data.toString();
+  });
 
-  py.on('close', (code) => {
+  py.on("close", (code) => {
     if (code !== 0) {
       console.error(errorOutput);
       return interaction.editReply("❌ グラフ生成失敗");

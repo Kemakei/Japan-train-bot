@@ -1,28 +1,38 @@
 import { SlashCommandBuilder } from "discord.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+// __dirname を ESM で定義
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const coinsFile = path.join(__dirname, "../coins.json");
+const INITIAL_PRICE = 950;
 
 export const data = new SlashCommandBuilder()
-  .setName("trade_buy")
+  .setName("buy")
   .setDescription("株を購入します")
-  .addIntegerOption(opt => opt.setName("count").setDescription("購入する株数").setRequired(true));
+  .addIntegerOption(option =>
+    option.setName("count")
+      .setDescription("購入する株数")
+      .setRequired(true)
+  );
 
 export async function execute(interaction, { client }) {
-  const userId = interaction.user.id;
   const count = interaction.options.getInteger("count");
-  if (count < 1) return interaction.reply({ content: "1株以上指定してください", flags: 64 });
+  if (count <= 0) return interaction.reply("❌ 購入数は1以上にしてください");
 
-  const price = client.getStockPrice();
-  const commission = Math.floor(count * price * 0.03 + count * 0.5);
+  const stockPrice = client.getStockPrice();
+  const totalCost = stockPrice * count;
+  const userCoins = client.getCoins(interaction.user.id);
 
-  const user = client.coins.get(userId) || { coins: 950, stock: 0 };
-  if (user.coins < count * price + commission) {
-    return interaction.reply({ content: "所持金不足（手数料込み）", flags: 64 });
+  if (userCoins < totalCost) {
+    return interaction.reply("❌ コインが足りません");
   }
 
-  user.coins -= count * price + commission;
-  user.stock = (user.stock || 0) + count;
-  client.coins.set(userId, user);
-
+  client.updateCoins(interaction.user.id, -totalCost);
   client.modifyStockByTrade("buy", count);
 
-  return interaction.reply({ content: `株を${count}株購入しました（手数料: ${commission}）` });
+  interaction.reply(`✅ 株を ${count} 株購入しました（${totalCost} コイン消費）`);
 }
