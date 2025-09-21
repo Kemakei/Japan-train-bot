@@ -12,8 +12,8 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// --- 絶対パスで combine.py を指定 ---
-const pythonPath = path.join(__dirname, "combine.py");
+// --- combine.py の絶対パス ---
+const pythonPath = path.resolve(__dirname, "../python/combine.py"); // commands から見て1階層上の python フォルダ
 const pythonCmd = process.platform === "win32" ? "py" : "python3";
 
 export const data = new SlashCommandBuilder()
@@ -50,7 +50,7 @@ export async function execute(interaction) {
       return await interaction.followUp({ content: "❌ ポーカー画像の生成中にエラーが発生しました", flags: 64 });
     }
 
-    const combinedPath = path.join(__dirname, "images", "combined.png");
+    const combinedPath = path.resolve(__dirname, "../python/images/combined.png");
     const file = new AttachmentBuilder(combinedPath);
 
     const row = new ActionRowBuilder().addComponents(
