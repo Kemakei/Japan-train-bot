@@ -25,8 +25,8 @@ export async function execute(interaction) {
   const userId = interaction.user.id;
   let points = client.getCoins(userId) || 0;
 
-  if (bet <= 0) return interaction.reply({ content: "❌ 正しい賭け金を入力してください！", flags: 64 });
-  if (bet > points) return interaction.reply({ content: "❌ コインが足りません！", flags: 64 });
+  if (bet < 100) return interaction.reply({ content: "❌ 最低賭け金は100コインです！", flags: 64 });
+  if (bet * 1.5 > points) return interaction.reply({ content: "❌ コインが足りません！", flags: 64 });
 
   await interaction.deferReply(); // 初回応答待機
 
@@ -44,16 +44,16 @@ export async function execute(interaction) {
 
   let outcome = "";
   if (finalResult.every(v => v === finalResult[0])) {
-    const win = bigJackpot[finalResult[0]] + Math.ceil(bet * 0.4);
+    const win = bigJackpot[finalResult[0]] + Math.ceil(bet * 0.4 + bet);
     client.updateCoins(userId, win);
     outcome = `🎉 大当たり！ ${win}コイン獲得！`;
   } else if (new Set(finalResult).size === 2) {
     const matchSymbol = finalResult.find(s => finalResult.filter(v => v === s).length === 2);
-    const win = smallJackpot[matchSymbol] + Math.ceil(bet * 0.2);
+    const win = smallJackpot[matchSymbol] + Math.ceil(bet * 0.2 + bet);
     client.updateCoins(userId, win);
     outcome = `✨ 小当たり！ ${win}コイン獲得！`;
   } else {
-    client.updateCoins(userId, -bet);
+    client.updateCoins(userId, -bet * 1.5);
     outcome = `💔 ハズレ… ${bet}コイン失いました。`;
   }
 

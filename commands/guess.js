@@ -21,11 +21,6 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   try {
-    // defer を最初に呼ぶ
-    if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply();
-    }
-
     const userId = interaction.user.id;
     const guess = interaction.options.getInteger('number');
     const bet = interaction.options.getInteger('bet');
@@ -33,12 +28,16 @@ export async function execute(interaction) {
 
     let coins = client.getCoins(userId) || 0;
 
+    // --- 先にチェックして即終了（ephemeral） ---
     if (bet < 100) {
-      return await interaction.editReply({content: "❌ 最低掛け金は100です！", flags: 64 });
+      return await interaction.reply({ content: "❌ 最低掛け金は100です！", flags: 64 });
     }
     if (bet > coins) {
-      return await interaction.editReply({content:"❌ 所持コインが足りません！", flags: 64});
+      return await interaction.reply({ content: `❌ 所持コインが足りません！（現在: ${coins}）`, flags: 64 });
     }
+
+    // 正常時のみ deferReply（公開メッセージ）
+    await interaction.deferReply();
 
     const answer = Math.floor(Math.random() * 3) + 1;
 
@@ -53,21 +52,21 @@ export async function execute(interaction) {
       const win = Math.ceil(bet * 2.8);
       client.updateCoins(userId, win);
       coins = client.getCoins(userId);
-      embed.setDescription(`当たり！ ${win} 勝ち\n現在のコイン: ${coins}`).setColor("#00FF00");
+      embed.setDescription(`✅ 当たり！ **${win}コイン** 獲得！\n現在のコイン: ${coins}`).setColor("#00FF00");
     } else {
       const loss = Math.ceil(bet * 1.5);
       client.updateCoins(userId, -loss);
       coins = client.getCoins(userId);
-      embed.setDescription(`外れ... ${loss} 負け\n現在のコイン: ${coins}`).setColor("#FF0000");
+      embed.setDescription(`💔 外れ… **${loss}コイン** 失いました\n現在のコイン: ${coins}`).setColor("#FF0000");
     }
 
     await interaction.editReply({ embeds: [embed] });
   } catch (err) {
     console.error(err);
-    if (!interaction.deferred && !interaction.replied) {
+    if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました。", flags: 64 });
     } else {
-      await interaction.editReply({content: "❌ コマンド実行中にエラーが発生しました。", flags: 64});
+      await interaction.editReply({ content: "❌ コマンド実行中にエラーが発生しました。" });
     }
   }
 }
