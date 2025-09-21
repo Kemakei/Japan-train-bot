@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 import sys
 import os
 
-matplotlib.rcParams['font.family'] = 'IPAexGothic'  # 日本語フォント
+matplotlib.rcParams['font.family'] = ['IPAexGothic', 'IPAPGothic', 'Noto Sans CJK JP', 'Yu Gothic', 'Meiryo']
 
 def parse_time(t):
     """柔軟に時刻文字列をパースし、UTC Naive datetime を返す（例: '...Z' を扱う）"""

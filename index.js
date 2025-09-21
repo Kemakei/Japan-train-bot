@@ -130,11 +130,12 @@ client.modifyStockByTrade = (type, count) => {
 // 10分ごとの自動変動 (-30~30 の整数)
 setInterval(() => {
   const sign = Math.random() < 0.5 ? -1 : 1;
-  const magnitude = Math.floor(Math.random() * 31); // 0~30
-  const delta = sign * Math.max(1, magnitude);      // 最小1の変動
+  const magnitude = Math.floor(Math.sqrt(Math.random() * 31 * 31)); // 0~30
+  const delta = sign * Math.max(1, magnitude); // 最小1に補正
   client.updateStockPrice(delta);
   console.log(`株価自動変動: ${delta}, 現在株価: ${client.getStockPrice()}`);
-}, 30 * 1000);
+}, 10 * 60 * 1000);
+
 
 // -------------------- ヘッジ契約管理 --------------------
 const hedgeFile = path.join(__dirname, 'hedgeContracts.json');
