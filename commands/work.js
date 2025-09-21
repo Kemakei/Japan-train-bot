@@ -7,7 +7,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const cooldownFile = path.join(__dirname, '../cooldowns.json');
 
-// -------------------- cooldowns.json 読み書き --------------------
 function loadCooldowns() {
   try {
     if (!fs.existsSync(cooldownFile)) fs.writeFileSync(cooldownFile, JSON.stringify({}));
@@ -28,13 +27,15 @@ function saveCooldowns(data) {
 
 let cooldowns = loadCooldowns();
 
-// -------------------- SlashCommandBuilder --------------------
 export const data = new SlashCommandBuilder()
   .setName('work')
   .setDescription('20分に1回お金をもらえます');
 
 export async function execute(interaction) {
   try {
+    // まず ACK
+    await interaction.deferReply({ ephemeral: true });
+
     const userId = interaction.user.id;
     const now = Date.now();
     const cooldown = 20 * 60 * 1000; // 20分
@@ -45,50 +46,34 @@ export async function execute(interaction) {
       const minutes = Math.floor(remaining / 60000);
       const seconds = Math.floor((remaining % 60000) / 1000);
 
-      // ephemeral で通知
-      if (!interaction.deferred && !interaction.replied) {
-        await interaction.reply({
-          content: `次に実行できるまであと **${minutes}分${seconds}秒** です。`,
-          flags: 64
-        });
-      } else {
-        await interaction.editReply({
-          content: `次に実行できるまであと **${minutes}分${seconds}秒** です。`,
-          flags: 64
-        });
-      }
-      return;
+      return await interaction.editReply({
+        content: `次に実行できるまであと **${minutes}分${seconds}秒** です。`,
+      });
     }
 
-    // ランダム報酬 (600〜1000)
     const earned = Math.floor(Math.random() * (1000 - 600 + 1)) + 600;
     interaction.client.updateCoins(userId, earned);
 
-    // cooldown 更新＆保存
     cooldowns[userId] = now;
     saveCooldowns(cooldowns);
 
-    // Embed を作成（緑色）
     const embed = new EmbedBuilder()
       .setColor('Green')
       .setDescription(
         `💰 **${earned}コイン手に入れました！**\n所持金: **${interaction.client.getCoins(userId)}コイン**`
       );
 
-    // 公開メッセージ
-    if (!interaction.deferred && !interaction.replied) {
-      await interaction.reply({ embeds: [embed] });
-    } else {
-      await interaction.editReply({ embeds: [embed] });
-    }
+    // エフェメラルはエラー時のみ
+    await interaction.editReply({ embeds: [embed], ephemeral: false });
 
   } catch (err) {
     console.error(err);
-    // エラーは ephemeral
-    if (!interaction.deferred && !interaction.replied) {
-      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", flags: 64 });
-    } else {
-      await interaction.editReply({ content: "❌ コマンド実行中にエラーが発生しました", flags: 64 });
-    }
+    try {
+      if (!interaction.replied) {
+        await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", ephemeral: true });
+      } else {
+        await interaction.editReply({ content: "❌ コマンド実行中にエラーが発生しました", ephemeral: true });
+      }
+    } catch {}
   }
 }
