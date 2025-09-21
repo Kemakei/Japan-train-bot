@@ -33,20 +33,20 @@ filtered = [h for h in history if datetime.fromisoformat(h["time"]) >= one_day_a
 if not filtered:
     filtered = [{"time": now.isoformat(), "price": data.get("stock_price", 950)}]
 
-# インデックス（取引番号）と株価
+# インデックスと株価
 indices = list(range(1, len(filtered) + 1))
 prices = [h["price"] for h in filtered]
 
 # グラフ作成
 plt.figure(figsize=(8, 4))
-plt.plot(indices, prices, linestyle='-', color='red')
+plt.plot(indices, prices, linestyle='-', marker='o', color='red')
 
 # 軸ラベルとタイトル
-plt.xlabel("時間")   # 軸ラベルだけ表示
+plt.xlabel("時間")   # ラベルは残す
 plt.ylabel("コイン")
-plt.title("株価")
+plt.title("株価（直近1日）")
 
-# 横軸の目盛りを非表示
+# 横軸の目盛りは非表示
 plt.xticks([])
 
 # 左端を1に固定
