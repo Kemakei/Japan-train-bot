@@ -1,106 +1,107 @@
 import { SlashCommandBuilder, AttachmentBuilder } from "discord.js";
-import { spawn } from "child_process";
-import money from "../../lib/money.js";
-import db from "../../lib/db.js";
-import time from "../../lib/time.js";
+import { execFile } from "child_process";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const COINS_FILE = path.join(__dirname, "../coins.json");
+const INITIAL_PRICE = 950;
+
+// 株価自動更新（10分ごと）
+setInterval(() => {
+  try {
+    const raw = JSON.parse(fs.readFileSync(COINS_FILE, "utf-8"));
+    let price = raw.stock_price ?? INITIAL_PRICE;
+
+    const hour = new Date().getHours();
+    let volatility = 0.002;
+    if (hour < 6) volatility = 0.001;
+    else if (hour < 12) volatility = 0.003;
+    else if (hour < 18) volatility = 0.005;
+    else volatility = 0.002;
+
+    const changePercent = (Math.random() * 2 - 1) * volatility;
+    const newPrice = Math.max(1, Math.floor(price * (1 + changePercent)));
+
+    raw.stock_price = newPrice;
+    if (!raw.history) raw.history = [];
+    raw.history.push({ time: new Date().toISOString(), price: newPrice });
+    raw.history = raw.history.filter(d => new Date(d.time) >= new Date(Date.now() - 24*60*60*1000));
+
+    fs.writeFileSync(COINS_FILE, JSON.stringify(raw, null, 2));
+    console.log(`株価更新: ${price} → ${newPrice}`);
+  } catch (e) {
+    console.error("株価更新エラー:", e);
+  }
+}, 600_000);
+
+// スラッシュコマンド定義
 export const data = [
-    new SlashCommandBuilder().setName("graph").setDescription("株価グラフを表示します"),
-    new SlashCommandBuilder().setName("trade_buy").setDescription("株を購入します")
-        .addIntegerOption(opt => opt.setName("count").setDescription("購入する株数").setRequired(true)),
-    new SlashCommandBuilder().setName("trade_sell").setDescription("株を売却します")
-        .addIntegerOption(opt => opt.setName("count").setDescription("売却する株数").setRequired(true))
+  new SlashCommandBuilder().setName("graph").setDescription("株価グラフを表示します"),
+  new SlashCommandBuilder().setName("trade_buy").setDescription("株を購入します")
+    .addIntegerOption(opt => opt.setName("count").setDescription("購入する株数").setRequired(true)),
+  new SlashCommandBuilder().setName("trade_sell").setDescription("株を売却します")
+    .addIntegerOption(opt => opt.setName("count").setDescription("売却する株数").setRequired(true))
 ];
 
-async function generateGraph(history) {
-    return new Promise((resolve, reject) => {
-        const py = spawn("python3", ["./python/graph.py", JSON.stringify(history)]);
-
-        let chunks = [];
-        py.stdout.on("data", chunk => chunks.push(chunk));
-        py.stderr.on("data", err => console.error(err.toString()));
-
-        py.on("close", code => {
-            if(code !== 0) return reject(new Error(`Python exited with code ${code}`));
-            const buffer = Buffer.concat(chunks);
-            resolve(new AttachmentBuilder(buffer, { name: "stock.png" }));
-        });
-    });
-}
-
 export async function execute(interaction) {
-    const command = interaction.commandName;
+  const command = interaction.commandName;
+  const raw = JSON.parse(fs.readFileSync(COINS_FILE, "utf-8"));
+  if (!raw.stock_price) raw.stock_price = INITIAL_PRICE;
+  const price = raw.stock_price;
 
-    let priceData = await db("SELECT * FROM count WHERE id = 1");
-    if(!priceData[0]) {
-        await db("INSERT INTO count (id, stock_price, buy, sell, last_update) VALUES (1, 950, 0, 0, NOW())");
-        priceData = await db("SELECT * FROM count WHERE id = 1");
+  if (!raw[interaction.user.id]) raw[interaction.user.id] = { coins: 0, stock: 0 };
+  const user = raw[interaction.user.id];
+
+  // 株購入
+  if (command === "trade_buy") {
+    const count = interaction.options.getInteger("count");
+    if (count < 1) return interaction.reply({ content: "1株以上指定してください", flags: 64 });
+
+    const commission = Math.floor(count * price * 0.03 + count * 0.5);
+    if (user.coins < count * price + commission) return interaction.reply({ content: "所持金が不足しています", flags: 64 });
+
+    user.coins -= count * price + commission;
+    user.stock += count;
+    raw.stock_price = Math.floor(price * (1 + count*0.0005));
+    fs.writeFileSync(COINS_FILE, JSON.stringify(raw, null, 2));
+
+    return interaction.reply({ content: `株を${count}株購入しました（手数料: ${commission}コイン）` });
+  }
+
+  // 株売却
+  if (command === "trade_sell") {
+    const count = interaction.options.getInteger("count");
+    if (count < 1 || user.stock < count) return interaction.reply({ content: "売却株数が不正です", flags: 64 });
+
+    user.coins += count * price;
+    user.stock -= count;
+    raw.stock_price = Math.floor(price * (1 - count*0.0005));
+    fs.writeFileSync(COINS_FILE, JSON.stringify(raw, null, 2));
+
+    return interaction.reply({ content: `株を${count}株売却しました` });
+  }
+
+  // 株価グラフ
+  if (command === "graph") {
+    await interaction.deferReply();
+    try {
+      const pythonPath = path.join(__dirname, "../python/graph.py");
+      await new Promise((resolve, reject) => {
+        execFile("python3", [pythonPath], (error, stdout, stderr) => {
+          if (error) reject(stderr);
+          else resolve(stdout);
+        });
+      });
+
+      const attachmentPath = path.join(__dirname, "../python/stock.png");
+      const attachment = new AttachmentBuilder(attachmentPath, { name: "stock.png" });
+      return interaction.editReply({ content: "株価の推移（直近24時間）", files: [attachment] });
+    } catch (err) {
+      console.error(err);
+      return interaction.editReply({ content: "グラフ生成に失敗しました", flags: 64 });
     }
-    const price = priceData[0].stock_price;
-
-    // ----------------------
-    // 株購入
-    // ----------------------
-    if(command === "trade_buy") {
-        const count = interaction.options.getInteger("count");
-        if(count < 1) return interaction.reply({ content: "1株以上指定してください", ephemeral: true });
-
-        const userData = await money.get(interaction.user.id);
-        const commission = Math.floor(count * price * 0.03 + count * 0.5);
-        if(userData.amount < count * price + commission) {
-            return interaction.reply({ content: "所持金が不足しています（手数料込み）", ephemeral: true });
-        }
-
-        const historyCheck = await db(`SELECT * FROM history WHERE user=${interaction.user.id} AND (reason='株の購入' OR reason='株の売却') ORDER BY time DESC`);
-        if(historyCheck[0] && new Date() - historyCheck[0].time <= 300000) {
-            return interaction.reply({ content: `次の取引まであと${time(300000 - (new Date() - historyCheck[0].time))}です`, ephemeral: true });
-        }
-
-        await db(`UPDATE money SET stock=${userData.stock + count} WHERE id=${interaction.user.id}`);
-        await money.delete(interaction.user.id, count * price, "株の購入");
-        await money.delete(interaction.user.id, commission, "株の購入手数料");
-
-        const priceChange = count * 0.0005;
-        await db(`UPDATE count SET stock_price = stock_price * (1 + ${priceChange}) WHERE id = 1`);
-
-        return interaction.reply({ content: `株を${count}株購入しました（手数料: ${commission}コイン）` });
-    }
-
-    // ----------------------
-    // 株売却
-    // ----------------------
-    else if(command === "trade_sell") {
-        const count = interaction.options.getInteger("count");
-        const userData = await money.get(interaction.user.id);
-
-        if(count < 1 || userData.stock < count) {
-            return interaction.reply({ content: "売却株数が不正です", ephemeral: true });
-        }
-
-        const historyCheck = await db(`SELECT * FROM history WHERE user=${interaction.user.id} AND (reason='株の購入' OR reason='株の売却') ORDER BY time DESC`);
-        if(historyCheck[0] && new Date() - historyCheck[0].time <= 300000) {
-            return interaction.reply({ content: `次の取引まであと${time(300000 - (new Date() - historyCheck[0].time))}です`, ephemeral: true });
-        }
-
-        await db(`UPDATE money SET stock=${userData.stock - count} WHERE id=${interaction.user.id}`);
-        await money.add(interaction.user.id, count * price, "株の売却");
-
-        const priceChange = count * 0.0005;
-        await db(`UPDATE count SET stock_price = stock_price * (1 - ${priceChange}) WHERE id = 1`);
-
-        return interaction.reply({ content: `株を${count}株売却しました` });
-    }
-
-    // ----------------------
-    // 株価グラフ
-    // ----------------------
-    else if(command === "graph") {
-        await interaction.deferReply();
-
-        const historyData = await db("SELECT * FROM trade_history WHERE time >= DATE_SUB(NOW(), INTERVAL 1 DAY) ORDER BY time ASC");
-        if(!historyData.length) return interaction.editReply("グラフデータがありません");
-
-        const attachment = await generateGraph(historyData);
-        return interaction.editReply({ content: "株価の推移（直近1日）", files: [attachment] });
-    }
+  }
 }
