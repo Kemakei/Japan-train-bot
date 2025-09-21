@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from "discord.js";
+import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { spawn } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -35,8 +35,12 @@ export async function execute(interaction, { client }) {
   py.stdin.write(dataToSend);
   py.stdin.end();
 
-  const outputPath = path.resolve(__dirname, "../stock.png");
+  let output = "";
   let errorOutput = "";
+
+  py.stdout.on("data", (data) => {
+    output += data.toString();
+  });
 
   py.stderr.on("data", (data) => {
     errorOutput += data.toString();
@@ -45,8 +49,26 @@ export async function execute(interaction, { client }) {
   py.on("close", (code) => {
     if (code !== 0) {
       console.error(errorOutput);
-      return interaction.editReply({content:"❌ グラフ生成失敗", flags:64});
+      return interaction.editReply({ content: "❌ グラフ生成失敗", flags: 64 });
     }
-    interaction.editReply({ files: [outputPath] });
+
+    let parsed;
+    try {
+      parsed = JSON.parse(output);
+    } catch {
+      return interaction.editReply({ content: "❌ グラフ情報の解析に失敗しました", flags: 64 });
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor("Blue")
+      .setTitle("📈 株価情報")
+      .setDescription(
+        `**現在株価:** ${parsed.current} コイン\n` +
+        `**最低株価:** ${parsed.min} コイン\n` +
+        `**最高株価:** ${parsed.max} コイン`
+      )
+      .setImage("attachment://stock.png");
+
+    interaction.editReply({ embeds: [embed], files: [parsed.image] });
   });
 }

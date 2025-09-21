@@ -24,25 +24,34 @@ export async function execute(interaction, { client }) {
 
   const stockPrice = client.getStockPrice();
   const totalCost = stockPrice * count;
-  const userCoins = client.getCoins(interaction.user.id);
 
-  if (userCoins < totalCost) {
-    return interaction.reply({ content: "❌ コインが足りません", flags: 64 });
+  // 手数料計算
+  const fee = Math.floor(totalCost * 0.2) + 100;
+  const totalPayment = totalCost + fee;
+
+  const userData = client.coins.get(interaction.user.id) || { coins: 0, stocks: 0 };
+  const userCoins = userData.coins;
+
+  if (userCoins < totalPayment) {
+    return interaction.reply({ content: `❌ コインが足りません\n必要コイン: ${totalPayment}（購入額: ${totalCost} + 手数料: ${fee}）`, flags: 64 });
   }
 
-  // コインを減らす
-  client.updateCoins(interaction.user.id, -totalCost);
+  // コインを減らす（購入額＋手数料）
+  client.updateCoins(interaction.user.id, -totalPayment);
 
   // 株価変動
   client.modifyStockByTrade("buy", count);
 
-  // ユーザー株保有数を更新
-  const userData = client.coins.get(interaction.user.id) || { coins: 0, stocks: 0 };
+  // 株保有数を更新
   userData.stocks = (userData.stocks || 0) + count;
   client.coins.set(interaction.user.id, userData);
 
   // coins.json 保存
   fs.writeFileSync(coinsFile, JSON.stringify(Object.fromEntries(client.coins), null, 2));
 
-  interaction.reply(`✅ 株を ${count} 株購入しました（${totalCost} コイン消費）\n現在の保有株数: ${userData.stocks} 株`);
+  interaction.reply(
+    `✅ 株を ${count} 株購入しました\n` +
+    `購入額: ${totalCost} コイン\n手数料: ${fee} コイン\n合計支払い: ${totalPayment} コイン\n` +
+    `現在の保有株数: ${userData.stocks} 株`
+  );
 }
