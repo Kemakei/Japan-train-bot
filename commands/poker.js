@@ -32,10 +32,10 @@ export async function execute(interaction) {
   await interaction.deferReply();
 
   // --- デッキ作成 ---
-  const suits = ["S","H","D","C"];
+  const suits = ["S", "H", "D", "C"];
   const ranks = ["2","3","4","5","6","7","8","9","T","J","Q","K","A"];
   const deck = [];
-  for (const r of ranks) for (const s of suits) deck.push(r+s);
+  for (const r of ranks) for (const s of suits) deck.push(r + s);
   deck.sort(() => Math.random() - 0.5);
 
   // --- 5枚ずつ配布 ---
@@ -47,10 +47,10 @@ export async function execute(interaction) {
     async (err) => {
     if (err) {
       console.error("Python 実行エラー:", err);
-      // ❌ followUp ではなく editReply に変更
+      // エラー時は既存メッセージを編集してボタンを消す
       return await interaction.editReply({
         content: "❌ ポーカー画像の生成中にエラーが発生しました",
-        components: [] // ボタンを消して押せないようにする
+        components: []
       });
     }
 
@@ -76,7 +76,7 @@ export async function execute(interaction) {
 
       try {
         if (btnInt.customId === "call") {
-          await btnInt.deferUpdate(); // 先にACK
+          await btnInt.deferUpdate(); // ACKしてから処理
           collector.stop("called");
 
           exec(`${pythonCmd} "${pythonPath}" ${playerHand.join(" ")} ${botHand.join(" ")} 1`,
@@ -113,7 +113,10 @@ export async function execute(interaction) {
         }
 
         if (btnInt.customId === "fold") {
-          await btnInt.update({ content: `🏳️ フォールドしました。\n所持金: ${client.getCoins(userId)}`, components: [] });
+          await btnInt.update({
+            content: `🏳️ フォールドしました。\n所持金: ${client.getCoins(userId)}`,
+            components: []
+          });
           collector.stop("folded");
         }
       } catch (err) {
@@ -126,7 +129,10 @@ export async function execute(interaction) {
     collector.on("end", async (_, reason) => {
       if (reason !== "called" && reason !== "folded") {
         client.updateCoins(userId, bet);
-        await interaction.editReply({ content: `⌛ タイムアウト\n所持金: ${client.getCoins(userId)}`, components: [] });
+        await interaction.editReply({
+          content: `⌛ タイムアウト\n所持金: ${client.getCoins(userId)}`,
+          components: []
+        });
       }
     });
   });
