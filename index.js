@@ -134,7 +134,7 @@ setInterval(() => {
   const delta = sign * Math.max(1, magnitude);      // 最小1の変動
   client.updateStockPrice(delta);
   console.log(`株価自動変動: ${delta}, 現在株価: ${client.getStockPrice()}`);
-}, 10 * 60 * 1000);
+}, 30 * 1000);
 
 // -------------------- ヘッジ契約管理 --------------------
 const hedgeFile = path.join(__dirname, 'hedgeContracts.json');
