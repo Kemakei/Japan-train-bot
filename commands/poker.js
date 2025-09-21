@@ -39,7 +39,7 @@ export async function execute(interaction) {
   const botHand = deck.splice(0, 5);
 
   const pythonPath = path.resolve("./python/combine.py");
-  const pythonCmd = "py";
+  const pythonCmd = "python3";
 
   // --- 画像生成 (Botは裏) ---
   exec(`${pythonCmd} "${pythonPath}" ${playerHand.join(" ")} ${botHand.join(" ")} 0`,
