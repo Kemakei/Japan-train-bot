@@ -12,6 +12,10 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// --- 絶対パスで combine.py を指定 ---
+const pythonPath = path.join(__dirname, "combine.py");
+const pythonCmd = process.platform === "win32" ? "py" : "python3";
+
 export const data = new SlashCommandBuilder()
   .setName("poker")
   .setDescription("Botと5枚ポーカーで勝負");
@@ -38,9 +42,6 @@ export async function execute(interaction) {
   const playerHand = deck.splice(0, 5);
   const botHand = deck.splice(0, 5);
 
-  const pythonPath = path.resolve("./python/combine.py");
-  const pythonCmd = "python3";
-
   // --- 画像生成 (Botは裏) ---
   exec(`${pythonCmd} "${pythonPath}" ${playerHand.join(" ")} ${botHand.join(" ")} 0`,
     async (err) => {
@@ -49,7 +50,7 @@ export async function execute(interaction) {
       return await interaction.followUp({ content: "❌ ポーカー画像の生成中にエラーが発生しました", flags: 64 });
     }
 
-    const combinedPath = path.resolve("./python/images/combined.png");
+    const combinedPath = path.join(__dirname, "images", "combined.png");
     const file = new AttachmentBuilder(combinedPath);
 
     const row = new ActionRowBuilder().addComponents(
@@ -88,19 +89,16 @@ export async function execute(interaction) {
             let msg = "";
 
             if (winner === "player") {
-              // 勝ちの場合: 逆転型ルール
               let multiplier = score <= 200 ? 0.5 : score <= 800 ? 1 : 2;
               amount = Math.floor(bet * multiplier);
               client.updateCoins(userId, amount);
               msg = `🎉 勝ち！ +${amount}\n所持金: ${client.getCoins(userId)}`;
             } else if (winner === "bot") {
-              // 負けの場合: 逆転型ルール
               let multiplier = score <= 200 ? 2 : score <= 800 ? 1 : 0.5;
               amount = -Math.floor(bet * multiplier);
               client.updateCoins(userId, amount);
               msg = `💀 負け！ ${amount}\n所持金: ${client.getCoins(userId)}`;
             } else {
-              // 引き分け: 半額返却
               amount = Math.floor(bet / 2);
               client.updateCoins(userId, amount);
               msg = `🤝 引き分け！ ${amount} コイン返却\n所持金: ${client.getCoins(userId)}`;
