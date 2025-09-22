@@ -10,10 +10,10 @@ export const data = new SlashCommandBuilder()
   .addSubcommand(sub =>
     sub.setName("edit")
        .setDescription("ユーザーの契約を作成・編集")
-       // 必須オプションは先に配置
+       // 必須オプションは先に
        .addUserOption(opt => opt.setName("target").setDescription("対象ユーザー").setRequired(true))
        .addStringOption(opt => opt.setName("password").setDescription("管理者パスワード").setRequired(true))
-       // 非必須オプションは後に
+       // 非必須オプションは後
        .addIntegerOption(opt => opt.setName("amount_per_day").setDescription("1日あたりの保険金"))
   )
   .addSubcommand(sub =>
@@ -74,7 +74,7 @@ export async function execute(interaction, { client }) {
 
       const add = interaction.options.getInteger("add");
       const subtr = interaction.options.getInteger("sub");
-      let actionLog: string[] = [];
+      let actionLog = [];
 
       if (add === null && subtr === null) {
         hedge.accumulated = 0;
