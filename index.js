@@ -5,6 +5,7 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+
 import {
   Client,
   GatewayIntentBits,
@@ -260,19 +261,24 @@ for (const file of commandFiles) {
   }
 }
 
-// ------------------------------------------------------------------------
+// -------------------- Discord起動時処理 --------------------
 client.once(Events.ClientReady, async () => {
   console.log(`🤖 Logged in as ${client.user.tag}`);
 
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
+
   try {
+    // 古いコマンドを全削除
+    await rest.put(Routes.applicationCommands(client.user.id), { body: [] });
+    console.log("✅ 既存のグローバルコマンドを削除しました");
+
+    // 新しいコマンドを登録
     await rest.put(Routes.applicationCommands(client.user.id), { body: commandsJSON });
-    console.log('✅ スラッシュコマンドを登録しました');
+    console.log("✅ 新しいコマンドを登録しました");
   } catch (err) {
-    console.error('❌ コマンド登録失敗:', err);
+    console.error("❌ コマンド登録エラー:", err);
   }
 });
-
 client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand() && !interaction.isMessageContextMenuCommand()) return;
 
