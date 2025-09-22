@@ -100,31 +100,33 @@ client.on(Events.GuildMemberAdd, member => {
 });
 
 // -------------------- 株価管理 --------------------
+
+// 株価と履歴の初期化
 client.getStockPrice = () => {
   const obj = client.coins.get("stock_price");
   return typeof obj?.coins === "number" ? obj.coins : 950;
 };
 
+client.coins.set("stock_price", { coins: client.getStockPrice() });
+
 let forceSign = 0; // -1 = 下げ強制, 1 = 上げ強制, 0 = ランダム
 
+// 株価変動処理
 client.updateStockPrice = (delta) => {
   let price = client.getStockPrice() + delta;
 
-  // 下限補正
   if (price < 850) {
-    price = 850;       // 一度850に固定
-    forceSign = 1;     // 次回は必ず上昇
-  }
-
-  // 上限補正
-  if (price > 1100) {
-    price = 1100;      // 一度1100に固定
-    forceSign = -1;    // 次回は必ず下降
+    price = 850;
+    forceSign = 1; // 次回上昇
+  } else if (price > 1100) {
+    price = 1100;
+    forceSign = -1; // 次回下降
   }
 
   // 保存
   client.coins.set("stock_price", { coins: price });
 
+  // 履歴管理
   const historyObj = client.coins.get("trade_history");
   const history = Array.isArray(historyObj?.coins) ? historyObj.coins : [];
   history.push({ time: new Date().toISOString(), price });
@@ -141,29 +143,18 @@ client.modifyStockByTrade = (type, count) => {
   client.updateStockPrice(delta);
 };
 
-// 小さい数字が出やすいランダム変動
+// 自動株価変動（10分ごと）
 function randomDelta() {
-  const r = Math.random(); // 0〜1
-  const val = Math.floor(r * r * 31); // 小さい数が出やすい
-  return Math.max(1, val);
+  const r = Math.random();
+  return Math.max(1, Math.floor(r * r * 31));
 }
 
-// 10分ごとの自動変動
 setInterval(() => {
-  let sign;
+  let sign = forceSign !== 0 ? forceSign : (Math.random() < 0.5 ? -1 : 1);
+  forceSign = 0;
 
-  if (forceSign !== 0) {
-    sign = forceSign;  // 強制方向
-    forceSign = 0;     // リセット
-  } else {
-    sign = Math.random() < 0.5 ? -1 : 1;
-  }
-
-  const magnitude = randomDelta();
-  const delta = sign * magnitude;
-
+  const delta = sign * randomDelta();
   client.updateStockPrice(delta);
-
   console.log(`株価自動変動: ${delta}, 現在株価: ${client.getStockPrice()}`);
 }, 10 * 60 * 1000);
 
