@@ -9,7 +9,7 @@ export async function execute(interaction) {
     const userId = interaction.user.id;
     const client = interaction.client;
 
-    // ユーザーデータ取得（coins と stocks）
+    // ユーザーデータ取得
     const userData = client.coins.get(userId) || { coins: 0, stocks: 0 };
     const coins = userData.coins || 0;
     const stocks = userData.stocks || 0;
@@ -29,10 +29,9 @@ export async function execute(interaction) {
       const daysPassed = Math.floor((nowJST.getTime() - lastUpdate.getTime()) / msPerDay);
       hedgeAccumulated = hedge.accumulated + hedge.amountPerDay * daysPassed;
 
-      // 自動加算型：coins に反映して hedge.lastUpdateJST を更新
       if (daysPassed > 0) {
         client.updateCoins(userId, hedge.amountPerDay * daysPassed);
-        hedge.accumulated = 0; // 加算済みなのでリセット
+        hedge.accumulated = 0;
         hedge.lastUpdateJST = nowJST.getTime();
         client.setHedge(userId, hedge);
       }
@@ -42,7 +41,7 @@ export async function execute(interaction) {
       .setColor('Green')
       .setDescription(
         `**あなたの所持金: ${coins} コイン**` +
-        `\n**保有株数: ${stocks} 株**` + // 株数を追加
+        `\n**保有株数: ${stocks} 株**` +
         (hedgeAccumulated > 0 ? `\n**契約中の保険金: ${hedgeAccumulated} コイン（次回加算済み）**` : '')
       );
 
@@ -50,6 +49,10 @@ export async function execute(interaction) {
 
   } catch (err) {
     console.error(err);
-    await interaction.reply({ content: "❌ 所持金確認中にエラーが発生しました", ephemeral: true });
+    if (interaction.deferred || interaction.replied) {
+      await interaction.editReply("❌ 所持金確認中にエラーが発生しました");
+    } else {
+      await interaction.reply({ content: "❌ 所持金確認中にエラーが発生しました", ephemeral: true });
+    }
   }
 }

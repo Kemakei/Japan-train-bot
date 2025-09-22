@@ -99,16 +99,30 @@ client.on(Events.GuildMemberAdd, member => {
   if (!client.coins.has(member.id)) client.setCoins(member.id, 0);
 });
 
-// 株価管理
+// -------------------- 株価管理 --------------------
 client.getStockPrice = () => {
   const obj = client.coins.get("stock_price");
   return typeof obj?.coins === "number" ? obj.coins : 950;
 };
 
+let forceSign = 0; // -1 = 下げ強制, 1 = 上げ強制, 0 = ランダム
+
 client.updateStockPrice = (delta) => {
   let price = client.getStockPrice() + delta;
-  price = Math.max(1, price); // 株価は最低1
 
+  // 下限補正
+  if (price < 850) {
+    price = 850;       // 一度850に固定
+    forceSign = 1;     // 次回は必ず上昇
+  }
+
+  // 上限補正
+  if (price > 1100) {
+    price = 1100;      // 一度1100に固定
+    forceSign = -1;    // 次回は必ず下降
+  }
+
+  // 保存
   client.coins.set("stock_price", { coins: price });
 
   const historyObj = client.coins.get("trade_history");
@@ -122,20 +136,36 @@ client.updateStockPrice = (delta) => {
 
 // 売買による株価変動
 client.modifyStockByTrade = (type, count) => {
-  let delta = Math.max(1, Math.floor(count * 0.5)); // 最小1の変動
+  let delta = Math.max(1, Math.floor(count * 0.5));
   if (type === "sell") delta = -delta;
   client.updateStockPrice(delta);
 };
 
-// 10分ごとの自動変動 (-30~30 の整数)
+// 小さい数字が出やすいランダム変動
+function randomDelta() {
+  const r = Math.random(); // 0〜1
+  const val = Math.floor(r * r * 31); // 小さい数が出やすい
+  return Math.max(1, val);
+}
+
+// 10分ごとの自動変動
 setInterval(() => {
-  const sign = Math.random() < 0.5 ? -1 : 1;
-  const magnitude = Math.floor(Math.sqrt(Math.random() * 31 * 31)); // 0~30
-  const delta = sign * Math.max(1, magnitude); // 最小1に補正
+  let sign;
+
+  if (forceSign !== 0) {
+    sign = forceSign;  // 強制方向
+    forceSign = 0;     // リセット
+  } else {
+    sign = Math.random() < 0.5 ? -1 : 1;
+  }
+
+  const magnitude = randomDelta();
+  const delta = sign * magnitude;
+
   client.updateStockPrice(delta);
+
   console.log(`株価自動変動: ${delta}, 現在株価: ${client.getStockPrice()}`);
 }, 10 * 60 * 1000);
-
 
 // -------------------- ヘッジ契約管理 --------------------
 const hedgeFile = path.join(__dirname, 'hedgeContracts.json');
@@ -162,6 +192,60 @@ client.clearHedge = (userId) => {
   client.hedgeContracts.delete(userId);
   saveHedges();
 };
+
+// --------------------- 宝くじ番号管理 ---------------------
+client.takarakuji = {
+  number: String(Math.floor(Math.random() * 90000) + 10000),
+  letter: String.fromCharCode(65 + Math.floor(Math.random() * 26))
+};
+
+// ユーザー購入履歴（複数購入対応）
+// userId => [ { number, letter, drawNumber, drawLetter, claimed } ]
+client.takarakujiPurchases = new Map();
+
+// 固定30分ごとに当選番号更新
+function scheduleTakarakujiUpdate() {
+  const now = new Date();
+  const minutes = now.getMinutes();
+  const seconds = now.getSeconds();
+  
+  let delay;
+  if (minutes < 30) {
+    delay = (30 - minutes) * 60 * 1000 - seconds * 1000;
+  } else {
+    delay = (60 - minutes) * 60 * 1000 - seconds * 1000;
+  }
+
+  setTimeout(() => {
+    updateTakarakujiNumber();
+    setInterval(updateTakarakujiNumber, 30 * 60 * 1000);
+  }, delay);
+}
+
+function updateTakarakujiNumber() {
+  const oldNumber = client.takarakuji.number;
+  const oldLetter = client.takarakuji.letter;
+
+  // 新しい番号生成
+  client.takarakuji.number = String(Math.floor(Math.random() * 90000) + 10000);
+  client.takarakuji.letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+
+  // 未割当購入に当選番号を割り当てる
+  client.takarakujiPurchases.forEach((purchases) => {
+    purchases.forEach(purchase => {
+      if (!purchase.drawNumber) {
+        purchase.drawNumber = oldNumber;
+        purchase.drawLetter = oldLetter;
+        purchase.claimed = false;
+      }
+    });
+  });
+
+  console.log(`🎟 宝くじ番号更新: ${client.takarakuji.number}${client.takarakuji.letter}`);
+}
+
+// デプロイ時にスケジュール開始
+scheduleTakarakujiUpdate();
 
 // ------------------ 🔁 ./commands/*.js を自動読み込み --------------------
 const commandsJSON = [];

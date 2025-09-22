@@ -2,7 +2,7 @@ import pkg from "discord.js";
 const { SlashCommandBuilder } = pkg;
 
 export const data = new SlashCommandBuilder()
-  .setName("admin")
+  .setName("admin_money")
   .setDescription("ユーザーのコインを変更")
   .addStringOption(opt => 
     opt.setName("password")
@@ -41,12 +41,15 @@ export async function execute(interaction) {
     const prev = interaction.client.getCoins(userId) || 0;
     interaction.client.setCoins(userId, prev + amount);
 
+    // --- ログ出力 ---
+    console.log(` ${interaction.user.tag} が <@${userId}> のコインを ${amount} 変更しました（元: ${prev} → 現在: ${interaction.client.getCoins(userId)}）`);
+
     await interaction.editReply(
       `✅ <@${userId}> のコインを ${amount} 変更しました（現在: ${interaction.client.getCoins(userId)}）`
     );
 
   } catch (err) {
-    console.error(err);
+    console.error(`❌ admin_money エラー:`, err);
     if (!interaction.deferred && !interaction.replied) {
       await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", flags: 64 });
     } else {
