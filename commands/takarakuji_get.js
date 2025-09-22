@@ -40,7 +40,7 @@ export async function execute(interaction, { client }) {
     ];
 
     const prizeResult = results.filter(Boolean)[0] || '残念、ハズレ 😢';
-    const prizeAmounts = { '1等 🎉':10000, '2等 🥳':5000, '3等 🎊':1000, '4等 🎉':500, '5等 🎉':200, '6等 🎉':100, '7等 🎉':50 };
+    const prizeAmounts = { '1等 🎉':1000000, '2等 🥳':750000, '3等 🎊':500000, '4等 🎉':300000, '5等 🎉':100000, '6等 🎉':50000, '7等 🎉':1000 };
     const prizeAmount = prizeAmounts[prizeResult] || 0;
 
     if (prizeAmount > 0) client.updateCoins(userId, prizeAmount);
