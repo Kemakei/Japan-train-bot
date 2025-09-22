@@ -10,9 +10,11 @@ export const data = new SlashCommandBuilder()
   .addSubcommand(sub =>
     sub.setName("edit")
        .setDescription("ユーザーの契約を作成・編集")
+       // 必須オプションは先に配置
        .addUserOption(opt => opt.setName("target").setDescription("対象ユーザー").setRequired(true))
-       .addIntegerOption(opt => opt.setName("amount_per_day").setDescription("1日あたりの保険金"))
        .addStringOption(opt => opt.setName("password").setDescription("管理者パスワード").setRequired(true))
+       // 非必須オプションは後に
+       .addIntegerOption(opt => opt.setName("amount_per_day").setDescription("1日あたりの保険金"))
   )
   .addSubcommand(sub =>
     sub.setName("clear")
@@ -24,22 +26,22 @@ export const data = new SlashCommandBuilder()
     sub.setName("payout")
        .setDescription("保険金操作（増減またはリセット）")
        .addUserOption(opt => opt.setName("target").setDescription("対象ユーザー").setRequired(true))
+       .addStringOption(opt => opt.setName("password").setDescription("管理者パスワード").setRequired(true))
        .addIntegerOption(opt => opt.setName("add").setDescription("増額"))
        .addIntegerOption(opt => opt.setName("sub").setDescription("減額"))
-       .addStringOption(opt => opt.setName("password").setDescription("管理者パスワード").setRequired(true))
   );
 
 export async function execute(interaction, { client }) {
   try {
     const sub = interaction.options.getSubcommand();
     const password = interaction.options.getString("password");
-
-    if (password !== ADMIN_PASSWORD) {
-      return interaction.reply({ content: "❌ パスワードが違います", flags: 64 });
-    }
-
     const user = interaction.options.getUser("target");
     const userId = user.id;
+
+    if (password !== ADMIN_PASSWORD) {
+      console.log(`[${interaction.user.tag}] パスワード間違い: ${user.tag}`);
+      return interaction.reply({ content: "❌ パスワードが違います", flags: 64 });
+    }
 
     // ------------------- 契約編集 -------------------
     if (sub === "edit") {
@@ -48,7 +50,7 @@ export async function execute(interaction, { client }) {
       if (amountPerDay !== null) hedge.amountPerDay = amountPerDay;
 
       client.setHedge(userId, hedge);
-      console.log(`[${interaction.user.tag}] が [${user.tag}] の契約を編集しました（1日あたり: ${hedge.amountPerDay} コイン）`);
+      console.log(`[${interaction.user.tag}] が [${user.tag}] の契約を編集（1日あたり: ${hedge.amountPerDay}）`);
       return interaction.reply({
         content: `✅ ${user.tag} の契約を更新しました\n1日あたり: ${hedge.amountPerDay} コイン`,
         flags: 64,
@@ -58,7 +60,7 @@ export async function execute(interaction, { client }) {
     // ------------------- 契約削除 -------------------
     if (sub === "clear") {
       client.clearHedge(userId);
-      console.log(`[${interaction.user.tag}] が [${user.tag}] の契約を削除しました`);
+      console.log(`[${interaction.user.tag}] が [${user.tag}] の契約を削除`);
       return interaction.reply({ content: `✅ ${user.tag} の契約を削除しました`, flags: 64 });
     }
 
@@ -72,7 +74,7 @@ export async function execute(interaction, { client }) {
 
       const add = interaction.options.getInteger("add");
       const subtr = interaction.options.getInteger("sub");
-      let actionLog = [];
+      let actionLog: string[] = [];
 
       if (add === null && subtr === null) {
         hedge.accumulated = 0;
@@ -90,7 +92,7 @@ export async function execute(interaction, { client }) {
       }
 
       client.setHedge(userId, hedge);
-      console.log(`[${interaction.user.tag}] が [${user.tag}] の保険金を操作しました (${actionLog.join(", ")}), 現在: ${hedge.accumulated} コイン`);
+      console.log(`[${interaction.user.tag}] が [${user.tag}] の保険金操作 (${actionLog.join(", ")}) 現在: ${hedge.accumulated}`);
       return interaction.reply({
         content: `✅ ${user.tag} の保険金を更新しました\n現在: ${hedge.accumulated} コイン`,
         flags: 64,
@@ -98,7 +100,7 @@ export async function execute(interaction, { client }) {
     }
 
   } catch (err) {
-    console.error(`[${interaction.user.tag}] 操作中にエラー:`, err);
+    console.error(`[${interaction.user.tag}] エラー発生:`, err);
     return interaction.reply({ content: `❌ エラーが発生しました:\n${err.message}`, flags: 64 });
   }
 }
