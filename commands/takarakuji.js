@@ -1,6 +1,6 @@
 // -------------------- takarakuji.js --------------------
 import { SlashCommandBuilder } from 'discord.js';
-import { getNextDrawId } from '../utils/draw.js';
+import { getLatestDrawId } from '../utils/draw.js';
 
 export const data = new SlashCommandBuilder()
   .setName('takarakuji')
@@ -10,7 +10,7 @@ export async function execute(interaction, { client }) {
   const drawResultsCol = client.db.collection("drawResults");
 
   const now = new Date();
-  const drawId = getNextDrawId(now); // 統一形式
+  const drawId = getLatestDrawId(now); // 直近公開済み回
 
   const result = await drawResultsCol.findOne({ drawId });
 
