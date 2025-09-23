@@ -61,7 +61,7 @@ export async function execute(interaction, { client }) {
     .setColor('Gold')
     .setTitle('🎟 宝くじ購入完了')
     .setDescription(
-      tickets.map((t, i) => `${i + 1}個目: ${t.number}${t.letter} (回: ${t.drawId})`).join('\n')
+      tickets.map((t, i) => `${i + 1}個目: ${t.number}${t.letter}`).join('\n')
     )
     .addFields({ name: '手数料', value: `${totalCost}コイン`, inline: true })
     .setFooter({ text: `残り所持金: ${coins - totalCost}コイン` });
