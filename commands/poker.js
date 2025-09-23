@@ -88,6 +88,7 @@ export async function execute(interaction) {
       }
 
       try {
+        // --- ベット増加 ---
         if (btnInt.customId === "bet100") {
           if ((bet + 100) * 2 > (await client.getCoins(userId))) {
             return btnInt.reply({ content: "❌ コインが足りません！", flags: 64 });
@@ -106,6 +107,7 @@ export async function execute(interaction) {
           return;
         }
 
+        // --- コール処理 ---
         if (btnInt.customId === "call") {
           collector.stop("called");
           await btnInt.deferUpdate();
@@ -130,11 +132,17 @@ export async function execute(interaction) {
             if (winner === "player") {
               let multiplier = score <= 200 ? 0.5 : score <= 800 ? 1 : 2;
               amount = Math.floor(bet * multiplier);
+              // 最低でも 1.2倍、最大 3倍
+              amount = Math.max(amount, Math.floor(bet * 1.2));
+              amount = Math.min(amount, Math.floor(bet * 3));
               await client.updateCoins(userId, amount);
               msg = `🎉 勝ち！ +${amount} コイン\n所持金: ${(await client.getCoins(userId))}`;
             } else if (winner === "bot") {
               let multiplier = score <= 200 ? 2 : score <= 800 ? 1 : 0.5;
               amount = -Math.floor(bet * multiplier);
+              // 最低でも -1倍、最大でも -3倍
+              amount = Math.min(amount, -Math.floor(bet * 1));
+              amount = Math.max(amount, -Math.floor(bet * 3));
               await client.updateCoins(userId, amount);
               msg = `💀 負け！ ${amount} コイン\n所持金: ${(await client.getCoins(userId))}`;
             } else {
@@ -151,6 +159,7 @@ export async function execute(interaction) {
           return;
         }
 
+        // --- フォールド処理 ---
         if (btnInt.customId === "fold") {
           collector.stop("folded");
           await btnInt.update({

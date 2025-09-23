@@ -24,15 +24,18 @@ function sleep(ms) {
 function pickResult() {
   const r = Math.random();
   if (r < 0.05) {
+    // 大当たり 5%
     const symbol = symbols[Math.floor(Math.random() * symbols.length)];
     return [symbol, symbol, symbol];
-  } else if (r < 0.25) {
+  } else if (r < 0.35) {
+    // 小当たり 30%
     const symbol = symbols[Math.floor(Math.random() * symbols.length)];
     let other;
     do { other = symbols[Math.floor(Math.random() * symbols.length)]; } while (other === symbol);
     const result = [symbol, symbol, other];
     return result.sort(() => Math.random() - 0.5);
   } else {
+    // ハズレ 65%
     let res;
     do {
       res = Array.from({ length: 3 }, () => symbols[Math.floor(Math.random() * symbols.length)]);
