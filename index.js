@@ -64,6 +64,7 @@ const client = new Client({
 client.coinsCol = coinsCol;
 client.hedgeCol = hedgeCol;
 client.lotteryCol = lotteryCol;
+client.db = db;
 client.monitoredMessages = new Map();
 client.lastSentCopies = new Map();
 client.autoRoleMap = new Map();
