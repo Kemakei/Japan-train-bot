@@ -20,6 +20,9 @@ export async function execute(interaction, { client }) {
   const userId = interaction.user.id;
   const tickets = [];
 
+  // drawId は「次回抽選」に統一
+  const drawId = getNextDrawId(new Date());
+
   for (let i = 1; i <= 5; i++) {
     const num = interaction.options.getString(`number${i}`);
     const letter = interaction.options.getString(`letter${i}`)?.toUpperCase();
@@ -34,7 +37,6 @@ export async function execute(interaction, { client }) {
       return interaction.reply({ content: `❌ ${i}個目の文字はA-Zの1文字で入力してください`, flags: 64 });
     }
 
-    const drawId = getNextDrawId(new Date());
     tickets.push({ number: num, letter, drawId, claimed: false, createdAt: new Date() });
   }
 

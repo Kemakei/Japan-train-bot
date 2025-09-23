@@ -49,7 +49,6 @@ export async function execute(interaction, { client }) {
       if (number === null || !letter) {
         return interaction.reply({ content: "❌ 追加する場合は番号と文字を指定してください", flags: 64 });
       }
-
       if (number < 10000 || number > 99999) {
         return interaction.reply({ content: "❌ 番号は5桁で指定してください", flags: 64 });
       }

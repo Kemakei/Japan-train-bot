@@ -1,6 +1,5 @@
-// -------------------- takarakuji_get.js --------------------
 import { SlashCommandBuilder } from 'discord.js';
-import { getNextDrawId } from '../utils/draw.js';
+import { getLatestDrawId } from '../utils/draw.js'; // 変更
 
 export const data = new SlashCommandBuilder()
   .setName('takarakuji_get')
@@ -16,13 +15,14 @@ export async function execute(interaction, { client }) {
 
   const drawResultsCol = client.db.collection("drawResults");
   const messageLines = [];
-  let anyClaimed = false;
+  const remainingPurchases = []; // 当選未確認や未公開のものを残す
 
   for (const purchase of purchases) {
     const { number, letter, drawId } = purchase;
     const result = await drawResultsCol.findOne({ drawId });
 
     if (!result) {
+      remainingPurchases.push(purchase); // 未公開のものは残す
       messageLines.push(`🎟 ${number}${letter} (❌ まだ結果が公開されていません。)`);
       continue;
     }
@@ -45,15 +45,18 @@ export async function execute(interaction, { client }) {
     if (prizeAmount > 0 && !purchase.claimed) {
       await client.updateCoins(userId, prizeAmount);
       purchase.claimed = true;
-      anyClaimed = true;
     }
 
-    messageLines.push(`🎟 ${number}${letter} (🏆 ${prizeResult}${prizeAmount > 0 ? ` 💰 ${prizeAmount}コイン` : ''}`);
+    // 当選・受取済みのものは履歴から削除
+    if (!purchase.claimed) remainingPurchases.push(purchase);
+
+    messageLines.push(`🎟 ${number}${letter} 🏆 ${prizeResult}${prizeAmount > 0 ? ` 💰 ${prizeAmount}コイン` : ''}`);
   }
 
+  // 更新: 残った購入履歴だけ残す
   await client.lotteryCol.updateOne(
     { userId },
-    { $set: { purchases } }
+    { $set: { purchases: remainingPurchases } }
   );
 
   const hasResults = messageLines.some(line => !line.includes('まだ結果が公開されていません'));
