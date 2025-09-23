@@ -25,24 +25,28 @@ export async function execute(interaction) {
     const client = interaction.client;
     const amount = interaction.options.getInteger("amount");
 
+    // 契約選択チェック
     const contract = contracts.find(c => c.daily === amount);
     if (!contract) return interaction.reply({ content: "❌ 無効な契約額です", ephemeral: true });
 
-    const coins = client.getCoins(userId) || 0;
-    const initialCost = contract.fee;
-
-    if (coins < initialCost) return interaction.reply({ content: "❌ コインが足りません", ephemeral: true });
-
-    const userHedge = client.getHedge(userId);
+    // 既存契約チェック
+    const userHedge = await client.getHedge(userId);
     if (userHedge) return interaction.reply({ content: "❌ 既に契約中です", ephemeral: true });
 
-    client.updateCoins(userId, -initialCost);
+    // コイン残高チェック
+    const coins = await client.getCoins(userId);
+    if (coins < contract.fee) return interaction.reply({ content: "❌ コインが足りません", ephemeral: true });
 
+    // コイン減算
+    await client.updateCoins(userId, -contract.fee);
+
+    // JST 時刻取得
     const now = new Date();
-    const jstOffset = 9 * 60; // JST +9時間
+    const jstOffset = 9 * 60;
     const nowJST = new Date(now.getTime() + jstOffset * 60 * 1000);
 
-    client.setHedge(userId, {
+    // 契約データ保存
+    await client.setHedge(userId, {
       amountPerDay: amount,
       accumulated: 0,
       lastUpdateJST: nowJST.getTime(),

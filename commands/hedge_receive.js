@@ -8,9 +8,19 @@ export async function execute(interaction) {
   try {
     const userId = interaction.user.id;
     const client = interaction.client;
-    const hedge = client.getHedge(userId);
+    const hedge = await client.getHedge(userId);
 
     if (!hedge) return interaction.reply({ content: "❌ 契約中の保険金がありません", ephemeral: true });
+
+    // 壊れたデータが入っていれば削除
+    if (
+      typeof hedge.amountPerDay !== 'number' || isNaN(hedge.amountPerDay) ||
+      typeof hedge.accumulated !== 'number' || isNaN(hedge.accumulated) ||
+      typeof hedge.lastUpdateJST !== 'number' || isNaN(hedge.lastUpdateJST)
+    ) {
+      await client.clearHedge(userId);
+      return interaction.reply({ content: "❌ 契約データが壊れています。再契約してください。", ephemeral: true });
+    }
 
     // JST基準で日数計算
     const now = new Date();
@@ -23,8 +33,14 @@ export async function execute(interaction) {
     const daysPassed = Math.floor((nowJST.getTime() - lastUpdate.getTime()) / msPerDay);
     const total = hedge.accumulated + hedge.amountPerDay * daysPassed;
 
-    client.updateCoins(userId, total);
-    client.clearHedge(userId);
+    if (isNaN(total) || total <= 0) {
+      await client.clearHedge(userId);
+      return interaction.reply({ content: "❌ 保険金の計算に問題がありました。データをリセットしました。", ephemeral: true });
+    }
+
+    // コイン加算 & 契約削除
+    await client.updateCoins(userId, total);
+    await client.clearHedge(userId);
 
     await interaction.reply({
       content: `🎉 保険金 ${total} コインを受け取りました！契約は終了しました`,
