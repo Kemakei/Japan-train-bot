@@ -26,7 +26,7 @@ export async function execute(interaction) {
     const bet = interaction.options.getInteger('bet');
     const client = interaction.client;
 
-    let coins = client.getCoins(userId) || 0;
+    let coins = await client.getCoins(userId) || 0;
 
     // --- 先にチェックして即終了（ephemeral） ---
     if (bet < 100) {
@@ -50,13 +50,13 @@ export async function execute(interaction) {
 
     if (guess === answer) {
       const win = Math.ceil(bet * 2.8);
-      client.updateCoins(userId, win);
-      coins = client.getCoins(userId);
+      await client.updateCoins(userId, win);
+      coins = await client.getCoins(userId);
       embed.setDescription(`✅ 当たり！ **${win}コイン** 獲得！\n現在のコイン: ${coins}`).setColor("#00FF00");
     } else {
       const loss = Math.ceil(bet * 1.5);
-      client.updateCoins(userId, -loss);
-      coins = client.getCoins(userId);
+      await client.updateCoins(userId, -loss);
+      coins = await client.getCoins(userId);
       embed.setDescription(`💔 外れ… **${loss}コイン** 失いました\n現在のコイン: ${coins}`).setColor("#FF0000");
     }
 

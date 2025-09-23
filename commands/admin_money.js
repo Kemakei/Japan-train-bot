@@ -36,16 +36,21 @@ export async function execute(interaction) {
     const userInput = interaction.options.getString("userid");
     const userId = userInput.replace(/[<@!>]/g, "").trim();
 
-    // --- コイン変更 ---
+    // --- コイン変更 (MongoDB版) ---
     const amount = interaction.options.getInteger("amount");
-    const prev = interaction.client.getCoins(userId) || 0;
-    interaction.client.setCoins(userId, prev + amount);
+    const userDoc = await interaction.client.coinsCol.findOne({ userId });
+    const prev = userDoc?.coins || 0;
+    await interaction.client.coinsCol.updateOne(
+      { userId },
+      { $set: { coins: prev + amount } },
+      { upsert: true }
+    );
 
     // --- ログ出力 ---
-    console.log(` ${interaction.user.tag} が <@${userId}> のコインを ${amount} 変更しました（元: ${prev} → 現在: ${interaction.client.getCoins(userId)}）`);
+    console.log(` ${interaction.user.tag} が <@${userId}> のコインを ${amount} 変更しました（元: ${prev} → 現在: ${prev + amount}）`);
 
     await interaction.editReply(
-      `✅ <@${userId}> のコインを ${amount} 変更しました（現在: ${interaction.client.getCoins(userId)}）`
+      `✅ <@${userId}> のコインを ${amount} 変更しました（現在: ${prev + amount}）`
     );
 
   } catch (err) {

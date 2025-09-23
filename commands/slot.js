@@ -1,4 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
+import dotenv from 'dotenv';
+dotenv.config();
 
 const symbols = ["🍒", "🍋", "🍊", "💎", "7️⃣"];
 const bigJackpot = { "🍒": 250, "🍋": 250, "🍊": 400, "💎": 500, "7️⃣": 750 };
@@ -19,22 +21,42 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-export async function execute(interaction) {
-  const bet = interaction.options.getInteger('bet');
-  const client = interaction.client;
-  const userId = interaction.user.id;
-  let points = client.getCoins(userId) || 0;
+function pickResult() {
+  const r = Math.random();
+  if (r < 0.05) {
+    const symbol = symbols[Math.floor(Math.random() * symbols.length)];
+    return [symbol, symbol, symbol];
+  } else if (r < 0.25) {
+    const symbol = symbols[Math.floor(Math.random() * symbols.length)];
+    let other;
+    do { other = symbols[Math.floor(Math.random() * symbols.length)]; } while (other === symbol);
+    const result = [symbol, symbol, other];
+    return result.sort(() => Math.random() - 0.5);
+  } else {
+    let res;
+    do {
+      res = Array.from({ length: 3 }, () => symbols[Math.floor(Math.random() * symbols.length)]);
+    } while (new Set(res).size < 3);
+    return res;
+  }
+}
 
-  // --- 最低掛け金と所持コインチェック ---
+export async function execute(interaction, { client }) {
+  const bet = interaction.options.getInteger('bet');
+  const userId = interaction.user.id;
+
   if (bet < 100) return interaction.reply({ content: "❌ 最低賭け金は100コインです！", flags: 64 });
+
+  const coinsCol = client.coinsCol;
+  const userDoc = await coinsCol.findOne({ userId });
+  const points = userDoc?.coins || 0;
+
   if (bet * 1.5 > points) return interaction.reply({ content: "❌ コインが足りません！", flags: 64 });
 
   await interaction.deferReply();
 
-  // 確定結果を先に決める
-  const finalResult = Array.from({ length: 3 }, () => symbols[Math.floor(Math.random() * symbols.length)]);
+  const finalResult = pickResult();
 
-  // 回転演出
   let display = ['❔', '❔', '❔'];
   const msg = await interaction.editReply({ content: `🎰 ${display.join(' ')}\n回転中…` });
 
@@ -45,29 +67,31 @@ export async function execute(interaction) {
   }
 
   let outcome = "";
-  let change = 0; // 実際に増減するコイン
+  let change = 0;
 
   if (finalResult.every(v => v === finalResult[0])) {
-    // 大当たり
     change = bigJackpot[finalResult[0]] + Math.ceil(bet * 1.4);
-    client.updateCoins(userId, change);
     outcome = `🎉 大当たり！ ${change}コイン獲得！`;
   } else if (new Set(finalResult).size === 2) {
-    // 小当たり
     const matchSymbol = finalResult.find(s => finalResult.filter(v => v === s).length === 2);
     change = smallJackpot[matchSymbol] + Math.ceil(bet * 1.2);
-    client.updateCoins(userId, change);
     outcome = `✨ 小当たり！ ${change}コイン獲得！`;
   } else {
-    // ハズレ
     change = Math.ceil(bet * 1.5);
-    client.updateCoins(userId, -change);
-    outcome = `💔 ハズレ… ${change}コイン失いました。`;
+    change = -change;
+    outcome = `💔 ハズレ… ${-change}コイン失いました。`;
   }
 
-  points = client.getCoins(userId);
+  await coinsCol.updateOne(
+    { userId },
+    { $inc: { coins: change } },
+    { upsert: true }
+  );
+
+  const updatedDoc = await coinsCol.findOne({ userId });
+  const updatedPoints = updatedDoc?.coins || 0;
 
   await interaction.editReply({
-    content: `🎰 ${finalResult.join(' ')}\n${outcome}\n現在のコイン: ${points}`
+    content: `🎰 ${finalResult.join(' ')}\n${outcome}\n現在のコイン: ${updatedPoints}`
   });
 }

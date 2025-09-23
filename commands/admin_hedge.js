@@ -10,10 +10,8 @@ export const data = new SlashCommandBuilder()
   .addSubcommand(sub =>
     sub.setName("edit")
        .setDescription("ユーザーの契約を作成・編集")
-       // 必須オプションは先に
        .addUserOption(opt => opt.setName("target").setDescription("対象ユーザー").setRequired(true))
        .addStringOption(opt => opt.setName("password").setDescription("管理者パスワード").setRequired(true))
-       // 非必須オプションは後
        .addIntegerOption(opt => opt.setName("amount_per_day").setDescription("1日あたりの保険金"))
   )
   .addSubcommand(sub =>
@@ -46,10 +44,18 @@ export async function execute(interaction, { client }) {
     // ------------------- 契約編集 -------------------
     if (sub === "edit") {
       const amountPerDay = interaction.options.getInteger("amount_per_day");
-      let hedge = client.getHedge(userId) || { amountPerDay: 0, accumulated: 0, lastUpdateJST: Date.now() };
+
+      // MongoDB 版 getHedge
+      const hedgeDoc = await client.hedges.findOne({ userId });
+      let hedge = hedgeDoc || { amountPerDay: 0, accumulated: 0, lastUpdateJST: Date.now() };
       if (amountPerDay !== null) hedge.amountPerDay = amountPerDay;
 
-      client.setHedge(userId, hedge);
+      await client.hedges.updateOne(
+        { userId },
+        { $set: hedge },
+        { upsert: true }
+      );
+
       console.log(`[${interaction.user.tag}] が [${user.tag}] の契約を編集（1日あたり: ${hedge.amountPerDay}）`);
       return interaction.reply({
         content: `✅ ${user.tag} の契約を更新しました\n1日あたり: ${hedge.amountPerDay} コイン`,
@@ -59,19 +65,20 @@ export async function execute(interaction, { client }) {
 
     // ------------------- 契約削除 -------------------
     if (sub === "clear") {
-      client.clearHedge(userId);
+      await client.hedges.deleteOne({ userId });
       console.log(`[${interaction.user.tag}] が [${user.tag}] の契約を削除`);
       return interaction.reply({ content: `✅ ${user.tag} の契約を削除しました`, flags: 64 });
     }
 
     // ------------------- 保険金操作 -------------------
     if (sub === "payout") {
-      let hedge = client.getHedge(userId);
-      if (!hedge) {
+      const hedgeDoc = await client.hedges.findOne({ userId });
+      if (!hedgeDoc) {
         console.log(`[${interaction.user.tag}] が [${user.tag}] の契約操作に失敗（契約なし）`);
         return interaction.reply({ content: `❌ ${user.tag} は契約中ではありません`, flags: 64 });
       }
 
+      const hedge = hedgeDoc;
       const add = interaction.options.getInteger("add");
       const subtr = interaction.options.getInteger("sub");
       let actionLog = [];
@@ -91,7 +98,11 @@ export async function execute(interaction, { client }) {
         }
       }
 
-      client.setHedge(userId, hedge);
+      await client.hedges.updateOne(
+        { userId },
+        { $set: hedge }
+      );
+
       console.log(`[${interaction.user.tag}] が [${user.tag}] の保険金操作 (${actionLog.join(", ")}) 現在: ${hedge.accumulated}`);
       return interaction.reply({
         content: `✅ ${user.tag} の保険金を更新しました\n現在: ${hedge.accumulated} コイン`,

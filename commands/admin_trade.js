@@ -1,20 +1,4 @@
 import { SlashCommandBuilder } from "discord.js";
-import fs from "fs";
-import path from "path";
-import dotenv from "dotenv";
-dotenv.config();
-
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-const stocksFile = path.join(process.cwd(), "stocks.json");
-
-function loadStocks() {
-  if (!fs.existsSync(stocksFile)) fs.writeFileSync(stocksFile, JSON.stringify({}));
-  return new Map(Object.entries(JSON.parse(fs.readFileSync(stocksFile, "utf-8"))));
-}
-
-function saveStocks(map) {
-  fs.writeFileSync(stocksFile, JSON.stringify(Object.fromEntries(map), null, 2));
-}
 
 export const data = new SlashCommandBuilder()
   .setName("admin_trade")
@@ -31,22 +15,38 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   const password = interaction.options.getString("password");
-  if (password !== ADMIN_PASSWORD) return interaction.reply({ content: "❌ パスワードが違います", flags: 64 });
+  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+  if (password !== ADMIN_PASSWORD) {
+    return interaction.reply({ content: "❌ パスワードが違います", flags: 64 });
+  }
 
   const user = interaction.options.getUser("target");
+  const userId = user.id;
   const amount = interaction.options.getInteger("amount");
   const action = interaction.options.getString("action");
+  const client = interaction.client;
 
-  const stocks = loadStocks();
-  let current = stocks.get(user.id) || 0;
+  try {
+    // MongoDB版：ユーザー情報取得
+    const userDoc = await client.coinsCol.findOne({ userId });
+    let current = userDoc?.stocks || 0;
 
-  if (action === "add") current += amount;
-  else if (action === "subtract") current = Math.max(0, current - amount);
-  else if (action === "set") current = amount;
+    if (action === "add") current += amount;
+    else if (action === "subtract") current = Math.max(0, current - amount);
+    else if (action === "set") current = amount;
 
-  stocks.set(user.id, current);
-  saveStocks(stocks);
+    // 保存
+    await client.coinsCol.updateOne(
+      { userId },
+      { $set: { stocks: current } },
+      { upsert: true }
+    );
 
-  console.log(`${interaction.user.tag} が ${user.tag} の株数を ${current} に更新しました`);
-  return interaction.reply({ content: `✅ ${user.tag} の株数を ${current} に更新しました`, flags: 64 });
+    console.log(`${interaction.user.tag} が ${user.tag} の株数を ${current} に更新しました`);
+    return interaction.reply({ content: `✅ ${user.tag} の株数を ${current} に更新しました`, flags: 64 });
+
+  } catch (err) {
+    console.error("❌ admin_trade エラー:", err);
+    return interaction.reply({ content: "❌ 株数更新中にエラーが発生しました", flags: 64 });
+  }
 }

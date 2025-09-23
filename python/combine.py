@@ -5,11 +5,11 @@ from treys import Card, Evaluator
 
 # --- 引数処理 ---
 args = sys.argv[1:]
-if len(args) < 11:
+if len(args) < 12:  # player5 + bot5 + reveal + output_path
     print("ERROR: 引数が不足しています", file=sys.stderr)
     sys.exit(1)
 
-*cards, reveal = args
+*cards, reveal, out_path = args
 player_cards = cards[:5]
 bot_cards = cards[5:10]
 
@@ -66,8 +66,7 @@ for i, card in enumerate(player_cards):
     table.paste(img, (x, y_player), img)
 
 # --- 出力 ---
-combined_path = os.path.join(images_dir, "combined.png")
-table.save(combined_path)
+table.save(out_path)
 
 # --- 勝敗判定（公開時のみ） ---
 if reveal == "1":

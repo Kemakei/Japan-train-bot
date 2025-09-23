@@ -1,8 +1,4 @@
 import { SlashCommandBuilder } from "discord.js";
-import dotenv from "dotenv";
-dotenv.config();
-
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
 export const data = new SlashCommandBuilder()
   .setName("admin_takarakuji")
@@ -27,6 +23,7 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction, { client }) {
   try {
     const password = interaction.options.getString("password");
+    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
     if (password !== ADMIN_PASSWORD) {
       return interaction.reply({ content: "❌ パスワードが間違っています", flags: 64 });
     }
@@ -43,10 +40,21 @@ export async function execute(interaction, { client }) {
       return interaction.reply({ content: "❌ 文字は A-Z の1文字で指定してください", flags: 64 });
     }
 
-    const purchase = { number: String(number), letter, drawNumber: null, drawLetter: null, claimed: false };
-    const purchases = client.takarakujiPurchases.get(userId) || [];
-    purchases.push(purchase);
-    client.takarakujiPurchases.set(userId, purchases);
+    const purchase = {
+      number: String(number),
+      letter,
+      drawNumber: null,
+      drawLetter: null,
+      claimed: false,
+      createdAt: new Date()
+    };
+
+    // MongoDB 版：lotteryCol に追加
+    await client.lotteryCol.updateOne(
+      { userId },
+      { $push: { purchases: purchase } },
+      { upsert: true }
+    );
 
     return interaction.reply({ content: `✅ <@${userId}> に宝くじ ${number}${letter} を追加しました`, flags: 64 });
   } catch (err) {

@@ -6,7 +6,7 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction, { client }) {
   const userId = interaction.user.id;
-  const purchases = client.takarakujiPurchases.get(userId);
+  const purchases = await client.getTakarakujiPurchases(userId);
 
   if (!purchases || purchases.length === 0) {
     return interaction.reply({ content: '❌ 購入履歴がありません。', flags: 64 });
@@ -16,14 +16,11 @@ export async function execute(interaction, { client }) {
   let messageLines = [];
   let anyClaimed = false;
 
-  for (const purchase of purchases) {
+  for (let i = 0; i < purchases.length; i++) {
+    const purchase = purchases[i];
+
     if (!purchase.drawNumber || !purchase.drawLetter) {
       messageLines.push(`🎟 ${purchase.number}${purchase.letter}: ❌ まだ結果が確定していません。次の更新後に判定可能です。`);
-      continue;
-    }
-
-    if (purchase.claimed) {
-      messageLines.push(`🎟 ${purchase.number}${purchase.letter}: ℹ️ すでに取得済み`);
       continue;
     }
 
@@ -43,9 +40,14 @@ export async function execute(interaction, { client }) {
     const prizeAmounts = { '1等 🎉':1000000, '2等 🥳':750000, '3等 🎊':500000, '4等 🎉':300000, '5等 🎉':100000, '6等 🎉':50000, '7等 🎉':1000 };
     const prizeAmount = prizeAmounts[prizeResult] || 0;
 
-    if (prizeAmount > 0) client.updateCoins(userId, prizeAmount);
-    purchase.claimed = true;
+    if (prizeAmount > 0) await client.updateCoins(userId, prizeAmount);
     anyClaimed = true;
+
+    // MongoDB から削除
+    await client.lotteryCol.updateOne(
+      { userId },
+      { $pull: { purchases: { number: purchase.number, letter: purchase.letter } } }
+    );
 
     messageLines.push(`🎟 ${number}${letter}: 🏆 ${prizeResult}${prizeAmount > 0 ? ` 💰 ${prizeAmount}コイン` : ''}`);
   }

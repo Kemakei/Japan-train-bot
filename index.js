@@ -14,6 +14,7 @@ import {
   Routes,
   EmbedBuilder,
 } from 'discord.js';
+import { MongoClient } from "mongodb";
 
 // -------------------- Webサーバー設定 --------------------
 const app = express();
@@ -40,6 +41,14 @@ const youtubeApiKey = trimQuotes(process.env.YOUTUBE_API_TOKEN);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// -------------------- MongoDB 接続 --------------------
+const mongoClient = new MongoClient(process.env.MONGO_URI);
+await mongoClient.connect();
+const db = mongoClient.db("discordBot");
+const coinsCol = db.collection("coins"); // coins + stocks + trade_history
+const hedgeCol = db.collection("hedges");
+const lotteryCol = db.collection("lottery"); // 宝くじ購入履歴
+
 // Discordクライアント初期化
 const client = new Client({
   intents: [
@@ -55,95 +64,77 @@ client.lastSentCopies = new Map();
 client.autoRoleMap = new Map();
 client.commands = new Collection();
 
-// -------------------- コイン管理（永続化込み） --------------------
-const coinsFile = path.join(__dirname, 'coins.json');
-
-function loadCoins() {
-  if (!fs.existsSync(coinsFile)) fs.writeFileSync(coinsFile, JSON.stringify({}));
-  const raw = JSON.parse(fs.readFileSync(coinsFile, 'utf-8'));
-  const map = new Map();
-  for (const [userId, data] of Object.entries(raw)) {
-    map.set(userId, { coins: data.coins ?? 0 });
-  }
-
-  // 株価関連初期化
-  if (!map.has("stock_price")) map.set("stock_price", 950);
-  if (!map.has("trade_history")) map.set("trade_history", []);
-
-  return map;
-}
-
-function saveCoins(map) {
-  const obj = {};
-  for (const [userId, data] of map) obj[userId] = data;
-  fs.writeFileSync(coinsFile, JSON.stringify(obj, null, 2));
-}
-
-client.coins = loadCoins();
-
-client.getCoins = (userId) => client.coins.get(userId)?.coins || 0;
-client.setCoins = (userId, amount) => {
-  const data = client.coins.get(userId) || { coins: 0 };
-  data.coins = Number(amount);
-  client.coins.set(userId, data);
-  saveCoins(client.coins);
-};
-client.updateCoins = (userId, delta) => {
-  const data = client.coins.get(userId) || { coins: 0 };
-  data.coins = (data.coins || 0) + Number(delta);
-  client.coins.set(userId, data);
-  saveCoins(client.coins);
+// -------------------- コイン・株管理（MongoDB版） --------------------
+client.getUserData = async (userId) => {
+  const doc = await coinsCol.findOne({ userId });
+  return doc || { userId, coins: 0, stocks: 0 };
 };
 
-client.on(Events.GuildMemberAdd, member => {
-  if (!client.coins.has(member.id)) client.setCoins(member.id, 0);
-});
-
-// -------------------- 株価管理 --------------------
-
-// 株価と履歴の初期化
-client.getStockPrice = () => {
-  const obj = client.coins.get("stock_price");
-  return typeof obj?.coins === "number" ? obj.coins : 950;
+client.getCoins = async (userId) => {
+  const doc = await client.getUserData(userId);
+  return doc.coins || 0;
 };
 
-client.coins.set("stock_price", { coins: client.getStockPrice() });
+client.updateCoins = async (userId, delta) => {
+  await coinsCol.updateOne(
+    { userId },
+    { $inc: { coins: delta } },
+    { upsert: true }
+  );
+};
 
+client.updateStocks = async (userId, delta) => {
+  await coinsCol.updateOne(
+    { userId },
+    { $inc: { stocks: delta } },
+    { upsert: true }
+  );
+};
+
+// -------------------- 株価管理（MongoDB版） --------------------
 let forceSign = 0; // -1 = 下げ強制, 1 = 上げ強制, 0 = ランダム
 
-// 株価変動処理
-client.updateStockPrice = (delta) => {
-  let price = client.getStockPrice() + delta;
+client.getStockPrice = async () => {
+  const stock = await coinsCol.findOne({ userId: "stock_price" });
+  return typeof stock?.coins === "number" ? stock.coins : 950;
+};
+
+client.updateStockPrice = async (delta) => {
+  let price = await client.getStockPrice() + delta;
 
   if (price < 850) {
     price = 850;
-    forceSign = 1; // 次回上昇
+    forceSign = 1;
   } else if (price > 1100) {
     price = 1100;
-    forceSign = -1; // 次回下降
+    forceSign = -1;
   }
 
-  // 保存
-  client.coins.set("stock_price", { coins: price });
+  await coinsCol.updateOne(
+    { userId: "stock_price" },
+    { $set: { coins: price } },
+    { upsert: true }
+  );
 
   // 履歴管理
-  const historyObj = client.coins.get("trade_history");
-  const history = Array.isArray(historyObj?.coins) ? historyObj.coins : [];
+  const historyDoc = await coinsCol.findOne({ userId: "trade_history" });
+  const history = Array.isArray(historyDoc?.coins) ? historyDoc.coins : [];
   history.push({ time: new Date().toISOString(), price });
-  if (history.length > 144) history.shift(); // 直近1日分
-  client.coins.set("trade_history", { coins: history });
+  if (history.length > 144) history.shift();
 
-  saveCoins(client.coins);
+  await coinsCol.updateOne(
+    { userId: "trade_history" },
+    { $set: { coins: history } },
+    { upsert: true }
+  );
 };
 
-// 売買による株価変動
 client.modifyStockByTrade = (type, count) => {
   let delta = Math.max(1, Math.floor(count * 0.5));
   if (type === "sell") delta = -delta;
   client.updateStockPrice(delta);
 };
 
-// 自動株価変動（10分ごと）
 function randomDelta() {
   const r = Math.random();
   return Math.max(1, Math.floor(r * r * 31));
@@ -152,36 +143,26 @@ function randomDelta() {
 setInterval(() => {
   let sign = forceSign !== 0 ? forceSign : (Math.random() < 0.5 ? -1 : 1);
   forceSign = 0;
-
   const delta = sign * randomDelta();
   client.updateStockPrice(delta);
-  console.log(`株価自動変動: ${delta}, 現在株価: ${client.getStockPrice()}`);
+  client.getStockPrice().then(price => console.log(`株価自動変動: ${delta}, 現在株価: ${price}`));
 }, 10 * 60 * 1000);
 
-// -------------------- ヘッジ契約管理 --------------------
-const hedgeFile = path.join(__dirname, 'hedgeContracts.json');
-
-function loadHedges() {
-  if (!fs.existsSync(hedgeFile)) fs.writeFileSync(hedgeFile, JSON.stringify({}));
-  const raw = JSON.parse(fs.readFileSync(hedgeFile, 'utf-8'));
-  return new Map(Object.entries(raw));
-}
-
-function saveHedges() {
-  const obj = Object.fromEntries(client.hedgeContracts);
-  fs.writeFileSync(hedgeFile, JSON.stringify(obj, null, 2));
-}
-
-client.hedgeContracts = loadHedges();
-
-client.getHedge = (userId) => client.hedgeContracts.get(userId) || null;
-client.setHedge = (userId, data) => {
-  client.hedgeContracts.set(userId, data);
-  saveHedges();
+// -------------------- ヘッジ契約管理（MongoDB版） --------------------
+client.getHedge = async (userId) => {
+  return await hedgeCol.findOne({ userId });
 };
-client.clearHedge = (userId) => {
-  client.hedgeContracts.delete(userId);
-  saveHedges();
+
+client.setHedge = async (userId, data) => {
+  await hedgeCol.updateOne(
+    { userId },
+    { $set: data },
+    { upsert: true }
+  );
+};
+
+client.clearHedge = async (userId) => {
+  await hedgeCol.deleteOne({ userId });
 };
 
 // --------------------- 宝くじ番号管理 ---------------------
@@ -190,11 +171,32 @@ client.takarakuji = {
   letter: String.fromCharCode(65 + Math.floor(Math.random() * 26))
 };
 
-// ユーザー購入履歴（複数購入対応）
-// userId => [ { number, letter, drawNumber, drawLetter, claimed } ]
-client.takarakujiPurchases = new Map();
+client.getTakarakujiPurchases = async (userId) => {
+  const doc = await lotteryCol.findOne({ userId });
+  return doc?.purchases || [];
+};
 
-// 固定30分ごとに当選番号更新
+client.addTakarakujiPurchase = async (userId, purchase) => {
+  await lotteryCol.updateOne(
+    { userId },
+    { $push: { purchases: purchase } },
+    { upsert: true }
+  );
+};
+
+client.updateTakarakujiDraw = async (userId, index, drawNumber, drawLetter) => {
+  const purchases = await client.getTakarakujiPurchases(userId);
+  if (!purchases[index]) return;
+  purchases[index].drawNumber = drawNumber;
+  purchases[index].drawLetter = drawLetter;
+  purchases[index].claimed = false;
+  await lotteryCol.updateOne(
+    { userId },
+    { $set: { purchases } },
+    { upsert: true }
+  );
+};
+
 function scheduleTakarakujiUpdate() {
   const now = new Date();
   const minutes = now.getMinutes();
@@ -213,29 +215,30 @@ function scheduleTakarakujiUpdate() {
   }, delay);
 }
 
-function updateTakarakujiNumber() {
+async function updateTakarakujiNumber() {
   const oldNumber = client.takarakuji.number;
   const oldLetter = client.takarakuji.letter;
 
-  // 新しい番号生成
   client.takarakuji.number = String(Math.floor(Math.random() * 90000) + 10000);
   client.takarakuji.letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
 
-  // 未割当購入に当選番号を割り当てる
-  client.takarakujiPurchases.forEach((purchases) => {
-    purchases.forEach(purchase => {
+  // すべてのユーザーの宝くじに古い番号を反映
+  const allUsers = await lotteryCol.find({}).toArray();
+  for (const userDoc of allUsers) {
+    const purchases = userDoc.purchases || [];
+    for (const purchase of purchases) {
       if (!purchase.drawNumber) {
         purchase.drawNumber = oldNumber;
         purchase.drawLetter = oldLetter;
         purchase.claimed = false;
       }
-    });
-  });
+    }
+    await lotteryCol.updateOne({ userId: userDoc.userId }, { $set: { purchases } });
+  }
 
   console.log(`🎟 宝くじ番号更新: ${client.takarakuji.number}${client.takarakuji.letter}`);
 }
 
-// デプロイ時にスケジュール開始
 scheduleTakarakujiUpdate();
 
 // ------------------ 🔁 ./commands/*.js を自動読み込み --------------------

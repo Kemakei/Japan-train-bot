@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
+import { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } from "discord.js";
 import { spawn } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -16,18 +16,12 @@ export async function execute(interaction, { client }) {
   const pythonPath = path.resolve(__dirname, "../python/graph.py");
   const pythonCmd = process.platform === "win32" ? "py" : "python3";
 
-  // 安全に trade_history と stock_price を取得
-  const tradeHistoryObj = client.coins.get("trade_history");
-  const tradeHistory = Array.isArray(tradeHistoryObj?.coins)
-    ? tradeHistoryObj.coins
-    : Array.isArray(tradeHistoryObj)
-      ? tradeHistoryObj
-      : [];
+  // MongoDB版：非同期で trade_history と stock_price を取得
+  const tradeHistoryDoc = await client.coinsCol.findOne({ userId: "trade_history" });
+  const tradeHistory = Array.isArray(tradeHistoryDoc?.coins) ? tradeHistoryDoc.coins : [];
 
-  const stockPriceObj = client.coins.get("stock_price");
-  const stockPrice = typeof stockPriceObj?.coins === "number"
-    ? stockPriceObj.coins
-    : 950;
+  const stockPriceDoc = await client.coinsCol.findOne({ userId: "stock_price" });
+  const stockPrice = typeof stockPriceDoc?.coins === "number" ? stockPriceDoc.coins : 950;
 
   const dataToSend = JSON.stringify({ trade_history: tradeHistory, stock_price: stockPrice });
 
@@ -59,6 +53,8 @@ export async function execute(interaction, { client }) {
       return interaction.editReply({ content: "❌ グラフ情報の解析に失敗しました", flags: 64 });
     }
 
+    const attachment = new AttachmentBuilder(parsed.image, { name: "stock.png" });
+
     const embed = new EmbedBuilder()
       .setColor("Blue")
       .setTitle("📈 株価情報")
@@ -69,6 +65,6 @@ export async function execute(interaction, { client }) {
       )
       .setImage("attachment://stock.png");
 
-    interaction.editReply({ embeds: [embed], files: [parsed.image] });
+    interaction.editReply({ embeds: [embed], files: [attachment] });
   });
 }

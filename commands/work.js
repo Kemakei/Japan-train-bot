@@ -55,15 +55,17 @@ export async function execute(interaction) {
 
     // コイン付与
     const earned = Math.floor(Math.random() * (1000 - 600 + 1)) + 600;
-    interaction.client.updateCoins(userId, earned);
+    await interaction.client.updateCoins(userId, earned);
 
     cooldowns[userId] = now;
     saveCooldowns(cooldowns);
 
+    const coins = await interaction.client.getCoins(userId);
+
     const embed = new EmbedBuilder()
       .setColor('Green')
       .setDescription(
-        `💰 **${earned}コイン手に入れました！**\n所持金: **${interaction.client.getCoins(userId)}コイン**`
+        `💰 **${earned}コイン手に入れました！**\n所持金: **${coins}コイン**`
       );
 
     await interaction.editReply({ embeds: [embed] });

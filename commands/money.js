@@ -9,31 +9,31 @@ export async function execute(interaction) {
     const userId = interaction.user.id;
     const client = interaction.client;
 
-    // ユーザーデータ取得
-    const userData = client.coins.get(userId) || { coins: 0, stocks: 0 };
-    const coins = userData.coins || 0;
-    const stocks = userData.stocks || 0;
+    // MongoDB版：ユーザーデータ取得
+    const userDataDoc = await client.coinsCol.findOne({ userId });
+    const coins = userDataDoc?.coins || 0;
+    const stocks = userDataDoc?.stocks || 0;
 
-    // ヘッジ契約の確認
-    const hedge = client.getHedge(userId);
+    // ヘッジ契約の確認（MongoDB版）
+    const hedgeDoc = await client.getHedge(userId);
     let hedgeAccumulated = 0;
 
-    if (hedge) {
+    if (hedgeDoc) {
       const now = new Date();
       const jstOffset = 9 * 60; // JST +9時間
       const nowJST = new Date(now.getTime() + jstOffset * 60 * 1000);
 
-      const lastUpdate = new Date(hedge.lastUpdateJST);
+      const lastUpdate = new Date(hedgeDoc.lastUpdateJST || nowJST.getTime());
       const msPerDay = 24 * 60 * 60 * 1000;
 
       const daysPassed = Math.floor((nowJST.getTime() - lastUpdate.getTime()) / msPerDay);
-      hedgeAccumulated = hedge.accumulated + hedge.amountPerDay * daysPassed;
+      hedgeAccumulated = hedgeDoc.accumulated + hedgeDoc.amountPerDay * daysPassed;
 
       if (daysPassed > 0) {
-        client.updateCoins(userId, hedge.amountPerDay * daysPassed);
-        hedge.accumulated = 0;
-        hedge.lastUpdateJST = nowJST.getTime();
-        client.setHedge(userId, hedge);
+        await client.updateCoins(userId, hedgeDoc.amountPerDay * daysPassed);
+        hedgeDoc.accumulated = 0;
+        hedgeDoc.lastUpdateJST = nowJST.getTime();
+        await client.setHedge(userId, hedgeDoc);
       }
     }
 

@@ -7,6 +7,7 @@ import {
 } from "discord.js";
 import { spawn } from "child_process";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -24,11 +25,11 @@ export async function execute(interaction) {
   const userId = interaction.user.id;
 
   let bet = 100;
-  if (client.getCoins(userId) < bet) {
+  if ((await client.getCoins(userId)) < bet) {
     return interaction.reply({ content: "❌ コインが足りません！", flags: 64 });
   }
 
-  client.updateCoins(userId, -bet);
+  await client.updateCoins(userId, -bet);
   await interaction.deferReply();
 
   // --- デッキ作成 ---
@@ -41,8 +42,11 @@ export async function execute(interaction) {
   const playerHand = deck.splice(0, 5);
   const botHand = deck.splice(0, 5);
 
+  // --- 出力ファイル名をユーザーごとにユニーク化 ---
+  const combinedPath = path.resolve(__dirname, `../python/images/combined_${userId}.png`);
+
   // --- Pythonで画像生成 ---
-  const pythonArgs = [pythonPath, ...playerHand, ...botHand, "0"];
+  const pythonArgs = [pythonPath, ...playerHand, ...botHand, "0", combinedPath];
   const pythonProc = spawn(pythonCmd, pythonArgs);
 
   pythonProc.on("error", async (err) => {
@@ -61,7 +65,6 @@ export async function execute(interaction) {
       });
     }
 
-    const combinedPath = path.resolve(__dirname, "../python/images/combined.png");
     const file = new AttachmentBuilder(combinedPath);
 
     const row = new ActionRowBuilder().addComponents(
@@ -85,10 +88,8 @@ export async function execute(interaction) {
       }
 
       try {
-        // ボタンIDごとの処理
         if (btnInt.customId === "bet100") {
-          if ((bet + 100) * 2 > client.getCoins(userId)) {
-            // deferUpdateしていないので reply でOK
+          if ((bet + 100) * 2 > (await client.getCoins(userId))) {
             return btnInt.reply({ content: "❌ コインが足りません！", flags: 64 });
           }
           bet += 100;
@@ -97,7 +98,7 @@ export async function execute(interaction) {
         }
 
         if (btnInt.customId === "bet1000") {
-          if ((bet + 1000) * 2 > client.getCoins(userId)) {
+          if ((bet + 1000) * 2 > (await client.getCoins(userId))) {
             return btnInt.reply({ content: "❌ コインが足りません！", flags: 64 });
           }
           bet += 1000;
@@ -107,11 +108,9 @@ export async function execute(interaction) {
 
         if (btnInt.customId === "call") {
           collector.stop("called");
-
-          // deferUpdateしてから勝敗判定
           await btnInt.deferUpdate();
 
-          const pyArgs = [pythonPath, ...playerHand, ...botHand, "1"];
+          const pyArgs = [pythonPath, ...playerHand, ...botHand, "1", combinedPath];
           const resultProc = spawn(pythonCmd, pyArgs);
 
           let stdout = "";
@@ -131,20 +130,23 @@ export async function execute(interaction) {
             if (winner === "player") {
               let multiplier = score <= 200 ? 0.5 : score <= 800 ? 1 : 2;
               amount = Math.floor(bet * multiplier);
-              client.updateCoins(userId, amount);
-              msg = `🎉 勝ち！ +${amount} コイン\n所持金: ${client.getCoins(userId)}`;
+              await client.updateCoins(userId, amount);
+              msg = `🎉 勝ち！ +${amount} コイン\n所持金: ${(await client.getCoins(userId))}`;
             } else if (winner === "bot") {
               let multiplier = score <= 200 ? 2 : score <= 800 ? 1 : 0.5;
               amount = -Math.floor(bet * multiplier);
-              client.updateCoins(userId, amount);
-              msg = `💀 負け！ ${amount} コイン\n所持金: ${client.getCoins(userId)}`;
+              await client.updateCoins(userId, amount);
+              msg = `💀 負け！ ${amount} コイン\n所持金: ${(await client.getCoins(userId))}`;
             } else {
               amount = Math.floor(bet / 2);
-              client.updateCoins(userId, amount);
-              msg = `🤝 引き分け！ ${amount} コイン返却\n所持金: ${client.getCoins(userId)}`;
+              await client.updateCoins(userId, amount);
+              msg = `🤝 引き分け！ ${amount} コイン返却\n所持金: ${(await client.getCoins(userId))}`;
             }
 
             await interaction.editReply({ content: msg, files: [file], components: [] });
+
+            // --- 送信後にファイル削除 ---
+            try { fs.unlinkSync(combinedPath); } catch (e) { console.error("一時ファイル削除失敗:", e); }
           });
           return;
         }
@@ -152,9 +154,11 @@ export async function execute(interaction) {
         if (btnInt.customId === "fold") {
           collector.stop("folded");
           await btnInt.update({
-            content: `🏳️ フォールドしました。\n所持金: ${client.getCoins(userId)}`,
+            content: `🏳️ フォールドしました。\n所持金: ${(await client.getCoins(userId))}`,
             components: []
           });
+
+          try { fs.unlinkSync(combinedPath); } catch (e) { console.error("一時ファイル削除失敗:", e); }
           return;
         }
 
@@ -168,11 +172,13 @@ export async function execute(interaction) {
 
     collector.on("end", async (_, reason) => {
       if (reason !== "called" && reason !== "folded") {
-        client.updateCoins(userId, bet);
+        await client.updateCoins(userId, bet);
         await interaction.editReply({
-          content: `⌛ タイムアウト\n所持金: ${client.getCoins(userId)}`,
+          content: `⌛ タイムアウト\n所持金: ${(await client.getCoins(userId))}`,
           components: []
         });
+
+        try { fs.unlinkSync(combinedPath); } catch (e) { console.error("一時ファイル削除失敗:", e); }
       }
     });
   });

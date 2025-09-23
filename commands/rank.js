@@ -9,11 +9,12 @@ export async function execute(interaction, { client }) {
   if (!guild) return await interaction.reply({ content: '❌ ギルド情報が取得できません', flags: 64 });
 
   try {
-    // coins.json からランキング作成
-    const coinsMap = new Map(client.coins);
-    const ranking = Array.from(coinsMap.entries())
-      .filter(([userId]) => !['stock_price', 'trade_history'].includes(userId))
-      .map(([userId, data]) => ({ userId, coins: data.coins }))
+    // MongoDB版：全ユーザーデータ取得
+    const allUsers = await client.coinsCol.find({}).toArray();
+
+    const ranking = allUsers
+      .filter(doc => !['stock_price', 'trade_history'].includes(doc.userId))
+      .map(doc => ({ userId: doc.userId, coins: doc.coins || 0 }))
       .sort((a, b) => b.coins - a.coins);
 
     if (ranking.length === 0) return await interaction.reply({ content: '❌ ランキングデータがありません', flags: 64 });
@@ -46,6 +47,7 @@ export async function execute(interaction, { client }) {
 
     await interaction.reply({ embeds: [embed] });
   } catch (err) {
+    console.error(err);
     if (!interaction.deferred && !interaction.replied) {
       await interaction.reply({ content: '❌ コマンド実行中にエラーが発生しました', flags: 64 });
     } else {
