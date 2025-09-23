@@ -30,6 +30,14 @@ export async function execute(interaction) {
   }
 
   await client.updateCoins(userId, -bet);
+
+  // 所持金がマイナスになったら0に補正
+  let currentCoins = await client.getCoins(userId);
+  if (currentCoins < 0) {
+    await client.setCoins(userId, 0);
+    currentCoins = 0;
+  }
+
   await interaction.deferReply();
 
   // --- デッキ作成 ---
@@ -90,7 +98,7 @@ export async function execute(interaction) {
       try {
         // --- ベット増加 ---
         if (btnInt.customId === "bet100") {
-          if ((bet + 100) * 2 > (await client.getCoins(userId))) {
+          if (bet > (await client.getCoins(userId))) {
             return btnInt.reply({ content: "❌ コインが足りません！", flags: 64 });
           }
           bet += 100;
@@ -99,7 +107,7 @@ export async function execute(interaction) {
         }
 
         if (btnInt.customId === "bet1000") {
-          if ((bet + 1000) * 2 > (await client.getCoins(userId))) {
+          if (bet > (await client.getCoins(userId))) {
             return btnInt.reply({ content: "❌ コインが足りません！", flags: 64 });
           }
           bet += 1000;
@@ -132,24 +140,32 @@ export async function execute(interaction) {
             if (winner === "player") {
               let multiplier = score <= 200 ? 0.5 : score <= 800 ? 1 : 2;
               amount = Math.floor(bet * multiplier);
-              // 最低でも 1.2倍、最大 3倍
               amount = Math.max(amount, Math.floor(bet * 1.2));
               amount = Math.min(amount, Math.floor(bet * 3));
               await client.updateCoins(userId, amount);
-              msg = `🎉 勝ち！ +${amount} コイン\n所持金: ${(await client.getCoins(userId))}`;
+
             } else if (winner === "bot") {
               let multiplier = score <= 200 ? 2 : score <= 800 ? 1 : 0.5;
               amount = -Math.floor(bet * multiplier);
-              // 最低でも -1倍、最大でも -3倍
               amount = Math.min(amount, -Math.floor(bet * 1));
               amount = Math.max(amount, -Math.floor(bet * 3));
               await client.updateCoins(userId, amount);
-              msg = `💀 負け！ ${amount} コイン\n所持金: ${(await client.getCoins(userId))}`;
+
             } else {
               amount = Math.floor(bet / 2);
               await client.updateCoins(userId, amount);
-              msg = `🤝 引き分け！ ${amount} コイン返却\n所持金: ${(await client.getCoins(userId))}`;
             }
+
+            // 所持金がマイナスなら0に
+            currentCoins = await client.getCoins(userId);
+            if (currentCoins < 0) {
+              await client.setCoins(userId, 0);
+              currentCoins = 0;
+            }
+
+            if (winner === "player") msg = `🎉 勝ち！ +${amount} コイン\n所持金: ${currentCoins}`;
+            else if (winner === "bot") msg = `💀 負け！ ${amount} コイン\n所持金: ${currentCoins}`;
+            else msg = `🤝 引き分け！ ${amount} コイン返却\n所持金: ${currentCoins}`;
 
             await interaction.editReply({ content: msg, files: [file], components: [] });
 
@@ -162,8 +178,14 @@ export async function execute(interaction) {
         // --- フォールド処理 ---
         if (btnInt.customId === "fold") {
           collector.stop("folded");
+          currentCoins = await client.getCoins(userId);
+          if (currentCoins < 0) {
+            await client.setCoins(userId, 0);
+            currentCoins = 0;
+          }
+
           await btnInt.update({
-            content: `🏳️ フォールドしました。\n所持金: ${(await client.getCoins(userId))}`,
+            content: `🏳️ フォールドしました。\n所持金: ${currentCoins}`,
             components: []
           });
 
@@ -182,8 +204,16 @@ export async function execute(interaction) {
     collector.on("end", async (_, reason) => {
       if (reason !== "called" && reason !== "folded") {
         await client.updateCoins(userId, bet);
+
+        // 所持金がマイナスなら0に
+        currentCoins = await client.getCoins(userId);
+        if (currentCoins < 0) {
+          await client.setCoins(userId, 0);
+          currentCoins = 0;
+        }
+
         await interaction.editReply({
-          content: `⌛ タイムアウト\n所持金: ${(await client.getCoins(userId))}`,
+          content: `⌛ タイムアウト\n所持金: ${currentCoins}`,
           components: []
         });
 

@@ -80,6 +80,14 @@ client.getCoins = async (userId) => {
   return doc.coins || 0;
 };
 
+client.setCoins = async (userId, amount) => {
+  await coinsCol.updateOne(
+    { userId },
+    { $set: { coins: amount } },
+    { upsert: true }
+  );
+};
+
 client.updateCoins = async (userId, delta) => {
   await coinsCol.updateOne(
     { userId },
