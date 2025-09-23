@@ -280,6 +280,53 @@ client.once(Events.ClientReady, async () => {
     console.error('❌ コマンド登録失敗:', err);
   }
 });
+// 起動時に NaN や不正データをリセット
+async function sanitizeDatabase() {
+  console.log("🔹 データベースの初期化チェック中...");
+
+  // coins コレクション
+  const coinsDocs = await coinsCol.find({}).toArray();
+  for (const doc of coinsDocs) {
+    let needUpdate = false;
+    const update = {};
+
+    if (typeof doc.coins !== "number" || isNaN(doc.coins)) {
+      update.coins = 0;
+      needUpdate = true;
+    }
+    if (typeof doc.stocks !== "number" || isNaN(doc.stocks)) {
+      update.stocks = 0;
+      needUpdate = true;
+    }
+
+    if (needUpdate) {
+      await coinsCol.updateOne({ userId: doc.userId }, { $set: update });
+      console.log(`🛠 ${doc.userId} の壊れたコイン/株データを初期化しました`);
+    }
+  }
+
+  // hedges コレクション
+  const hedgeDocs = await hedgeCol.find({}).toArray();
+  for (const doc of hedgeDocs) {
+    if (
+      typeof doc.amountPerDay !== "number" || isNaN(doc.amountPerDay) ||
+      typeof doc.accumulated !== "number" || isNaN(doc.accumulated) ||
+      typeof doc.lastUpdateJST !== "number" || isNaN(doc.lastUpdateJST)
+    ) {
+      await hedgeCol.deleteOne({ userId: doc.userId });
+      console.log(`🛠 ${doc.userId} の壊れた hedge データを削除しました`);
+    }
+  }
+
+  console.log("✅ データベースの初期化チェック完了");
+}
+
+// client.once(Events.ClientReady) 内で呼ぶ
+client.once(Events.ClientReady, async () => {
+  console.log(`🤖 Logged in as ${client.user.tag}`);
+
+  await sanitizeDatabase(); // 起動時にチェック
+});
 
 client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand() && !interaction.isMessageContextMenuCommand()) return;
