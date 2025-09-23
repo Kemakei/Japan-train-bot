@@ -15,7 +15,7 @@ import {
   EmbedBuilder,
 } from 'discord.js';
 import { MongoClient } from "mongodb";
-
+import { getNextDrawId } from './utils/draw.js';
 // -------------------- Webサーバー設定 --------------------
 const app = express();
 const PORT = process.env.PORT || 3000;
