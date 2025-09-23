@@ -52,7 +52,7 @@ export async function execute(interaction) {
     if (interaction.deferred || interaction.replied) {
       await interaction.editReply("❌ 所持金確認中にエラーが発生しました");
     } else {
-      await interaction.reply({ content: "❌ 所持金確認中にエラーが発生しました", ephemeral: true });
+      await interaction.reply({ content: "❌ 所持金確認中にエラーが発生しました", flags: 64 });
     }
   }
 }

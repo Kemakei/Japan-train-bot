@@ -27,14 +27,14 @@ export async function execute(interaction) {
     if (targetId === senderId) {
       return await interaction.reply({
         content: "❌ 自分にコインを送ることはできません！",
-        ephemeral: true
+        flags: 64
       });
     }
 
     if (amount <= 0) {
       return await interaction.reply({
         content: "❌ 送るコインは1以上で指定してください。",
-        ephemeral: true
+        flags: 64
       });
     }
 
@@ -42,7 +42,7 @@ export async function execute(interaction) {
     if (amount > senderCoins) {
       return await interaction.reply({
         content: "❌ あなたの所持コインが足りません！",
-        ephemeral: true
+        flags: 64
       });
     }
 
@@ -64,7 +64,7 @@ export async function execute(interaction) {
     if (!interaction.replied) {
       await interaction.reply({
         content: "❌ コマンド実行中にエラーが発生しました",
-        ephemeral: true
+        flags: 64
       });
     } else {
       await interaction.editReply({

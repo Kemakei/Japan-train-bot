@@ -10,7 +10,7 @@ export async function execute(interaction) {
     const client = interaction.client;
     const hedge = await client.getHedge(userId);
 
-    if (!hedge) return interaction.reply({ content: "❌ 契約中の保険金がありません", ephemeral: true });
+    if (!hedge) return interaction.reply({ content: "❌ 契約中の保険金がありません", flags: 64 });
 
     // 壊れたデータが入っていれば削除
     if (
@@ -19,7 +19,7 @@ export async function execute(interaction) {
       typeof hedge.lastUpdateJST !== 'number' || isNaN(hedge.lastUpdateJST)
     ) {
       await client.clearHedge(userId);
-      return interaction.reply({ content: "❌ 契約データが壊れています。再契約してください。", ephemeral: true });
+      return interaction.reply({ content: "❌ 契約データが壊れています。再契約してください。", flags: 64 });
     }
 
     // JST基準で日数計算
@@ -35,7 +35,7 @@ export async function execute(interaction) {
 
     if (isNaN(total) || total <= 0) {
       await client.clearHedge(userId);
-      return interaction.reply({ content: "❌ 保険金の計算に問題がありました。データをリセットしました。", ephemeral: true });
+      return interaction.reply({ content: "❌ 保険金の計算に問題がありました。データをリセットしました。", flags: 64 });
     }
 
     // コイン加算 & 契約削除
@@ -49,6 +49,6 @@ export async function execute(interaction) {
 
   } catch (err) {
     console.error(err);
-    await interaction.reply({ content: "❌ 受け取り処理中にエラーが発生しました", ephemeral: true });
+    await interaction.reply({ content: "❌ 受け取り処理中にエラーが発生しました", flags: 64 });
   }
 }

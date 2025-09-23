@@ -12,20 +12,21 @@ export async function execute(interaction, { client }) {
     return interaction.reply({ content: '❌ 購入履歴がありません。', flags: 64 });
   }
 
-  const now = new Date();
-  let messageLines = [];
+  const drawResultsCol = client.db.collection("drawResults");
+  const messageLines = [];
   let anyClaimed = false;
 
-  for (let i = 0; i < purchases.length; i++) {
-    const purchase = purchases[i];
+  for (const purchase of purchases) {
+    const { number, letter, drawId } = purchase;
+    const result = await drawResultsCol.findOne({ drawId });
 
-    if (!purchase.drawNumber || !purchase.drawLetter) {
-      messageLines.push(`🎟 ${purchase.number}${purchase.letter}: ❌ まだ結果が確定していません。次の更新後に判定可能です。`);
+    if (!result) {
+      messageLines.push(`🎟 ${number}${letter} (回:${drawId}): ❌ まだ結果が公開されていません。`);
       continue;
     }
 
-    const { number, letter, drawNumber, drawLetter } = purchase;
-
+    // 照合
+    const { number: drawNumber, letter: drawLetter } = result;
     const results = [
       number === drawNumber && letter === drawLetter ? '1等 🎉' : null,
       number === drawNumber ? '2等 🥳' : null,
@@ -40,20 +41,25 @@ export async function execute(interaction, { client }) {
     const prizeAmounts = { '1等 🎉':1000000, '2等 🥳':750000, '3等 🎊':500000, '4等 🎉':300000, '5等 🎉':100000, '6等 🎉':50000, '7等 🎉':10000 };
     const prizeAmount = prizeAmounts[prizeResult] || 0;
 
-    if (prizeAmount > 0) await client.updateCoins(userId, prizeAmount);
-    anyClaimed = true;
+    if (prizeAmount > 0 && !purchase.claimed) {
+      await client.updateCoins(userId, prizeAmount);
+      purchase.claimed = true;
+      anyClaimed = true;
+    }
 
-    // MongoDB から削除
-    await client.lotteryCol.updateOne(
-      { userId },
-      { $pull: { purchases: { number: purchase.number, letter: purchase.letter } } }
-    );
-
-    messageLines.push(`🎟 ${number}${letter}: 🏆 ${prizeResult}${prizeAmount > 0 ? ` 💰 ${prizeAmount}コイン` : ''}`);
+    messageLines.push(`🎟 ${number}${letter} (回:${drawId}): 🏆 ${prizeResult}${prizeAmount > 0 ? ` 💰 ${prizeAmount}コイン` : ''}`);
   }
 
+  // DBに反映（claimed 更新）
+  await client.lotteryCol.updateOne(
+    { userId },
+    { $set: { purchases } }
+  );
+
+  // ✅ 結果がある場合は公開、まだ公開されていない場合はephemeral
+  const hasResults = messageLines.some(line => !line.includes('まだ結果が公開されていません'));
   await interaction.reply({
     content: messageLines.join('\n'),
-    flags: anyClaimed ? 0 : 64
+    flags: hasResults ? undefined : 64
   });
 }

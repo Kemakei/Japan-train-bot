@@ -184,6 +184,20 @@ client.takarakuji = {
   letter: String.fromCharCode(65 + Math.floor(Math.random() * 26))
 };
 
+function getNextDrawId(date) {
+  const d = new Date(date);
+  d.setSeconds(0, 0);
+
+  const minutes = d.getMinutes();
+  if (minutes < 30) {
+    d.setMinutes(30);
+  } else {
+    d.setMinutes(0);
+    d.setHours(d.getHours() + 1);
+  }
+
+  return d.toISOString();
+}
 client.getTakarakujiPurchases = async (userId) => {
   const doc = await lotteryCol.findOne({ userId });
   return doc?.purchases || [];
@@ -232,22 +246,19 @@ async function updateTakarakujiNumber() {
   const oldNumber = client.takarakuji.number;
   const oldLetter = client.takarakuji.letter;
 
+  // ← 追加: 直前の回の drawId を求める
+  const oldDrawId = getNextDrawId(new Date(Date.now() - 30 * 60 * 1000));
+
+  // ← 追加: drawResults コレクションに保存
+  await db.collection("drawResults").updateOne(
+    { drawId: oldDrawId },
+    { $set: { number: oldNumber, letter: oldLetter, drawId: oldDrawId } },
+    { upsert: true }
+  );
+
+  // 次回の番号を生成
   client.takarakuji.number = String(Math.floor(Math.random() * 90000) + 10000);
   client.takarakuji.letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
-
-  // すべてのユーザーの宝くじに古い番号を反映
-  const allUsers = await lotteryCol.find({}).toArray();
-  for (const userDoc of allUsers) {
-    const purchases = userDoc.purchases || [];
-    for (const purchase of purchases) {
-      if (!purchase.drawNumber) {
-        purchase.drawNumber = oldNumber;
-        purchase.drawLetter = oldLetter;
-        purchase.claimed = false;
-      }
-    }
-    await lotteryCol.updateOne({ userId: userDoc.userId }, { $set: { purchases } });
-  }
 
   console.log(`🎟 宝くじ番号更新: ${client.takarakuji.number}${client.takarakuji.letter}`);
 }

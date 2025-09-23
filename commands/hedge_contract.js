@@ -27,15 +27,15 @@ export async function execute(interaction) {
 
     // 契約選択チェック
     const contract = contracts.find(c => c.daily === amount);
-    if (!contract) return interaction.reply({ content: "❌ 無効な契約額です", ephemeral: true });
+    if (!contract) return interaction.reply({ content: "❌ 無効な契約額です", flags: 64 });
 
     // 既存契約チェック
     const userHedge = await client.getHedge(userId);
-    if (userHedge) return interaction.reply({ content: "❌ 既に契約中です", ephemeral: true });
+    if (userHedge) return interaction.reply({ content: "❌ 既に契約中です", flags: 64 });
 
     // コイン残高チェック
     const coins = await client.getCoins(userId);
-    if (coins < contract.fee) return interaction.reply({ content: "❌ コインが足りません", ephemeral: true });
+    if (coins < contract.fee) return interaction.reply({ content: "❌ コインが足りません", flags: 64 });
 
     // コイン減算
     await client.updateCoins(userId, -contract.fee);
@@ -59,6 +59,6 @@ export async function execute(interaction) {
 
   } catch (err) {
     console.error(err);
-    await interaction.reply({ content: "❌ 契約処理中にエラーが発生しました", ephemeral: true });
+    await interaction.reply({ content: "❌ 契約処理中にエラーが発生しました", flags: 64 });
   }
 }
