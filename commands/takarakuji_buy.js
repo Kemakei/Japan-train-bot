@@ -33,7 +33,7 @@ export async function execute(interaction, { client }) {
       return interaction.reply({ content: `❌ ${i}個目の文字はA-Zの1文字で入力してください`, flags: 64 });
     }
 
-    const drawId = getNextDrawId(); // 次の回を割り当て
+    const drawId = getNextDrawId(new Date());
     tickets.push({ number: num, letter, drawId, claimed: false, createdAt: new Date() });
   }
 

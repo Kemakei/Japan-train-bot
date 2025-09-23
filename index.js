@@ -179,31 +179,19 @@ client.clearHedge = async (userId) => {
   await hedgeCol.deleteOne({ userId });
 };
 
-// --------------------- 宝くじ番号管理 ---------------------
+// --- 宝くじ初期化 ---
 client.takarakuji = {
   number: String(Math.floor(Math.random() * 90000) + 10000),
   letter: String.fromCharCode(65 + Math.floor(Math.random() * 26))
 };
 
-function getNextDrawId(date) {
-  const d = new Date(date);
-  d.setSeconds(0, 0);
-
-  const minutes = d.getMinutes();
-  if (minutes < 30) {
-    d.setMinutes(30);
-  } else {
-    d.setMinutes(0);
-    d.setHours(d.getHours() + 1);
-  }
-
-  return d.toISOString();
-}
+// 購入履歴取得
 client.getTakarakujiPurchases = async (userId) => {
   const doc = await lotteryCol.findOne({ userId });
   return doc?.purchases || [];
 };
 
+// 購入追加
 client.addTakarakujiPurchase = async (userId, purchase) => {
   await lotteryCol.updateOne(
     { userId },
@@ -212,6 +200,7 @@ client.addTakarakujiPurchase = async (userId, purchase) => {
   );
 };
 
+// 購入情報更新（抽選番号更新）
 client.updateTakarakujiDraw = async (userId, index, drawNumber, drawLetter) => {
   const purchases = await client.getTakarakujiPurchases(userId);
   if (!purchases[index]) return;
@@ -225,11 +214,34 @@ client.updateTakarakujiDraw = async (userId, index, drawNumber, drawLetter) => {
   );
 };
 
+// 宝くじ番号更新関数
+async function updateTakarakujiNumber() {
+  const oldNumber = client.takarakuji.number;
+  const oldLetter = client.takarakuji.letter;
+
+  // 直前回の drawId
+  const oldDrawId = getNextDrawId(new Date(Date.now() - 30 * 60 * 1000));
+
+  // drawResults に保存
+  await db.collection("drawResults").updateOne(
+    { drawId: oldDrawId },
+    { $set: { number: oldNumber, letter: oldLetter, drawId: oldDrawId } },
+    { upsert: true }
+  );
+
+  // 次回の番号生成
+  client.takarakuji.number = String(Math.floor(Math.random() * 90000) + 10000);
+  client.takarakuji.letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+
+  console.log(`🎟 宝くじ番号更新: ${client.takarakuji.number}${client.takarakuji.letter}`);
+}
+
+// 宝くじ自動更新スケジュール
 function scheduleTakarakujiUpdate() {
   const now = new Date();
   const minutes = now.getMinutes();
   const seconds = now.getSeconds();
-  
+
   let delay;
   if (minutes < 30) {
     delay = (30 - minutes) * 60 * 1000 - seconds * 1000;
@@ -243,28 +255,9 @@ function scheduleTakarakujiUpdate() {
   }, delay);
 }
 
-async function updateTakarakujiNumber() {
-  const oldNumber = client.takarakuji.number;
-  const oldLetter = client.takarakuji.letter;
-
-  // ← 追加: 直前の回の drawId を求める
-  const oldDrawId = getNextDrawId(new Date(Date.now() - 30 * 60 * 1000));
-
-  // ← 追加: drawResults コレクションに保存
-  await db.collection("drawResults").updateOne(
-    { drawId: oldDrawId },
-    { $set: { number: oldNumber, letter: oldLetter, drawId: oldDrawId } },
-    { upsert: true }
-  );
-
-  // 次回の番号を生成
-  client.takarakuji.number = String(Math.floor(Math.random() * 90000) + 10000);
-  client.takarakuji.letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
-
-  console.log(`🎟 宝くじ番号更新: ${client.takarakuji.number}${client.takarakuji.letter}`);
-}
-
+// 起動時にスケジュール開始
 scheduleTakarakujiUpdate();
+
 
 // ------------------ 🔁 ./commands/*.js を自動読み込み --------------------
 const commandsJSON = [];

@@ -1,3 +1,4 @@
+// commands/takarakuji_get.js
 import { SlashCommandBuilder } from 'discord.js';
 
 export const data = new SlashCommandBuilder()
@@ -21,7 +22,7 @@ export async function execute(interaction, { client }) {
     const result = await drawResultsCol.findOne({ drawId });
 
     if (!result) {
-      messageLines.push(`🎟 ${number}${letter} (回:${drawId}): ❌ まだ結果が公開されていません。`);
+      messageLines.push(`🎟 ${number}${letter} (❌ まだ結果が公開されていません。)`);
       continue;
     }
 
@@ -50,13 +51,11 @@ export async function execute(interaction, { client }) {
     messageLines.push(`🎟 ${number}${letter} (回:${drawId}): 🏆 ${prizeResult}${prizeAmount > 0 ? ` 💰 ${prizeAmount}コイン` : ''}`);
   }
 
-  // DBに反映（claimed 更新）
   await client.lotteryCol.updateOne(
     { userId },
     { $set: { purchases } }
   );
 
-  // ✅ 結果がある場合は公開、まだ公開されていない場合はephemeral
   const hasResults = messageLines.some(line => !line.includes('まだ結果が公開されていません'));
   await interaction.reply({
     content: messageLines.join('\n'),

@@ -38,6 +38,6 @@ export async function execute(interaction, { client }) {
 `;
 
   await interaction.reply(
-    `🎯 最新公開済み当選番号 (回: ${drawId}): ${number}${letter}\n📋 当選条件:${allConditions}`
+    `🎯 最新公開済み当選番号 (${number}${letter}\n📋 当選条件:${allConditions}`
   );
 }
