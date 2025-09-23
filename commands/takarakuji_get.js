@@ -48,7 +48,7 @@ export async function execute(interaction, { client }) {
       anyClaimed = true;
     }
 
-    messageLines.push(`🎟 ${number}${letter} (回:${drawId}): 🏆 ${prizeResult}${prizeAmount > 0 ? ` 💰 ${prizeAmount}コイン` : ''}`);
+    messageLines.push(`🎟 ${number}${letter} (🏆 ${prizeResult}${prizeAmount > 0 ? ` 💰 ${prizeAmount}コイン` : ''}`);
   }
 
   await client.lotteryCol.updateOne(
