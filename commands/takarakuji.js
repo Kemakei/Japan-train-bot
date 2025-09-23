@@ -1,4 +1,6 @@
+// -------------------- takarakuji.js --------------------
 import { SlashCommandBuilder } from 'discord.js';
+import { getNextDrawId } from '../utils/draw.js';
 
 export const data = new SlashCommandBuilder()
   .setName('takarakuji')
@@ -7,17 +9,8 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction, { client }) {
   const drawResultsCol = client.db.collection("drawResults");
 
-  // 現在時刻で直近公開済み回を計算
   const now = new Date();
-  const drawDate = new Date(now);
-  drawDate.setSeconds(0, 0);
-
-  if (drawDate.getMinutes() < 30) {
-    drawDate.setMinutes(0);
-  } else {
-    drawDate.setMinutes(30);
-  }
-  const drawId = drawDate.toISOString();
+  const drawId = getNextDrawId(now); // 統一形式
 
   const result = await drawResultsCol.findOne({ drawId });
 

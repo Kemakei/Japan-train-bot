@@ -1,4 +1,6 @@
+// -------------------- admin_takarakuji.js --------------------
 import { SlashCommandBuilder } from "discord.js";
+import { getNextDrawId } from '../utils/draw.js';
 
 export const data = new SlashCommandBuilder()
   .setName("admin_takarakuji")
@@ -47,6 +49,7 @@ export async function execute(interaction, { client }) {
       if (number === null || !letter) {
         return interaction.reply({ content: "❌ 追加する場合は番号と文字を指定してください", flags: 64 });
       }
+
       if (number < 10000 || number > 99999) {
         return interaction.reply({ content: "❌ 番号は5桁で指定してください", flags: 64 });
       }
@@ -54,11 +57,11 @@ export async function execute(interaction, { client }) {
         return interaction.reply({ content: "❌ 文字は A-Z の1文字で指定してください", flags: 64 });
       }
 
+      const drawId = getNextDrawId(new Date());
       const purchase = {
         number: String(number),
         letter,
-        drawNumber: null,
-        drawLetter: null,
+        drawId,
         claimed: false,
         createdAt: new Date()
       };

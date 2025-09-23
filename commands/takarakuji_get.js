@@ -1,5 +1,6 @@
-// commands/takarakuji_get.js
+// -------------------- takarakuji_get.js --------------------
 import { SlashCommandBuilder } from 'discord.js';
+import { getNextDrawId } from '../utils/draw.js';
 
 export const data = new SlashCommandBuilder()
   .setName('takarakuji_get')
@@ -26,7 +27,6 @@ export async function execute(interaction, { client }) {
       continue;
     }
 
-    // 照合
     const { number: drawNumber, letter: drawLetter } = result;
     const results = [
       number === drawNumber && letter === drawLetter ? '1等 🎉' : null,

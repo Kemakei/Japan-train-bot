@@ -1,3 +1,4 @@
+// -------------------- takarakuji_buy.js --------------------
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import { getNextDrawId } from '../utils/draw.js';
 
@@ -66,5 +67,5 @@ export async function execute(interaction, { client }) {
     .addFields({ name: '手数料', value: `${totalCost}コイン`, inline: true })
     .setFooter({ text: `残り所持金: ${coins - totalCost}コイン` });
 
-  await interaction.reply({ embeds: [embed] }); // ✅ ephemeralにせず公開
+  await interaction.reply({ embeds: [embed] });
 }
