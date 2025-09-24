@@ -181,7 +181,7 @@ client.clearHedge = async (userId) => {
 
 // --- 宝くじ初期化 ---
 client.takarakuji = {
-  number: String(Math.floor(Math.random() * 90000) + 10000),
+  number: String(Math.floor(Math.random() * 100000)).padStart(5, "0"),
   letter: String.fromCharCode(65 + Math.floor(Math.random() * 26))
 };
 
@@ -229,8 +229,8 @@ async function updateTakarakujiNumber() {
     { upsert: true }
   );
 
-  // 次回の番号生成
-  client.takarakuji.number = String(Math.floor(Math.random() * 90000) + 10000);
+  // 次回の番号生成（00000〜99999, 先頭0も可）
+  client.takarakuji.number = String(Math.floor(Math.random() * 100000)).padStart(5, "0");
   client.takarakuji.letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
 
   console.log(`🎟 宝くじ番号更新: ${client.takarakuji.number}${client.takarakuji.letter}`);
@@ -257,7 +257,6 @@ function scheduleTakarakujiUpdate() {
 
 // 起動時にスケジュール開始
 scheduleTakarakujiUpdate();
-
 
 // ------------------ 🔁 ./commands/*.js を自動読み込み --------------------
 const commandsJSON = [];

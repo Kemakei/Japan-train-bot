@@ -8,12 +8,15 @@ export async function execute(interaction) {
   const userId = interaction.user.id;
   const { lotteryCol, db, updateCoins } = interaction.client;
 
+  // 🔹 最初にdeferReply (ephemeral扱いにする)
+  await interaction.deferReply({ flags: 64 });
+
   // 購入履歴を取得
   const purchasesDoc = await lotteryCol.findOne({ userId });
   const purchases = purchasesDoc?.purchases || [];
 
   if (purchases.length === 0) {
-    return interaction.reply({ content: '❌ 購入履歴がありません', flags: 64 });
+    return interaction.editReply({ content: '❌ 購入履歴がありません', flags: 64 });
   }
 
   const drawResultsCol = db.collection("drawResults");
@@ -25,7 +28,7 @@ export async function execute(interaction) {
     const result = await drawResultsCol.findOne({ drawId });
 
     if (!result) {
-      // 抽選前 → 残す（ephemeralにするため flags: 64）
+      // 抽選前 → 残す & 個別にephemeral通知
       remainingPurchases.push(purchase);
       await interaction.followUp({
         content: `🎟 ${number}${letter} → ⏳ まだ抽選結果は出ていません`,
@@ -34,7 +37,7 @@ export async function execute(interaction) {
       continue;
     }
 
-    // 抽選済み → 削除＆結果確認
+    // 抽選済み → DBから削除
     await lotteryCol.updateOne(
       { userId },
       { $pull: { purchases: { drawId } } }
@@ -44,33 +47,32 @@ export async function execute(interaction) {
     let line;
     let prizeAmount = 0;
 
-    // 当選判定
     if (number === drawNumber && letter === drawLetter) {
-      prizeAmount = 1000000; // 1等
+      prizeAmount = 1000000;
       await updateCoins(userId, prizeAmount);
       line = `🎟 ${number}${letter} → 🏆 1等！💰 ${prizeAmount}コイン獲得！`;
     } else if (number === drawNumber) {
-      prizeAmount = 750000; // 2等
+      prizeAmount = 750000;
       await updateCoins(userId, prizeAmount);
       line = `🎟 ${number}${letter} → 🏆 2等！💰 ${prizeAmount}コイン獲得！`;
     } else if (number.slice(1) === drawNumber.slice(1) && letter === drawLetter) {
-      prizeAmount = 500000; // 3等
+      prizeAmount = 500000;
       await updateCoins(userId, prizeAmount);
       line = `🎟 ${number}${letter} → 🏆 3等！💰 ${prizeAmount}コイン獲得！`;
     } else if (number.slice(2) === drawNumber.slice(2)) {
-      prizeAmount = 300000; // 4等
+      prizeAmount = 300000;
       await updateCoins(userId, prizeAmount);
       line = `🎟 ${number}${letter} → 🏆 4等！💰 ${prizeAmount}コイン獲得！`;
     } else if (number.slice(3) === drawNumber.slice(3) && letter === drawLetter) {
-      prizeAmount = 100000; // 5等
+      prizeAmount = 100000;
       await updateCoins(userId, prizeAmount);
       line = `🎟 ${number}${letter} → 🏆 5等！💰 ${prizeAmount}コイン獲得！`;
     } else if (letter === drawLetter) {
-      prizeAmount = 10000; // 6等
+      prizeAmount = 10000;
       await updateCoins(userId, prizeAmount);
       line = `🎟 ${number}${letter} → 🏆 6等！💰 ${prizeAmount}コイン獲得！`;
     } else if (number.slice(4) === drawNumber.slice(4)) {
-      prizeAmount = 5000; // 7等
+      prizeAmount = 5000;
       await updateCoins(userId, prizeAmount);
       line = `🎟 ${number}${letter} → 🏆 7等！💰 ${prizeAmount}コイン獲得！`;
     } else {
@@ -80,18 +82,21 @@ export async function execute(interaction) {
     messageLines.push(line);
   }
 
-  // 抽選前の購入だけを再保存
+  // 抽選前の購入だけ再保存
   await lotteryCol.updateOne(
     { userId },
     { $set: { purchases: remainingPurchases } },
     { upsert: true }
   );
 
-  // 当選・ハズレ結果があれば公開でまとめて出す
+  // 当選・ハズレ結果があれば公開
   if (messageLines.length > 0) {
-    await interaction.reply({
+    await interaction.followUp({
       content: messageLines.join('\n'),
-      flags: 0 // 公開（デフォルト）
+      flags: 0 // 公開
     });
   }
+
+  // 最初のdeferReplyを消す
+  await interaction.deleteReply().catch(() => {});
 }

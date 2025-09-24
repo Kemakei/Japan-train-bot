@@ -21,9 +21,9 @@ export const data = new SlashCommandBuilder()
          { name: "追加", value: "add" },
          { name: "削除", value: "remove" }
        ))
-  .addIntegerOption(opt =>
+  .addStringOption(opt =>
     opt.setName("number")
-       .setDescription("5桁の宝くじ番号")
+       .setDescription("5桁の宝くじ番号（先頭0も可）")
        .setRequired(false))
   .addStringOption(opt =>
     opt.setName("letter")
@@ -41,16 +41,17 @@ export async function execute(interaction, { client }) {
     const userInput = interaction.options.getString("userid");
     const userId = userInput.replace(/[<@!>]/g, "").trim();
     const action = interaction.options.getString("action");
-    const number = interaction.options.getInteger("number");
+    const numberInput = interaction.options.getString("number");
+    const number = numberInput?.trim(); // ← 文字列として扱う
     const letterInput = interaction.options.getString("letter");
     const letter = letterInput?.toUpperCase();
 
     if (action === "add") {
-      if (number === null || !letter) {
+      if (!number || !letter) {
         return interaction.reply({ content: "❌ 追加する場合は番号と文字を指定してください", flags: 64 });
       }
-      if (number < 10000 || number > 99999) {
-        return interaction.reply({ content: "❌ 番号は5桁で指定してください", flags: 64 });
+      if (!/^\d{5}$/.test(number)) {
+        return interaction.reply({ content: "❌ 番号は5桁の数字で指定してください", flags: 64 });
       }
       if (!/^[A-Z]$/.test(letter)) {
         return interaction.reply({ content: "❌ 文字は A-Z の1文字で指定してください", flags: 64 });
@@ -58,7 +59,7 @@ export async function execute(interaction, { client }) {
 
       const drawId = getNextDrawId(new Date());
       const purchase = {
-        number: String(number),
+        number, // ← 文字列で保存（例: "00001"）
         letter,
         drawId,
         claimed: false,
@@ -78,13 +79,13 @@ export async function execute(interaction, { client }) {
       return interaction.reply({ content: `✅ <@${userId}> に宝くじ ${number}${letter} を追加しました`, flags: 64 });
 
     } else if (action === "remove") {
-      if ((number !== null || letter) && !(number !== null && letter)) {
+      if ((number || letter) && !(number && letter)) {
         return interaction.reply({ content: "❌ 削除する場合は番号と文字を両方指定してください", flags: 64 });
       }
 
-      if (number !== null && letter) {
-        if (number < 10000 || number > 99999) {
-          return interaction.reply({ content: "❌ 番号は5桁で指定してください", flags: 64 });
+      if (number && letter) {
+        if (!/^\d{5}$/.test(number)) {
+          return interaction.reply({ content: "❌ 番号は5桁の数字で指定してください", flags: 64 });
         }
         if (!/^[A-Z]$/.test(letter)) {
           return interaction.reply({ content: "❌ 文字は A-Z の1文字で指定してください", flags: 64 });
@@ -92,7 +93,7 @@ export async function execute(interaction, { client }) {
 
         const result = await client.lotteryCol.updateOne(
           { userId },
-          { $pull: { purchases: { number: String(number), letter } } }
+          { $pull: { purchases: { number, letter } } } // ← numberは文字列で完全一致
         );
 
         if (result.modifiedCount > 0) {
