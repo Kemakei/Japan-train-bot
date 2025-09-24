@@ -13,7 +13,7 @@ export async function execute(interaction) {
   const purchases = purchasesDoc?.purchases || [];
 
   if (purchases.length === 0) {
-    return interaction.reply({ content: '❌ 購入履歴がありません', ephemeral: true });
+    return interaction.reply({ content: '❌ 購入履歴がありません', flags: 64 });
   }
 
   const drawResultsCol = db.collection("drawResults");
@@ -25,9 +25,12 @@ export async function execute(interaction) {
     const result = await drawResultsCol.findOne({ drawId });
 
     if (!result) {
-      // 抽選前 → 残す
+      // 抽選前 → 残す（ephemeralにするため flags: 64）
       remainingPurchases.push(purchase);
-      messageLines.push(`🎟 ${number}${letter} → ⏳ まだ抽選結果は出ていません`);
+      await interaction.followUp({
+        content: `🎟 ${number}${letter} → ⏳ まだ抽選結果は出ていません`,
+        flags: 64
+      });
       continue;
     }
 
@@ -41,7 +44,7 @@ export async function execute(interaction) {
     let line;
     let prizeAmount = 0;
 
-    // 当選判定（例：1等～7等）
+    // 当選判定
     if (number === drawNumber && letter === drawLetter) {
       prizeAmount = 1000000; // 1等
       await updateCoins(userId, prizeAmount);
@@ -63,11 +66,11 @@ export async function execute(interaction) {
       await updateCoins(userId, prizeAmount);
       line = `🎟 ${number}${letter} → 🏆 5等！💰 ${prizeAmount}コイン獲得！`;
     } else if (letter === drawLetter) {
-      prizeAmount = 50000; // 6等
+      prizeAmount = 10000; // 6等
       await updateCoins(userId, prizeAmount);
       line = `🎟 ${number}${letter} → 🏆 6等！💰 ${prizeAmount}コイン獲得！`;
     } else if (number.slice(4) === drawNumber.slice(4)) {
-      prizeAmount = 10000; // 7等
+      prizeAmount = 5000; // 7等
       await updateCoins(userId, prizeAmount);
       line = `🎟 ${number}${letter} → 🏆 7等！💰 ${prizeAmount}コイン獲得！`;
     } else {
@@ -84,8 +87,11 @@ export async function execute(interaction) {
     { upsert: true }
   );
 
-  await interaction.reply({
-    content: messageLines.join('\n'),
-    ephemeral: true
-  });
+  // 当選・ハズレ結果があれば公開でまとめて出す
+  if (messageLines.length > 0) {
+    await interaction.reply({
+      content: messageLines.join('\n'),
+      flags: 0 // 公開（デフォルト）
+    });
+  }
 }

@@ -25,8 +25,8 @@ export async function execute(interaction, { client }) {
 3等: 下4桁 + 文字一致 50万コイン
 4等: 下3桁一致 30万コイン
 5等: 下2桁 + 文字一致 10万コイン
-6等: 文字一致 5万コイン
-7等: 下1桁一致 1万コイン
+6等: 文字一致 1万コイン
+7等: 下1桁一致 5000コイン
 `;
 
   await interaction.reply(
