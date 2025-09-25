@@ -8,19 +8,24 @@ export async function execute(interaction) {
   const userId = interaction.user.id;
   const { lotteryCol, db, updateCoins } = interaction.client;
 
-  // 🔹 最初にdeferReply (ephemeral扱いにする)
-  await interaction.deferReply({ flags: 64 });
+  // 🔹 deferReply は公開にする（公開・エフェメラル両立のため）
+  await interaction.deferReply();
 
   // 購入履歴を取得
   const purchasesDoc = await lotteryCol.findOne({ userId });
   const purchases = purchasesDoc?.purchases || [];
 
   if (purchases.length === 0) {
-    return interaction.editReply({ content: '❌ 購入履歴がありません', flags: 64 });
+    // 購入履歴なし → エフェメラルで残す
+    return interaction.followUp({
+      content: '❌ 購入履歴がありません',
+      flags: 64
+    });
   }
 
   const drawResultsCol = db.collection("drawResults");
-  const messageLines = [];
+  const publicLines = [];   // 公開（当選・ハズレ）
+  const ephemeralLines = []; // エフェメラル（抽選前など）
   const remainingPurchases = [];
 
   for (const purchase of purchases) {
@@ -28,12 +33,9 @@ export async function execute(interaction) {
     const result = await drawResultsCol.findOne({ drawId });
 
     if (!result) {
-      // 抽選前 → 残す & 個別にephemeral通知
+      // 抽選まだ → エフェメラルに追加
+      ephemeralLines.push(`🎟 ${number}${letter} → ⏳ まだ抽選結果は出ていません`);
       remainingPurchases.push(purchase);
-      await interaction.followUp({
-        content: `🎟 ${number}${letter} → ⏳ まだ抽選結果は出ていません`,
-        flags: 64
-      });
       continue;
     }
 
@@ -79,7 +81,7 @@ export async function execute(interaction) {
       line = `🎟 ${number}${letter} → ❌ 残念、ハズレ…`;
     }
 
-    messageLines.push(line);
+    publicLines.push(line);
   }
 
   // 抽選前の購入だけ再保存
@@ -89,14 +91,19 @@ export async function execute(interaction) {
     { upsert: true }
   );
 
-  // 当選・ハズレ結果があれば公開
-  if (messageLines.length > 0) {
+  // 公開（当選・ハズレ）
+  if (publicLines.length > 0) {
     await interaction.followUp({
-      content: messageLines.join('\n'),
-      flags: 0 // 公開
+      content: publicLines.join('\n'),
+      flags: 0
     });
   }
 
-  // 最初のdeferReplyを消す
-  await interaction.deleteReply().catch(() => {});
+  // エフェメラル（購入履歴なし・未公開）
+  if (ephemeralLines.length > 0) {
+    await interaction.followUp({
+      content: ephemeralLines.join('\n'),
+      flags: 64
+    });
+  }
 }
