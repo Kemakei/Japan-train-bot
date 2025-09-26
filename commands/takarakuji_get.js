@@ -1,31 +1,36 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 
 export const data = new SlashCommandBuilder()
-  .setName('takarakuji_get')
-  .setDescription('購入した宝くじの結果を確認します');
+  .setName("takarakuji_get")
+  .setDescription("購入した宝くじの結果を確認します");
 
 export async function execute(interaction) {
   const userId = interaction.user.id;
   const { lotteryCol, db, updateCoins } = interaction.client;
 
-  // 🔹 deferReply は公開にする（公開・エフェメラル両立のため）
+  // deferReply → 公開にする（followUpでエフェメラルを分けるため）
   await interaction.deferReply();
 
-  // 購入履歴を取得
+  // 購入履歴取得
   const purchasesDoc = await lotteryCol.findOne({ userId });
   const purchases = purchasesDoc?.purchases || [];
 
   if (purchases.length === 0) {
-    // 購入履歴なし → エフェメラルで残す
+    // 購入履歴なし（エフェメラル）
     return interaction.followUp({
-      content: '❌ 購入履歴がありません',
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("❌ 購入履歴なし")
+          .setDescription("現在、あなたの購入履歴はありません。")
+          .setColor(0xFF0000)
+      ],
       flags: 64
     });
   }
 
   const drawResultsCol = db.collection("drawResults");
-  const publicLines = [];   // 公開（当選・ハズレ）
-  const ephemeralLines = []; // エフェメラル（抽選前など）
+  const publicLines = [];    // 公開用（当選・ハズレ）
+  const ephemeralLines = []; // エフェメラル用（抽選前）
   const remainingPurchases = [];
 
   for (const purchase of purchases) {
@@ -33,7 +38,7 @@ export async function execute(interaction) {
     const result = await drawResultsCol.findOne({ drawId });
 
     if (!result) {
-      // 抽選まだ → エフェメラルに追加
+      // 抽選前 → エフェメラル行き
       ephemeralLines.push(`🎟 ${number}${letter} → ⏳ まだ抽選結果は出ていません`);
       remainingPurchases.push(purchase);
       continue;
@@ -51,34 +56,31 @@ export async function execute(interaction) {
 
     if (number === drawNumber && letter === drawLetter) {
       prizeAmount = 1000000;
-      await updateCoins(userId, prizeAmount);
       line = `🎟 ${number}${letter} → 🏆 1等！💰 ${prizeAmount}コイン獲得！`;
     } else if (number === drawNumber) {
       prizeAmount = 750000;
-      await updateCoins(userId, prizeAmount);
       line = `🎟 ${number}${letter} → 🏆 2等！💰 ${prizeAmount}コイン獲得！`;
     } else if (number.slice(1) === drawNumber.slice(1) && letter === drawLetter) {
       prizeAmount = 500000;
-      await updateCoins(userId, prizeAmount);
       line = `🎟 ${number}${letter} → 🏆 3等！💰 ${prizeAmount}コイン獲得！`;
     } else if (number.slice(2) === drawNumber.slice(2)) {
       prizeAmount = 300000;
-      await updateCoins(userId, prizeAmount);
       line = `🎟 ${number}${letter} → 🏆 4等！💰 ${prizeAmount}コイン獲得！`;
     } else if (number.slice(3) === drawNumber.slice(3) && letter === drawLetter) {
       prizeAmount = 100000;
-      await updateCoins(userId, prizeAmount);
       line = `🎟 ${number}${letter} → 🏆 5等！💰 ${prizeAmount}コイン獲得！`;
     } else if (letter === drawLetter) {
       prizeAmount = 10000;
-      await updateCoins(userId, prizeAmount);
       line = `🎟 ${number}${letter} → 🏆 6等！💰 ${prizeAmount}コイン獲得！`;
     } else if (number.slice(4) === drawNumber.slice(4)) {
       prizeAmount = 5000;
-      await updateCoins(userId, prizeAmount);
       line = `🎟 ${number}${letter} → 🏆 7等！💰 ${prizeAmount}コイン獲得！`;
     } else {
       line = `🎟 ${number}${letter} → ❌ 残念、ハズレ…`;
+    }
+
+    if (prizeAmount > 0) {
+      await updateCoins(userId, prizeAmount);
     }
 
     publicLines.push(line);
@@ -91,19 +93,30 @@ export async function execute(interaction) {
     { upsert: true }
   );
 
-  // 公開（当選・ハズレ）
-  if (publicLines.length > 0) {
-    await interaction.followUp({
-      content: publicLines.join('\n'),
-      flags: 0
-    });
+  // Embed分割関数
+  function createEmbedsFromText(text, title, color = 0x00AE86) {
+    const embeds = [];
+    const chunks = text.match(/[\s\S]{1,4000}/g) || [];
+    for (let i = 0; i < chunks.length; i++) {
+      embeds.push(
+        new EmbedBuilder()
+          .setTitle(i === 0 ? title : `${title} (続き${i})`)
+          .setDescription(chunks[i])
+          .setColor(color)
+      );
+    }
+    return embeds;
   }
 
-  // エフェメラル（購入履歴なし・未公開）
+  // 公開メッセージ（当選・ハズレ）
+  if (publicLines.length > 0) {
+    const publicEmbeds = createEmbedsFromText(publicLines.join("\n"), "🎉 抽選結果");
+    await interaction.followUp({ embeds: publicEmbeds, flags: 0 });
+  }
+
+  // エフェメラルメッセージ（抽選前）
   if (ephemeralLines.length > 0) {
-    await interaction.followUp({
-      content: ephemeralLines.join('\n'),
-      flags: 64
-    });
+    const ephemeralEmbeds = createEmbedsFromText(ephemeralLines.join("\n"), "まだ未公開の抽選", 0xAAAAAA);
+    await interaction.followUp({ embeds: ephemeralEmbeds, flags: 64 });
   }
 }

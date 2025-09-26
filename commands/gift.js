@@ -38,7 +38,8 @@ export async function execute(interaction) {
       });
     }
 
-    const senderCoins = client.getCoins(senderId) || 0;
+    // DB から残高取得（await 必須）
+    const senderCoins = (await client.getCoins(senderId)) || 0;
     if (amount > senderCoins) {
       return await interaction.reply({
         content: "❌ あなたの所持コインが足りません！",
@@ -47,20 +48,20 @@ export async function execute(interaction) {
     }
 
     // コイン移動
-    client.updateCoins(senderId, -amount);
-    const prevTargetCoins = client.getCoins(targetId) || 0;
-    client.setCoins(targetId, prevTargetCoins + amount);
+    await client.updateCoins(senderId, -amount);
+    const prevTargetCoins = (await client.getCoins(targetId)) || 0;
+    await client.setCoins(targetId, prevTargetCoins + amount);
 
-    // 成功メッセージは全員に見える
+    // 成功メッセージ（全員に公開）
+    const remaining = await client.getCoins(senderId);
     await interaction.reply({
       content: `🎁 <@${senderId}> が <@${targetId}> に ${amount} コインを贈りました！\n` +
-               `送信者の残りコイン: ${client.getCoins(senderId)}`,
+               `送信者の残りコイン: ${remaining}`,
       ephemeral: false
     });
 
   } catch (err) {
     console.error(err);
-    // エラーは本人だけに見えるように
     if (!interaction.replied) {
       await interaction.reply({
         content: "❌ コマンド実行中にエラーが発生しました",
