@@ -93,14 +93,14 @@ export async function execute(interaction) {
     { upsert: true }
   );
 
-  // Embed分割関数
+  // Embed分割関数（4000文字ごとに分割、続き番号は 1 始まり）
   function createEmbedsFromText(text, title, color = 0x00AE86) {
     const embeds = [];
     const chunks = text.match(/[\s\S]{1,4000}/g) || [];
     for (let i = 0; i < chunks.length; i++) {
       embeds.push(
         new EmbedBuilder()
-          .setTitle(i === 0 ? title : `${title} (続き${i})`)
+          .setTitle(i === 0 ? title : `${title} (続き${i + 1})`)
           .setDescription(chunks[i])
           .setColor(color)
       );
@@ -111,12 +111,17 @@ export async function execute(interaction) {
   // 公開メッセージ（当選・ハズレ）
   if (publicLines.length > 0) {
     const publicEmbeds = createEmbedsFromText(publicLines.join("\n"), "🎉 抽選結果");
-    await interaction.followUp({ embeds: publicEmbeds, flags: 0 });
+    // Embedが10個以上なら分割して送信
+    for (let i = 0; i < publicEmbeds.length; i += 10) {
+      await interaction.followUp({ embeds: publicEmbeds.slice(i, i + 10), flags: 0 });
+    }
   }
 
   // エフェメラルメッセージ（抽選前）
   if (ephemeralLines.length > 0) {
-    const ephemeralEmbeds = createEmbedsFromText(ephemeralLines.join("\n"), "まだ未公開の抽選", 0xAAAAAA);
-    await interaction.followUp({ embeds: ephemeralEmbeds, flags: 64 });
+    const ephemeralEmbeds = createEmbedsFromText(ephemeralLines.join("\n"), "⏳ 未公開の抽選", 0xAAAAAA);
+    for (let i = 0; i < ephemeralEmbeds.length; i += 10) {
+      await interaction.followUp({ embeds: ephemeralEmbeds.slice(i, i + 10), flags: 64 });
+    }
   }
 }
