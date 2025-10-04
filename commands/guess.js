@@ -32,8 +32,10 @@ export async function execute(interaction) {
     if (bet < 100) {
       return await interaction.reply({ content: "❌ 最低掛け金は100です！", flags: 64 });
     }
-    if (bet > coins) {
-      return await interaction.reply({ content: `❌ 所持コインが足りません！（現在: ${coins}）`, flags: 64 });
+
+    if (coins < bet * 1.5) {
+      const maxBet = Math.floor(bet * 1.5);
+      return await interaction.reply({ content: `❌ 最大 **${maxBet}** コインまで賭けられます！`, flags: 64 });
     }
 
     // 正常時のみ deferReply（公開メッセージ）

@@ -44,7 +44,7 @@ export async function execute(interaction, { client }) {
     return interaction.reply({ content: '❌ 少なくとも1つは宝くじを指定してください', flags: 64 });
   }
 
-  const costPerTicket = 200;
+  const costPerTicket = 500;
   const totalCost = tickets.length * costPerTicket;
   const coins = await client.getCoins(userId);
 

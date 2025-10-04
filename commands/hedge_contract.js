@@ -33,23 +33,24 @@ export async function execute(interaction) {
     const userHedge = await client.getHedge(userId);
     if (userHedge) return interaction.reply({ content: "❌ 既に契約中です", flags: 64 });
 
-    // コイン残高チェック
+    // コイン残高チェック（契約額の3倍必要）
     const coins = await client.getCoins(userId);
-    if (coins < contract.fee) return interaction.reply({ content: "❌ コインが足りません", flags: 64 });
+    if (coins < contract.daily * 3) return interaction.reply({ content: `❌ 契約には最低 ${contract.daily * 3} コイン必要です`, flags: 64 });
 
-    // コイン減算
+    // コイン減算（手数料）
+    if (coins < contract.fee) return interaction.reply({ content: `❌ 手数料 ${contract.fee} コインが足りません`, flags: 64 });
     await client.updateCoins(userId, -contract.fee);
 
-    // JST 時刻取得
+    // JST基準の日付（YYYY-MM-DD）
     const now = new Date();
-    const jstOffset = 9 * 60;
-    const nowJST = new Date(now.getTime() + jstOffset * 60 * 1000);
+    const nowJST = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    const todayStr = nowJST.toISOString().split("T")[0];
 
     // 契約データ保存
     await client.setHedge(userId, {
       amountPerDay: amount,
       accumulated: 0,
-      lastUpdateJST: nowJST.getTime(),
+      lastDate: todayStr, // JST基準の日付
     });
 
     await interaction.reply({

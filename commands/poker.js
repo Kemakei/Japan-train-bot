@@ -16,6 +16,9 @@ const __dirname = path.dirname(__filename);
 const pythonPath = path.resolve(__dirname, "../python/combine.py");
 const pythonCmd = process.platform === "win32" ? "py" : "python3";
 
+// --- 進行中ゲーム管理 ---
+const ongoingGames = new Map(); // userId -> true
+
 export const data = new SlashCommandBuilder()
   .setName("poker")
   .setDescription("Botと5枚ポーカーで勝負");
@@ -24,8 +27,20 @@ export async function execute(interaction) {
   const client = interaction.client;
   const userId = interaction.user.id;
 
+  // --- すでに進行中のゲームがある場合は拒否 ---
+  if (ongoingGames.has(userId)) {
+    return interaction.reply({
+      content: "❌ 進行中のゲームがあります。まず終わらせてください！",
+      flags: 64,
+    });
+  }
+
+  // --- ゲーム開始フラグを立てる ---
+  ongoingGames.set(userId, true);
+
   let bet = 100;
   if ((await client.getCoins(userId)) < bet) {
+    ongoingGames.delete(userId);
     return interaction.reply({ content: "❌ コインが足りません！", flags: 64 });
   }
 
@@ -50,8 +65,9 @@ export async function execute(interaction) {
   const playerHand = deck.splice(0, 5);
   const botHand = deck.splice(0, 5);
 
-  // --- 出力ファイル名をユーザーごとにユニーク化 ---
-  const combinedPath = path.resolve(__dirname, `../python/images/combined_${userId}.png`);
+  // --- 出力ファイル名をユーザー+タイムスタンプでユニーク化 ---
+  const timestamp = Date.now();
+  const combinedPath = path.resolve(__dirname, `../python/images/combined_${userId}_${timestamp}.png`);
 
   // --- Pythonで画像生成 ---
   const pythonArgs = [pythonPath, ...playerHand, ...botHand, "0", combinedPath];
@@ -59,17 +75,19 @@ export async function execute(interaction) {
 
   pythonProc.on("error", async (err) => {
     console.error("Python 実行エラー:", err);
+    ongoingGames.delete(userId);
     await interaction.editReply({
       content: "❌ ポーカー画像の生成中にエラーが発生しました",
-      components: []
+      flags: 64
     });
   });
 
   pythonProc.on("close", async (code) => {
     if (code !== 0) {
+      ongoingGames.delete(userId);
       return await interaction.editReply({
         content: "❌ Python スクリプトが異常終了しました",
-        components: []
+        flags: 64
       });
     }
 
@@ -80,6 +98,7 @@ export async function execute(interaction) {
       new ButtonBuilder().setCustomId("fold").setLabel("フォールド").setStyle(ButtonStyle.Danger),
       new ButtonBuilder().setCustomId("bet100").setLabel("ベット +100").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId("bet1000").setLabel("ベット +1000").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("bet10000").setLabel("ベット +10000").setStyle(ButtonStyle.Primary),
     );
 
     await interaction.editReply({
@@ -88,17 +107,22 @@ export async function execute(interaction) {
       components: [row],
     });
 
-    const collector = interaction.channel.createMessageComponentCollector({ time: 60000 });
+    // --- ユーザー限定コレクター ---
+    const filter = (btnInt) => {
+      if (btnInt.user.id !== userId) {
+        btnInt.reply({ content: "❌ あなたのゲームではありません！", flags: 64 });
+        return false;
+      }
+      return true;
+    };
+
+    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000 });
 
     collector.on("collect", async (btnInt) => {
-      if (btnInt.user.id !== userId) {
-        return btnInt.reply({ content: "❌ あなたのゲームではありません！", flags: 64 });
-      }
-
       try {
         // --- ベット増加 ---
         if (btnInt.customId === "bet100") {
-          if (bet > (await client.getCoins(userId))) {
+          if (bet + 100 > (await client.getCoins(userId))) {
             return btnInt.reply({ content: "❌ コインが足りません！", flags: 64 });
           }
           bet += 100;
@@ -107,10 +131,19 @@ export async function execute(interaction) {
         }
 
         if (btnInt.customId === "bet1000") {
-          if (bet > (await client.getCoins(userId))) {
+          if (bet + 1000 > (await client.getCoins(userId))) {
             return btnInt.reply({ content: "❌ コインが足りません！", flags: 64 });
           }
           bet += 1000;
+          await btnInt.update({ content: `🎲 現在のベット: ${bet} コイン`, components: [row] });
+          return;
+        }
+
+        if (btnInt.customId === "bet10000") {
+          if (bet + 10000 > (await client.getCoins(userId))) {
+            return btnInt.reply({ content: "❌ コインが足りません！", flags: 64 });
+          }
+          bet += 10000;
           await btnInt.update({ content: `🎲 現在のベット: ${bet} コイン`, components: [row] });
           return;
         }
@@ -128,6 +161,8 @@ export async function execute(interaction) {
           resultProc.stderr.on("data", (data) => { console.error("Python stderr:", data.toString()); });
 
           resultProc.on("close", async (code) => {
+            ongoingGames.delete(userId);
+
             if (code !== 0) {
               return btnInt.followUp({ content: "❌ 勝敗判定中にエラーが発生しました", flags: 64 });
             }
@@ -156,7 +191,6 @@ export async function execute(interaction) {
               await client.updateCoins(userId, amount);
             }
 
-            // 所持金がマイナスなら0に
             currentCoins = await client.getCoins(userId);
             if (currentCoins < 0) {
               await client.setCoins(userId, 0);
@@ -169,7 +203,6 @@ export async function execute(interaction) {
 
             await interaction.editReply({ content: msg, files: [file], components: [] });
 
-            // --- 送信後にファイル削除 ---
             try { fs.unlinkSync(combinedPath); } catch (e) { console.error("一時ファイル削除失敗:", e); }
           });
           return;
@@ -178,6 +211,8 @@ export async function execute(interaction) {
         // --- フォールド処理 ---
         if (btnInt.customId === "fold") {
           collector.stop("folded");
+          ongoingGames.delete(userId);
+
           currentCoins = await client.getCoins(userId);
           if (currentCoins < 0) {
             await client.setCoins(userId, 0);
@@ -195,6 +230,7 @@ export async function execute(interaction) {
 
       } catch (err) {
         console.error(err);
+        ongoingGames.delete(userId);
         if (!btnInt.replied) {
           await btnInt.followUp({ content: "❌ コマンド実行中に予期せぬエラーが発生しました", flags: 64 });
         }
@@ -202,15 +238,12 @@ export async function execute(interaction) {
     });
 
     collector.on("end", async (_, reason) => {
+      ongoingGames.delete(userId);
       if (reason !== "called" && reason !== "folded") {
         await client.updateCoins(userId, bet);
 
-        // 所持金がマイナスなら0に
         currentCoins = await client.getCoins(userId);
-        if (currentCoins < 0) {
-          await client.setCoins(userId, 0);
-          currentCoins = 0;
-        }
+        if (currentCoins < 0) await client.setCoins(userId, 0);
 
         await interaction.editReply({
           content: `⌛ タイムアウト\n所持金: ${currentCoins}`,

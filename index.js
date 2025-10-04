@@ -16,6 +16,7 @@ import {
 } from 'discord.js';
 import { MongoClient } from "mongodb";
 import { getNextDrawId } from './utils/draw.js';
+import { getLatestDrawId } from "./utils/draw.js";
 // -------------------- Webサーバー設定 --------------------
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -179,19 +180,33 @@ client.clearHedge = async (userId) => {
   await hedgeCol.deleteOne({ userId });
 };
 
-// --- 宝くじ初期化 ---
-client.takarakuji = {
-  number: String(Math.floor(Math.random() * 100000)).padStart(5, "0"),
-  letter: String.fromCharCode(65 + Math.floor(Math.random() * 26))
-};
+import { getNextDrawId, getLatestDrawId } from './utils/draw.js';
 
-// 購入履歴取得
+// --- 宝くじ初期化（起動時に DB から復元） ---
+async function loadLatestTakarakuji() {
+  const drawId = getLatestDrawId(new Date());
+  const result = await db.collection("drawResults").findOne({ drawId });
+
+  if (result) {
+    client.takarakuji = {
+      number: result.number,
+      letter: result.letter,
+    };
+    console.log(`✅ 最新の宝くじ番号を復元: ${result.number}${result.letter} (${drawId})`);
+  } else {
+    // DB に存在しない場合は何もしない
+    client.takarakuji = undefined;
+    console.log(`⚠️ DBに ${drawId} の宝くじ番号が存在しません。番号は未設定のままです`);
+  }
+}
+
+// --- 購入履歴取得 ---
 client.getTakarakujiPurchases = async (userId) => {
   const doc = await lotteryCol.findOne({ userId });
   return doc?.purchases || [];
 };
 
-// 購入追加
+// --- 購入追加 ---
 client.addTakarakujiPurchase = async (userId, purchase) => {
   await lotteryCol.updateOne(
     { userId },
@@ -200,7 +215,7 @@ client.addTakarakujiPurchase = async (userId, purchase) => {
   );
 };
 
-// 購入情報更新（抽選番号更新）
+// --- 購入情報更新（抽選番号更新） ---
 client.updateTakarakujiDraw = async (userId, index, drawNumber, drawLetter) => {
   const purchases = await client.getTakarakujiPurchases(userId);
   if (!purchases[index]) return;
@@ -214,29 +229,33 @@ client.updateTakarakujiDraw = async (userId, index, drawNumber, drawLetter) => {
   );
 };
 
-// 宝くじ番号更新関数
+// --- 宝くじ番号更新関数 ---
 async function updateTakarakujiNumber() {
+  if (!client.takarakuji) {
+    // DBに番号がない場合は何もせずスキップ
+    console.log('⚠️ client.takarakuji が未設定のため更新をスキップ');
+    return;
+  }
+
   const oldNumber = client.takarakuji.number;
   const oldLetter = client.takarakuji.letter;
 
-  // 直前回の drawId
+  // 直前回の drawId（更新された番号を公開する時刻）
   const oldDrawId = getNextDrawId(new Date(Date.now() - 30 * 60 * 1000));
 
-  // drawResults に保存
+  // MongoDB に保存
   await db.collection("drawResults").updateOne(
     { drawId: oldDrawId },
     { $set: { number: oldNumber, letter: oldLetter, drawId: oldDrawId } },
     { upsert: true }
   );
+  console.log(`💾 保存完了: ${oldNumber}${oldLetter} (${oldDrawId})`);
 
-  // 次回の番号生成（00000〜99999, 先頭0も可）
-  client.takarakuji.number = String(Math.floor(Math.random() * 100000)).padStart(5, "0");
-  client.takarakuji.letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
-
-  console.log(`🎟 宝くじ番号更新: ${client.takarakuji.number}${client.takarakuji.letter}`);
+  // 次回分の番号は生成せず、次回も DB の番号を使う
+  console.log(`🎟 次回番号は未設定のまま`);
 }
 
-// 宝くじ自動更新スケジュール
+// --- 宝くじ自動更新スケジュール ---
 function scheduleTakarakujiUpdate() {
   const now = new Date();
   const minutes = now.getMinutes();
@@ -255,8 +274,10 @@ function scheduleTakarakujiUpdate() {
   }, delay);
 }
 
-// 起動時にスケジュール開始
+// --- 起動時に呼ぶ ---
+await loadLatestTakarakuji();
 scheduleTakarakujiUpdate();
+
 
 // ------------------ 🔁 ./commands/*.js を自動読み込み --------------------
 const commandsJSON = [];
