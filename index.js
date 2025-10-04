@@ -277,23 +277,29 @@ await loadLatestTakarakuji();
 scheduleTakarakujiUpdate();
 
 
-// ------------------ 🔁 ./commands/*.js を自動読み込み --------------------
+// ------------------ 🔁 ./commands/*.js を安全に自動読み込み --------------------
+import { pathToFileURL } from 'url';
 const commandsJSON = [];
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'));
 
 for (const file of commandFiles) {
   const filePath = path.join(commandsPath, file);
-  const command = await import(`file://${filePath}`);
-  if ('data' in command && 'execute' in command) {
-    const name = command.data.name;
+
+  // ESM互換のURLに変換して import
+  const commandModule = await import(pathToFileURL(filePath).href);
+
+  if ('data' in commandModule && 'execute' in commandModule) {
+    const name = commandModule.data.name;
+
     if (client.commands.has(name)) {
-      console.warn(`⚠️ Duplicate command skipped: ${name}`);
+      console.warn(`⚠️ Duplicate command skipped: ${name} (file: ${file})`);
       continue;
     }
-    client.commands.set(name, command);
-    commandsJSON.push(command.data.toJSON());
-    console.log(`✅ Loaded command: ${name}`);
+
+    client.commands.set(name, commandModule);
+    commandsJSON.push(commandModule.data.toJSON());
+    console.log(`✅ Loaded command: ${name} (file: ${file})`);
   } else {
     console.warn(`⚠️ Skipped invalid command file: ${file}`);
   }
@@ -304,6 +310,7 @@ client.once(Events.ClientReady, async () => {
   console.log(`🤖 Logged in as ${client.user.tag}`);
 
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
+
   try {
     await rest.put(Routes.applicationCommands(client.user.id), { body: commandsJSON });
     console.log('✅ スラッシュコマンドを登録しました');
@@ -311,6 +318,7 @@ client.once(Events.ClientReady, async () => {
     console.error('❌ コマンド登録失敗:', err);
   }
 });
+
 
 async function sanitizeDatabase() {
   console.log("🔹 データベースの初期化チェック中...");
