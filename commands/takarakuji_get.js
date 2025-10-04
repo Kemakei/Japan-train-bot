@@ -1,67 +1,127 @@
-// -------------------- takarakuji_buy.js --------------------
-import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
-import { getNextDrawId } from '../utils/draw.js';
+import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 
 export const data = new SlashCommandBuilder()
-  .setName('takarakuji_buy')
-  .setDescription('宝くじを購入する');
+  .setName("takarakuji_get")
+  .setDescription("購入した宝くじの結果を確認します");
 
-for (let i = 1; i <= 10; i++) {
-  data.addStringOption(opt =>
-    opt.setName(`ticket${i}`)
-       .setDescription(`${i}枚目のチケット`)
-  );
-}
-
-export async function execute(interaction, { client }) {
+export async function execute(interaction) {
   const userId = interaction.user.id;
-  const tickets = [];
-  const drawId = getNextDrawId(new Date());
+  const { lotteryCol, db, updateCoins } = interaction.client;
 
-  // ticket1〜ticket10 をチェック
-  for (let i = 1; i <= 10; i++) {
-    const ticketStr = interaction.options.getString(`ticket${i}`);
-    if (!ticketStr) continue;
+  // deferReply → 公開にする（followUpでエフェメラルを分けるため）
+  await interaction.deferReply();
 
-    // 数字5桁＋文字1文字に分割
-    const match = ticketStr.match(/^(\d{5})([A-Z])$/i);
-    if (!match) {
-      return interaction.reply({ content: `❌ ticket${i} の形式が正しくありません`, flags: 64 });
+  // 購入履歴取得
+  const purchasesDoc = await lotteryCol.findOne({ userId });
+  const purchases = purchasesDoc?.purchases || [];
+
+  if (purchases.length === 0) {
+    // 購入履歴なし（エフェメラル）
+    return interaction.followUp({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("❌ 購入履歴なし")
+          .setDescription("現在、あなたの購入履歴はありません。")
+          .setColor(0xFF0000)
+      ],
+      flags: 64
+    });
+  }
+
+  const drawResultsCol = db.collection("drawResults");
+  const publicLines = [];    // 公開用（当選・ハズレ）
+  const ephemeralLines = []; // エフェメラル用（抽選前）
+  const remainingPurchases = [];
+
+  for (const purchase of purchases) {
+    const { number, letter, drawId } = purchase;
+    const result = await drawResultsCol.findOne({ drawId });
+
+    if (!result) {
+      // 抽選前 → エフェメラル行き
+      ephemeralLines.push(`🎟 ${number}${letter} → ⏳ まだ抽選結果は出ていません`);
+      remainingPurchases.push(purchase);
+      continue;
     }
 
-    const [_, number, letter] = match;
+    // 抽選済み → DBから削除
+    await lotteryCol.updateOne(
+      { userId },
+      { $pull: { purchases: { drawId } } }
+    );
 
-    // DBに {number, letter} として保存
-    tickets.push({ number, letter: letter.toUpperCase(), drawId, claimed: false, createdAt: new Date() });
+    const { number: drawNumber, letter: drawLetter } = result;
+    let line;
+    let prizeAmount = 0;
+
+    if (number === drawNumber && letter === drawLetter) {
+      prizeAmount = 1000000;
+      line = `🎟 ${number}${letter} → 🏆 1等！💰 ${prizeAmount}コイン獲得！`;
+    } else if (number === drawNumber) {
+      prizeAmount = 750000;
+      line = `🎟 ${number}${letter} → 🏆 2等！💰 ${prizeAmount}コイン獲得！`;
+    } else if (number.slice(1) === drawNumber.slice(1) && letter === drawLetter) {
+      prizeAmount = 500000;
+      line = `🎟 ${number}${letter} → 🏆 3等！💰 ${prizeAmount}コイン獲得！`;
+    } else if (number.slice(2) === drawNumber.slice(2)) {
+      prizeAmount = 300000;
+      line = `🎟 ${number}${letter} → 🏆 4等！💰 ${prizeAmount}コイン獲得！`;
+    } else if (number.slice(3) === drawNumber.slice(3) && letter === drawLetter) {
+      prizeAmount = 100000;
+      line = `🎟 ${number}${letter} → 🏆 5等！💰 ${prizeAmount}コイン獲得！`;
+    } else if (letter === drawLetter) {
+      prizeAmount = 10000;
+      line = `🎟 ${number}${letter} → 🏆 6等！💰 ${prizeAmount}コイン獲得！`;
+    } else if (number.slice(4) === drawNumber.slice(4)) {
+      prizeAmount = 5000;
+      line = `🎟 ${number}${letter} → 🏆 7等！💰 ${prizeAmount}コイン獲得！`;
+    } else {
+      line = `🎟 ${number}${letter} → ❌ 残念、ハズレ…`;
+    }
+
+    if (prizeAmount > 0) {
+      await updateCoins(userId, prizeAmount);
+    }
+
+    publicLines.push(line);
   }
 
-  if (tickets.length === 0) {
-    return interaction.reply({ content: '❌ 少なくとも1枚はチケットを指定してください', flags: 64 });
-  }
-
-  const costPerTicket = 500;
-  const totalCost = tickets.length * costPerTicket;
-  const coins = await client.getCoins(userId);
-
-  if (coins < totalCost) {
-    return interaction.reply({ content: `❌ 所持コインが足りません (${coins}コイン) 手数料合計: ${totalCost}コイン`, flags: 64 });
-  }
-
-  await client.updateCoins(userId, -totalCost);
-
-  // DBに {number, letter, drawId, claimed, createdAt} として保存
-  await client.lotteryCol.updateOne(
+  // 抽選前の購入だけ再保存
+  await lotteryCol.updateOne(
     { userId },
-    { $push: { purchases: { $each: tickets } } },
+    { $set: { purchases: remainingPurchases } },
     { upsert: true }
   );
 
-  const embed = new EmbedBuilder()
-    .setColor('Gold')
-    .setTitle('🎟 宝くじ購入完了')
-    .setDescription(tickets.map((t, i) => `ticket${i + 1}: ${t.number}${t.letter}`).join('\n'))
-    .addFields({ name: '手数料', value: `${totalCost}コイン`, inline: true })
-    .setFooter({ text: `残り所持金: ${coins - totalCost}コイン` });
+  // Embed分割関数（4000文字ごとに分割、続き番号は 1 始まり）
+  function createEmbedsFromText(text, title, color = 0x00AE86) {
+    const embeds = [];
+    const chunks = text.match(/[\s\S]{1,4000}/g) || [];
+    for (let i = 0; i < chunks.length; i++) {
+      embeds.push(
+        new EmbedBuilder()
+          .setTitle(i === 0 ? title : `${title} (続き${i + 1})`)
+          .setDescription(chunks[i])
+          .setColor(color)
+      );
+    }
+    return embeds;
+  }
 
-  await interaction.reply({ embeds: [embed] });
+  // 公開メッセージ（当選・ハズレ）
+  if (publicLines.length > 0) {
+    const publicEmbeds = createEmbedsFromText(publicLines.join("\n"), "🎉 抽選結果");
+    // Embedが10個以上なら分割して送信
+    for (let i = 0; i < publicEmbeds.length; i += 10) {
+      await interaction.followUp({ embeds: publicEmbeds.slice(i, i + 10), flags: 0 });
+    }
+  }
+
+  // エフェメラルメッセージ（抽選前）
+  if (ephemeralLines.length > 0) {
+    const ephemeralEmbeds = createEmbedsFromText(ephemeralLines.join("\n"), "⏳ 未公開の抽選", 0xAAAAAA);
+    for (let i = 0; i < ephemeralEmbeds.length; i += 10) {
+      await interaction.followUp({ embeds: ephemeralEmbeds.slice(i, i + 10), flags: 64 });
+    }
+  }
 }
