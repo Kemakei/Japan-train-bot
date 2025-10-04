@@ -4,44 +4,35 @@ import { getNextDrawId } from '../utils/draw.js';
 
 export const data = new SlashCommandBuilder()
   .setName('takarakuji_buy')
-  .setDescription('宝くじを購入する')
-  .addStringOption(opt => opt.setName('number1').setDescription('1個目の5桁の数字').setRequired(true))
-  .addStringOption(opt => opt.setName('letter1').setDescription('1個目のA-Z文字').setRequired(true))
-  .addStringOption(opt => opt.setName('number2').setDescription('2個目の5桁の数字'))
-  .addStringOption(opt => opt.setName('letter2').setDescription('2個目のA-Z文字'))
-  .addStringOption(opt => opt.setName('number3').setDescription('3個目の5桁の数字'))
-  .addStringOption(opt => opt.setName('letter3').setDescription('3個目のA-Z文字'))
-  .addStringOption(opt => opt.setName('number4').setDescription('4個目の5桁の数字'))
-  .addStringOption(opt => opt.setName('letter4').setDescription('4個目のA-Z文字'))
-  .addStringOption(opt => opt.setName('number5').setDescription('5個目の5桁の数字'))
-  .addStringOption(opt => opt.setName('letter5').setDescription('5個目のA-Z文字'));
+  .setDescription('宝くじを購入する');
+
+for (let i = 1; i <= 10; i++) {
+  data.addStringOption(opt =>
+    opt.setName(`ticket${i}`)
+       .setDescription(`${i}枚目のチケット`)
+  );
+}
 
 export async function execute(interaction, { client }) {
   const userId = interaction.user.id;
   const tickets = [];
-
-  // drawId は「次回抽選」に統一
   const drawId = getNextDrawId(new Date());
 
-  for (let i = 1; i <= 5; i++) {
-    const num = interaction.options.getString(`number${i}`);
-    const letter = interaction.options.getString(`letter${i}`)?.toUpperCase();
-    if (!num && !letter) continue;
-    if (!num || !letter) {
-      return interaction.reply({ content: `❌ ${i}個目の数字と文字は両方入力してください`, flags: 64 });
-    }
-    if (!/^\d{5}$/.test(num)) {
-      return interaction.reply({ content: `❌ ${i}個目の数字は5桁で入力してください`, flags: 64 });
-    }
-    if (!/^[A-Z]$/.test(letter)) {
-      return interaction.reply({ content: `❌ ${i}個目の文字はA-Zの1文字で入力してください`, flags: 64 });
+  for (let i = 1; i <= 10; i++) {
+    const ticketStr = interaction.options.getString(`ticket${i}`);
+    if (!ticketStr) continue;
+
+    const match = ticketStr.match(/^(\d{5})([A-Z])$/i);
+    if (!match) {
+      return interaction.reply({ content: `❌ ticket${i} の形式が正しくありません`, flags: 64 });
     }
 
-    tickets.push({ number: num, letter, drawId, claimed: false, createdAt: new Date() });
+    const [_, number, letter] = match;
+    tickets.push({ number, letter: letter.toUpperCase(), drawId, claimed: false, createdAt: new Date() });
   }
 
   if (tickets.length === 0) {
-    return interaction.reply({ content: '❌ 少なくとも1つは宝くじを指定してください', flags: 64 });
+    return interaction.reply({ content: '❌ 少なくとも1枚はチケットを指定してください', flags: 64 });
   }
 
   const costPerTicket = 500;
@@ -63,9 +54,7 @@ export async function execute(interaction, { client }) {
   const embed = new EmbedBuilder()
     .setColor('Gold')
     .setTitle('🎟 宝くじ購入完了')
-    .setDescription(
-      tickets.map((t, i) => `${i + 1}個目: ${t.number}${t.letter}`).join('\n')
-    )
+    .setDescription(tickets.map((t, i) => `ticket${i + 1}: ${t.number}${t.letter}`).join('\n'))
     .addFields({ name: '手数料', value: `${totalCost}コイン`, inline: true })
     .setFooter({ text: `残り所持金: ${coins - totalCost}コイン` });
 
