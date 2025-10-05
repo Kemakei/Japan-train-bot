@@ -163,9 +163,19 @@ export async function execute(interaction) {
           collector.stop("called");
           await btnInt.deferUpdate();
 
-          // --- bot 強化倍率（掛け金に応じて最大3倍） ---
-          const bias = Math.min(3, bet / 100000 * 3);
-          if (Math.random() < bias / 3) {
+          // --- 段階制のbot強化倍率 ---
+          let bias = 1; // デフォルト倍率
+          if (bet <= 100000) {
+            bias = 1 + (bet / 100000) * 2; // 1〜3倍
+          } else {
+            const extra = Math.floor((bet - 100000) / 100000); // 10万ごとの段階
+            bias = 3 + extra * 2; // 10万ごとに+2倍
+            if (bias > 15) bias = 15; // 任意上限
+          }
+
+          // bias を元に botHandを再生成する確率を調整
+          const chance = Math.min(1, (bias - 1) / 3);
+          if (Math.random() < chance) {
             deck.sort(() => Math.random() - 0.5);
             botHand = deck.splice(0, 5);
           }
@@ -206,8 +216,8 @@ export async function execute(interaction) {
             // 所持金が負にならないよう補正
             let currentCoins = await client.getCoins(userId);
             if (currentCoins < 0) {
-            await client.setCoins(userId, 0);
-            currentCoins = 0;
+              await client.setCoins(userId, 0);
+              currentCoins = 0;
             }
             await interaction.editReply({ content: `${msg}\n所持金: ${currentCoins}`, files: [file], components: [] });
 
@@ -220,7 +230,14 @@ export async function execute(interaction) {
           collector.stop("folded");
           ongoingGames.delete(userId);
 
-          await interaction.editReply({ content: `🏳️ フォールドしました。\n所持金: ${await client.getCoins(userId)}`, components: [] });
+          // ベットの半分を返却
+          const refund = Math.floor(bet / 2);
+          await client.updateCoins(userId, refund);
+
+          await interaction.editReply({ 
+            content: `🏳️ フォールドしました。ベットの半額 ${refund} コインを返却しました。\n所持金: ${await client.getCoins(userId)}`, 
+            components: [] 
+          });
 
           try { fs.unlinkSync(combinedPath); } catch {}
           return;

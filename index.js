@@ -192,39 +192,23 @@ async function loadLatestTakarakuji() {
     };
     console.log(`✅ 最新の宝くじ番号を復元: ${result.number}${result.letter} (${drawId})`);
   } else {
-    client.takarakuji = undefined;
-    console.log(`⚠️ DBに ${drawId} の宝くじ番号が存在しません。番号は未設定のままです`);
+    // DB に存在しなければ初回番号を生成
+    const number = String(Math.floor(Math.random() * 100000)).padStart(5, "0");
+    const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+
+    client.takarakuji = { number, letter };
+
+    // 初回番号を直前回の drawId に保存
+    const previousDrawId = getLatestDrawId(new Date());
+    await db.collection("drawResults").updateOne(
+      { drawId: previousDrawId },
+      { $set: { number, letter, drawId: previousDrawId } },
+      { upsert: true }
+    );
+
+    console.log(`🎰 初回宝くじ番号を生成・保存: ${number}${letter} (${previousDrawId})`);
   }
 }
-
-// --- 購入履歴取得 ---
-client.getTakarakujiPurchases = async (userId) => {
-  const doc = await lotteryCol.findOne({ userId });
-  return doc?.purchases || [];
-};
-
-// --- 購入追加 ---
-client.addTakarakujiPurchase = async (userId, purchase) => {
-  await lotteryCol.updateOne(
-    { userId },
-    { $push: { purchases: purchase } },
-    { upsert: true }
-  );
-};
-
-// --- 購入情報更新（抽選番号更新） ---
-client.updateTakarakujiDraw = async (userId, index, drawNumber, drawLetter) => {
-  const purchases = await client.getTakarakujiPurchases(userId);
-  if (!purchases[index]) return;
-  purchases[index].drawNumber = drawNumber;
-  purchases[index].drawLetter = drawLetter;
-  purchases[index].claimed = false;
-  await lotteryCol.updateOne(
-    { userId },
-    { $set: { purchases } },
-    { upsert: true }
-  );
-};
 
 // --- 宝くじ番号更新関数（抽選＋DB保存） ---
 async function updateTakarakujiNumber() {
@@ -234,32 +218,33 @@ async function updateTakarakujiNumber() {
   const minute = now.getMinutes() < 30 ? 0 : 30;
   now.setMinutes(minute, 0, 0);
 
-  // 統一フォーマットの drawId を生成（例：20251005_1300）
-  const drawId = getNextDrawId(now);
+  // 直前回（保存対象）の drawId
+  const previousDrawId = getLatestDrawId(now);
 
-  // 現行番号をDBに保存（直前の番号を正式公開）
-  if (client.takarakuji) {
-    const oldNumber = client.takarakuji.number;
-    const oldLetter = client.takarakuji.letter;
+  try {
+    // 既存番号を DB に保存
+    if (client.takarakuji) {
+      const { number: oldNumber, letter: oldLetter } = client.takarakuji;
 
-    await db.collection("drawResults").updateOne(
-      { drawId },
-      { $set: { number: oldNumber, letter: oldLetter, drawId } },
-      { upsert: true }
-    );
+      await db.collection("drawResults").updateOne(
+        { drawId: previousDrawId },
+        { $set: { number: oldNumber, letter: oldLetter, drawId: previousDrawId } },
+        { upsert: true }
+      );
 
-    console.log(`💾 保存完了: ${oldNumber}${oldLetter} (${drawId})`);
-  } else {
-    console.log("⚠️ client.takarakuji が未設定のため保存をスキップ");
+      console.log(`💾 保存完了: ${oldNumber}${oldLetter} (${previousDrawId})`);
+    }
+
+    // 新しい番号を生成（5桁数字＋1文字アルファベット）
+    const newNumber = String(Math.floor(Math.random() * 100000)).padStart(5, "0");
+    const newLetter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+
+    client.takarakuji = { number: newNumber, letter: newLetter };
+    console.log(`🎰 新しい宝くじ番号を生成: ${newNumber}${newLetter} (次回公開用)`);
+
+  } catch (err) {
+    console.error("DB保存失敗:", err);
   }
-
-  // 🎲 新しい宝くじ番号を抽選（5桁数字＋1文字アルファベット）
-  const newNumber = String(Math.floor(Math.random() * 100000)).padStart(5, "0");
-  const newLetter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
-
-  client.takarakuji = { number: newNumber, letter: newLetter };
-
-  console.log(`🎰 新しい宝くじ番号を生成: ${newNumber}${newLetter}`);
 }
 
 // --- 次回「00」または「30」分に公開するスケジュール ---
