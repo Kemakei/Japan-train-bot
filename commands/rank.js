@@ -9,22 +9,34 @@ export async function execute(interaction, { client }) {
   if (!guild) return await interaction.reply({ content: '❌ ギルド情報が取得できません', flags: 64 });
 
   try {
-    // MongoDB版：全ユーザーデータ取得
+    // 処理中応答
+    await interaction.deferReply();
+
+    // MongoDBから全ユーザー取得
     const allUsers = await client.coinsCol.find({}).toArray();
 
-    // サーバー内メンバーだけでランキング作成
-    const ranking = allUsers
-      .filter(doc => !['stock_price', 'trade_history'].includes(doc.userId))
-      .filter(doc => guild.members.cache.has(doc.userId)) // キャッシュにいるサーバーメンバーだけ
-      .map(doc => ({ userId: doc.userId, coins: doc.coins || 0 }))
+    // サーバーに存在するユーザーのみ抽出
+    const serverUsersData = allUsers.filter(doc => !['stock_price', 'trade_history'].includes(doc.userId));
+
+    // すべて個別取得（キャッシュは無視）
+    const fetchedMembers = await Promise.all(
+      serverUsersData.map(doc => guild.members.fetch(doc.userId).catch(() => null))
+    );
+
+    // 取得できたメンバーだけでランキング作成
+    const ranking = serverUsersData
+      .map((doc, index) => {
+        const member = fetchedMembers[index];
+        if (!member) return null; // サーバーにいない場合は除外
+        return { userId: doc.userId, coins: doc.coins || 0, username: member.user.tag };
+      })
+      .filter(Boolean)
       .sort((a, b) => b.coins - a.coins);
 
-    if (ranking.length === 0) return await interaction.reply({ content: '❌ ランキングデータがありません', flags: 64 });
+    if (ranking.length === 0) return await interaction.editReply({ content: '❌ ランキングデータがありません' });
 
-    // 上位10人
     const top10 = ranking.slice(0, 10);
 
-    // Embed作成
     const embed = new EmbedBuilder()
       .setTitle('🏆 コインランキング')
       .setColor('#FFD700')
@@ -32,9 +44,7 @@ export async function execute(interaction, { client }) {
 
     let description = '';
     for (let i = 0; i < top10.length; i++) {
-      const { userId, coins } = top10[i];
-      const member = guild.members.cache.get(userId) || await guild.members.fetch(userId).catch(() => null);
-      const username = member ? member.user.tag : '不明なユーザー';
+      const { username, coins } = top10[i];
       description += `**${i + 1}. ${username}** - 💰 ${coins} コイン\n`;
     }
 
@@ -46,14 +56,10 @@ export async function execute(interaction, { client }) {
     }
 
     embed.setDescription(description);
+    await interaction.editReply({ embeds: [embed] });
 
-    await interaction.reply({ embeds: [embed] });
   } catch (err) {
     console.error(err);
-    if (!interaction.deferred && !interaction.replied) {
-      await interaction.reply({ content: '❌ コマンド実行中にエラーが発生しました', flags: 64 });
-    } else {
-      await interaction.editReply({ content: '❌ コマンド実行中にエラーが発生しました', flags: 64 });
-    }
+    await interaction.editReply({ content: '❌ コマンド実行中にエラーが発生しました' });
   }
 }
