@@ -44,7 +44,6 @@ export async function execute(interaction) {
     return interaction.reply({ content: "❌ コインが足りません！", flags: 64 });
   }
 
-  await client.updateCoins(userId, -bet);
   ongoingGames.set(userId, true);
 
   await interaction.deferReply();
