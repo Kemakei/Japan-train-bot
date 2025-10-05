@@ -8,15 +8,12 @@ export async function execute(interaction) {
   const userId = interaction.user.id;
   const { lotteryCol, db, updateCoins } = interaction.client;
 
-  // deferReply → 公開にする（followUpでエフェメラルを分けるため）
   await interaction.deferReply();
 
-  // 購入履歴取得
   const purchasesDoc = await lotteryCol.findOne({ userId });
   const purchases = purchasesDoc?.purchases || [];
 
   if (purchases.length === 0) {
-    // 購入履歴なし（エフェメラル）
     return interaction.followUp({
       embeds: [
         new EmbedBuilder()
@@ -29,8 +26,8 @@ export async function execute(interaction) {
   }
 
   const drawResultsCol = db.collection("drawResults");
-  const publicLines = [];    // 公開用（当選・ハズレ）
-  const ephemeralLines = []; // エフェメラル用（抽選前）
+  const publicLines = [];
+  const ephemeralLines = [];
   const remainingPurchases = [];
 
   for (const purchase of purchases) {
@@ -38,13 +35,11 @@ export async function execute(interaction) {
     const result = await drawResultsCol.findOne({ drawId });
 
     if (!result) {
-      // 抽選前 → エフェメラル行き
       ephemeralLines.push(`🎟 ${number}${letter} → ⏳ まだ抽選結果は出ていません`);
       remainingPurchases.push(purchase);
       continue;
     }
 
-    // 抽選済み → DBから削除
     await lotteryCol.updateOne(
       { userId },
       { $pull: { purchases: { drawId } } }
@@ -54,46 +49,80 @@ export async function execute(interaction) {
     let line;
     let prizeAmount = 0;
 
+    // 数字を整数で扱う
+    const drawNumInt = parseInt(drawNumber, 10);
+    const purchaseNumInt = parseInt(number, 10);
+
+    // 1等
     if (number === drawNumber && letter === drawLetter) {
-      prizeAmount = 1000000;
+      prizeAmount = 1000000000;
       line = `🎟 ${number}${letter} → 🏆 1等！💰 ${prizeAmount}コイン獲得！`;
-    } else if (number === drawNumber) {
-      prizeAmount = 750000;
+    } 
+    // 前後賞
+    else if ((purchaseNumInt === drawNumInt - 1 || purchaseNumInt === drawNumInt + 1) && letter === drawLetter) {
+      prizeAmount = 100000000; // 前後賞
+      line = `🎟 ${number}${letter} → 🏆 前後賞！💰 ${prizeAmount}コイン獲得！`;
+    } 
+    // 2等: 番号全一致（文字不問）
+    else if (number === drawNumber) {
+      prizeAmount = 500000000;
       line = `🎟 ${number}${letter} → 🏆 2等！💰 ${prizeAmount}コイン獲得！`;
-    } else if (number.slice(1) === drawNumber.slice(1) && letter === drawLetter) {
-      prizeAmount = 500000;
-      line = `🎟 ${number}${letter} → 🏆 3等！💰 ${prizeAmount}コイン獲得！`;
-    } else if (number.slice(2) === drawNumber.slice(2)) {
-      prizeAmount = 300000;
+    } 
+    // 下4桁＋文字一致 4等
+    else if (number.slice(1) === drawNumber.slice(1) && letter === drawLetter) {
+      prizeAmount = 10000000;
       line = `🎟 ${number}${letter} → 🏆 4等！💰 ${prizeAmount}コイン獲得！`;
-    } else if (number.slice(3) === drawNumber.slice(3) && letter === drawLetter) {
-      prizeAmount = 100000;
+    } 
+    // 下4桁一致 5等
+    else if (number.slice(1) === drawNumber.slice(1)) {
+      prizeAmount = 5000000;
       line = `🎟 ${number}${letter} → 🏆 5等！💰 ${prizeAmount}コイン獲得！`;
-    } else if (letter === drawLetter) {
-      prizeAmount = 10000;
+    } 
+    // 下3桁＋文字一致 6等
+    else if (number.slice(2) === drawNumber.slice(2) && letter === drawLetter) {
+      prizeAmount = 3000000;
       line = `🎟 ${number}${letter} → 🏆 6等！💰 ${prizeAmount}コイン獲得！`;
-    } else if (number.slice(4) === drawNumber.slice(4)) {
-      prizeAmount = 5000;
+    } 
+    // 下3桁一致 7等
+    else if (number.slice(2) === drawNumber.slice(2)) {
+      prizeAmount = 1000000;
       line = `🎟 ${number}${letter} → 🏆 7等！💰 ${prizeAmount}コイン獲得！`;
-    } else {
+    } 
+    // 下2桁＋文字一致 8等
+    else if (number.slice(3) === drawNumber.slice(3) && letter === drawLetter) {
+      prizeAmount = 500000;
+      line = `🎟 ${number}${letter} → 🏆 8等！💰 ${prizeAmount}コイン獲得！`;
+    } 
+    // 下2桁一致 9等
+    else if (number.slice(3) === drawNumber.slice(3)) {
+      prizeAmount = 100000;
+      line = `🎟 ${number}${letter} → 🏆 9等！💰 ${prizeAmount}コイン獲得！`;
+    } 
+    // 文字一致 10等
+    else if (letter === drawLetter) {
+      prizeAmount = 10000;
+      line = `🎟 ${number}${letter} → 🏆 10等！💰 ${prizeAmount}コイン獲得！`;
+    } 
+    // 下1桁一致 11等
+    else if (number.slice(4) === drawNumber.slice(4)) {
+      prizeAmount = 5000;
+      line = `🎟 ${number}${letter} → 🏆 11等！💰 ${prizeAmount}コイン獲得！`;
+    } 
+    // ハズレ
+    else {
       line = `🎟 ${number}${letter} → ❌ 残念、ハズレ…`;
     }
 
-    if (prizeAmount > 0) {
-      await updateCoins(userId, prizeAmount);
-    }
-
+    if (prizeAmount > 0) await updateCoins(userId, prizeAmount);
     publicLines.push(line);
   }
 
-  // 抽選前の購入だけ再保存
   await lotteryCol.updateOne(
     { userId },
     { $set: { purchases: remainingPurchases } },
     { upsert: true }
   );
 
-  // Embed分割関数（4000文字ごとに分割、続き番号は 1 始まり）
   function createEmbedsFromText(text, title, color = 0x00AE86) {
     const embeds = [];
     const chunks = text.match(/[\s\S]{1,4000}/g) || [];
@@ -108,16 +137,13 @@ export async function execute(interaction) {
     return embeds;
   }
 
-  // 公開メッセージ（当選・ハズレ）
   if (publicLines.length > 0) {
     const publicEmbeds = createEmbedsFromText(publicLines.join("\n"), "🎉 抽選結果");
-    // Embedが10個以上なら分割して送信
     for (let i = 0; i < publicEmbeds.length; i += 10) {
       await interaction.followUp({ embeds: publicEmbeds.slice(i, i + 10), flags: 0 });
     }
   }
 
-  // エフェメラルメッセージ（抽選前）
   if (ephemeralLines.length > 0) {
     const ephemeralEmbeds = createEmbedsFromText(ephemeralLines.join("\n"), "⏳ 未公開の抽選", 0xAAAAAA);
     for (let i = 0; i < ephemeralEmbeds.length; i += 10) {
