@@ -180,8 +180,6 @@ client.clearHedge = async (userId) => {
   await hedgeCol.deleteOne({ userId });
 };
 
-import { getNextDrawId, getLatestDrawId } from "./utils/draw.js";
-
 // --- 宝くじ初期化（起動時に DB から復元） ---
 async function loadLatestTakarakuji() {
   const drawId = getLatestDrawId(new Date());
