@@ -3,7 +3,6 @@ import os
 from PIL import Image
 from treys import Card, Evaluator
 
-# --- 引数処理 ---
 args = sys.argv[1:]
 if len(args) < 12:  # player5 + bot5 + reveal + output_path
     print("ERROR: 引数が不足しています", file=sys.stderr)
@@ -13,13 +12,11 @@ if len(args) < 12:  # player5 + bot5 + reveal + output_path
 player_cards = cards[:5]
 bot_cards = cards[5:10]
 
-# --- ファイルパス ---
 base_dir = os.path.dirname(os.path.abspath(__file__))
 images_dir = os.path.join(base_dir, "images")
 table_path = os.path.join(images_dir, "table.jpg")
 back_path = os.path.join(images_dir, "back.jpg")
 
-# --- 背景テーブル画像 ---
 try:
     table = Image.open(table_path).convert("RGBA")
     back = Image.open(back_path).convert("RGBA")
@@ -27,40 +24,31 @@ except FileNotFoundError as e:
     print(f"ERROR: ファイルが見つかりません: {e}", file=sys.stderr)
     sys.exit(1)
 
-# --- カード縮小サイズ ---
-CARD_W, CARD_H = 100, 150  # テーブルに収まるサイズ
-
-# --- 横間隔を自動計算 ---
+CARD_W, CARD_H = 100, 150
 total_cards = 5
 x_start = 0
 spacing = (table.width - CARD_W * total_cards) // (total_cards + 1)
 x_positions = [spacing + i * (CARD_W + spacing) for i in range(total_cards)]
+y_bot = spacing
+y_player = table.height - CARD_H - spacing
 
-# --- 縦位置（上下2段） ---
-y_bot = spacing  # 上段：Bot
-y_player = table.height - CARD_H - spacing  # 下段：Player
-
-# --- Botのカード（上段） ---
+# --- Botカード（上段） ---
 for i, card in enumerate(bot_cards):
-    if reveal == "1":
-        try:
-            img = Image.open(os.path.join(images_dir, f"{card}.png")).convert("RGBA")
-        except FileNotFoundError as e:
-            print(f"ERROR: Botカード画像が見つかりません: {e}", file=sys.stderr)
-            sys.exit(1)
-    else:
+    if reveal == "1":  # コール後は全公開
+        img = Image.open(os.path.join(images_dir, f"{card}.png")).convert("RGBA")
+    else:  # コール前は全部裏
         img = back.copy()
     img = img.resize((CARD_W, CARD_H), Image.Resampling.LANCZOS)
     x = x_positions[i]
     table.paste(img, (x, y_bot), img)
 
-# --- プレイヤーのカード（下段） ---
+# --- プレイヤーカード（下段） ---
+player_reveal_count = 3 if reveal == "0" else 5  # コール前は3枚見せる（2枚裏）
 for i, card in enumerate(player_cards):
-    try:
+    if i < player_reveal_count:
         img = Image.open(os.path.join(images_dir, f"{card}.png")).convert("RGBA")
-    except FileNotFoundError as e:
-        print(f"ERROR: プレイヤーカード画像が見つかりません: {e}", file=sys.stderr)
-        sys.exit(1)
+    else:
+        img = back.copy()
     img = img.resize((CARD_W, CARD_H), Image.Resampling.LANCZOS)
     x = x_positions[i]
     table.paste(img, (x, y_player), img)

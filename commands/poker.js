@@ -38,7 +38,7 @@ export async function execute(interaction) {
   }
 
   const initialCoins = await client.getCoins(userId);
-  let bet = 100;
+  let bet = 1000; // 初期ベット
 
   if (initialCoins < bet) {
     return interaction.reply({ content: "❌ コインが足りません！", flags: 64 });
@@ -61,7 +61,7 @@ export async function execute(interaction) {
   const timestamp = Date.now();
   const combinedPath = path.resolve(__dirname, `../python/images/combined_${userId}_${timestamp}.png`);
 
-  // --- Python で初期画像生成 ---
+  // --- Python で初期画像生成（コール前） ---
   const pythonArgs = [pythonPath, ...playerHand, ...botHand, "0", combinedPath];
   const pythonProc = spawn(pythonCmd, pythonArgs);
 
@@ -163,24 +163,22 @@ export async function execute(interaction) {
           collector.stop("called");
           await btnInt.deferUpdate();
 
-          // --- 段階制のbot強化倍率 ---
-          let bias = 1; // デフォルト倍率
+          // --- 段階制のbot強化倍率（無限増加） ---
+          let bias = 1;
           if (bet <= 100000) {
             bias = 1 + (bet / 100000) * 2; // 1〜3倍
           } else {
-            const extra = Math.floor((bet - 100000) / 100000); // 10万ごとの段階
-            bias = 3 + extra * 2; // 10万ごとに+2倍
-            if (bias > 15) bias = 15; // 任意上限
+            bias = 3 + Math.floor((bet - 100000) / 100000); // 10万ごとに +1倍
           }
 
-          // bias を元に botHandを再生成する確率を調整
+          // bias を元に botHand を再生成する確率を調整
           const chance = Math.min(1, (bias - 1) / 3);
           if (Math.random() < chance) {
             deck.sort(() => Math.random() - 0.5);
             botHand = deck.splice(0, 5);
           }
 
-          const pyArgs = [pythonPath, ...playerHand, ...botHand, "1", combinedPath];
+          const pyArgs = [pythonPath, ...playerHand, ...botHand, "1", combinedPath]; // コール後は全公開
           const resultProc = spawn(pythonCmd, pyArgs);
 
           let stdout = "";
@@ -197,7 +195,6 @@ export async function execute(interaction) {
             let msg = "";
             let amount = 0;
 
-            // --- 勝ち・負け倍率 最大7倍 ---
             const multiplier = Math.min(7, 1 + bet / 16666);
 
             if (winner === "player") {
@@ -213,12 +210,13 @@ export async function execute(interaction) {
               await client.updateCoins(userId, amount);
               msg = `🤝 引き分け！ +${amount} コイン返却`;
             }
-            // 所持金が負にならないよう補正
+
             let currentCoins = await client.getCoins(userId);
             if (currentCoins < 0) {
               await client.setCoins(userId, 0);
               currentCoins = 0;
             }
+
             await interaction.editReply({ content: `${msg}\n所持金: ${currentCoins}`, files: [file], components: [] });
 
             try { fs.unlinkSync(combinedPath); } catch (e) { console.error(e); }
@@ -230,7 +228,6 @@ export async function execute(interaction) {
           collector.stop("folded");
           ongoingGames.delete(userId);
 
-          // ベットの半分を返却
           const refund = Math.floor(bet / 2);
           await client.updateCoins(userId, refund);
 
