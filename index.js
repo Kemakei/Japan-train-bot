@@ -180,6 +180,8 @@ client.clearHedge = async (userId) => {
   await hedgeCol.deleteOne({ userId });
 };
 
+import { getNextDrawId, getLatestDrawId } from "./utils/draw.js";
+
 // --- 宝くじ初期化（起動時に DB から復元） ---
 async function loadLatestTakarakuji() {
   const drawId = getLatestDrawId(new Date());
@@ -192,7 +194,6 @@ async function loadLatestTakarakuji() {
     };
     console.log(`✅ 最新の宝くじ番号を復元: ${result.number}${result.letter} (${drawId})`);
   } else {
-    // DB に存在しない場合は何もしない
     client.takarakuji = undefined;
     console.log(`⚠️ DBに ${drawId} の宝くじ番号が存在しません。番号は未設定のままです`);
   }
@@ -227,55 +228,74 @@ client.updateTakarakujiDraw = async (userId, index, drawNumber, drawLetter) => {
   );
 };
 
-// --- 宝くじ番号更新関数 ---
+// --- 宝くじ番号更新関数（抽選＋DB保存） ---
 async function updateTakarakujiNumber() {
-  if (!client.takarakuji) {
-    // DBに番号がない場合は何もせずスキップ
-    console.log('⚠️ client.takarakuji が未設定のため更新をスキップ');
-    return;
+  const now = new Date();
+
+  // 公開時刻を「00分 or 30分」に揃える
+  const minute = now.getMinutes() < 30 ? 0 : 30;
+  now.setMinutes(minute, 0, 0);
+
+  // 統一フォーマットの drawId を生成（例：20251005_1300）
+  const drawId = getNextDrawId(now);
+
+  // 現行番号をDBに保存（直前の番号を正式公開）
+  if (client.takarakuji) {
+    const oldNumber = client.takarakuji.number;
+    const oldLetter = client.takarakuji.letter;
+
+    await db.collection("drawResults").updateOne(
+      { drawId },
+      { $set: { number: oldNumber, letter: oldLetter, drawId } },
+      { upsert: true }
+    );
+
+    console.log(`💾 保存完了: ${oldNumber}${oldLetter} (${drawId})`);
+  } else {
+    console.log("⚠️ client.takarakuji が未設定のため保存をスキップ");
   }
 
-  const oldNumber = client.takarakuji.number;
-  const oldLetter = client.takarakuji.letter;
+  // 🎲 新しい宝くじ番号を抽選（5桁数字＋1文字アルファベット）
+  const newNumber = String(Math.floor(Math.random() * 100000)).padStart(5, "0");
+  const newLetter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
 
-  // 直前回の drawId（更新された番号を公開する時刻）
-  const oldDrawId = getNextDrawId(new Date(Date.now() - 30 * 60 * 1000));
+  client.takarakuji = { number: newNumber, letter: newLetter };
 
-  // MongoDB に保存
-  await db.collection("drawResults").updateOne(
-    { drawId: oldDrawId },
-    { $set: { number: oldNumber, letter: oldLetter, drawId: oldDrawId } },
-    { upsert: true }
-  );
-  console.log(`💾 保存完了: ${oldNumber}${oldLetter} (${oldDrawId})`);
-
-  // 次回分の番号は生成せず、次回も DB の番号を使う
-  console.log(`🎟 次回番号は未設定のまま`);
+  console.log(`🎰 新しい宝くじ番号を生成: ${newNumber}${newLetter}`);
 }
 
-// --- 宝くじ自動更新スケジュール ---
+// --- 次回「00」または「30」分に公開するスケジュール ---
 function scheduleTakarakujiUpdate() {
   const now = new Date();
   const minutes = now.getMinutes();
   const seconds = now.getSeconds();
 
-  let delay;
-  if (minutes < 30) {
-    delay = (30 - minutes) * 60 * 1000 - seconds * 1000;
-  } else {
-    delay = (60 - minutes) * 60 * 1000 - seconds * 1000;
-  }
+  // 次の「00分」または「30分」までのミリ秒
+  const nextHalfHour =
+    minutes < 30
+      ? (30 - minutes) * 60 * 1000 - seconds * 1000
+      : (60 - minutes) * 60 * 1000 - seconds * 1000;
 
-  setTimeout(() => {
-    updateTakarakujiNumber();
+  console.log(`🕒 次の抽選更新は ${Math.ceil(nextHalfHour / 60000)}分後に実行予定`);
+
+  // 最初の更新
+  setTimeout(async () => {
+    await updateTakarakujiNumber();
+    // 以後30分ごとに実行
     setInterval(updateTakarakujiNumber, 30 * 60 * 1000);
-  }, delay);
+  }, nextHalfHour);
 }
 
-// --- 起動時に呼ぶ ---
-await loadLatestTakarakuji();
-scheduleTakarakujiUpdate();
+// --- Bot起動時の初期処理 ---
+client.once("ready", async () => {
+  console.log(`✅ ログイン完了: ${client.user.tag}`);
 
+  // 宝くじ番号の初期化と自動更新開始
+  await loadLatestTakarakuji();
+  scheduleTakarakujiUpdate();
+
+  console.log("🎰 宝くじ自動更新スケジュールが開始されました。");
+});
 
 // ------------------ 🔁 ./commands/*.js を安全に自動読み込み --------------------
 import { pathToFileURL } from 'url';

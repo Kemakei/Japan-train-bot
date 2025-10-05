@@ -12,8 +12,10 @@ export async function execute(interaction, { client }) {
     // MongoDB版：全ユーザーデータ取得
     const allUsers = await client.coinsCol.find({}).toArray();
 
+    // サーバー内メンバーだけでランキング作成
     const ranking = allUsers
       .filter(doc => !['stock_price', 'trade_history'].includes(doc.userId))
+      .filter(doc => guild.members.cache.has(doc.userId)) // キャッシュにいるサーバーメンバーだけ
       .map(doc => ({ userId: doc.userId, coins: doc.coins || 0 }))
       .sort((a, b) => b.coins - a.coins);
 
@@ -31,7 +33,7 @@ export async function execute(interaction, { client }) {
     let description = '';
     for (let i = 0; i < top10.length; i++) {
       const { userId, coins } = top10[i];
-      const member = await guild.members.fetch(userId).catch(() => null);
+      const member = guild.members.cache.get(userId) || await guild.members.fetch(userId).catch(() => null);
       const username = member ? member.user.tag : '不明なユーザー';
       description += `**${i + 1}. ${username}** - 💰 ${coins} コイン\n`;
     }
