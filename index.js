@@ -15,7 +15,7 @@ import {
   EmbedBuilder,
 } from 'discord.js';
 import { MongoClient } from "mongodb";
-import { getNextDrawId } from './utils/draw.js';
+import { scheduleDailyLoanUpdate } from './utils/dailyLoanUpdater.js';
 import { getLatestDrawId } from "./utils/draw.js";
 // -------------------- Webサーバー設定 --------------------
 const app = express();
@@ -49,7 +49,6 @@ const db = mongoClient.db("discordBot");
 const coinsCol = db.collection("coins"); // coins + stocks + trade_history
 const hedgeCol = db.collection("hedges");
 const lotteryCol = db.collection("lottery"); // 宝くじ購入履歴
-
 
 // Discordクライアント初期化
 const client = new Client({
@@ -192,13 +191,11 @@ async function loadLatestTakarakuji() {
     };
     console.log(`✅ 最新の宝くじ番号を復元: ${result.number}${result.letter} (${drawId})`);
   } else {
-    // DB に存在しなければ初回番号を生成
     const number = String(Math.floor(Math.random() * 100000)).padStart(5, "0");
     const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
 
     client.takarakuji = { number, letter };
 
-    // 初回番号を直前回の drawId に保存
     const previousDrawId = getLatestDrawId(new Date());
     await db.collection("drawResults").updateOne(
       { drawId: previousDrawId },
@@ -213,16 +210,11 @@ async function loadLatestTakarakuji() {
 // --- 宝くじ番号更新関数（抽選＋DB保存） ---
 async function updateTakarakujiNumber() {
   const now = new Date();
-
-  // 公開時刻を「00分 or 30分」に揃える
   const minute = now.getMinutes() < 30 ? 0 : 30;
   now.setMinutes(minute, 0, 0);
-
-  // 直前回（保存対象）の drawId
   const previousDrawId = getLatestDrawId(now);
 
   try {
-    // 既存番号を DB に保存
     if (client.takarakuji) {
       const { number: oldNumber, letter: oldLetter } = client.takarakuji;
 
@@ -235,13 +227,11 @@ async function updateTakarakujiNumber() {
       console.log(`💾 保存完了: ${oldNumber}${oldLetter} (${previousDrawId})`);
     }
 
-    // 新しい番号を生成（5桁数字＋1文字アルファベット）
     const newNumber = String(Math.floor(Math.random() * 100000)).padStart(5, "0");
     const newLetter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
 
     client.takarakuji = { number: newNumber, letter: newLetter };
     console.log(`🎰 新しい宝くじ番号を生成: ${newNumber}${newLetter} (次回公開用)`);
-
   } catch (err) {
     console.error("DB保存失敗:", err);
   }
@@ -252,8 +242,6 @@ function scheduleTakarakujiUpdate() {
   const now = new Date();
   const minutes = now.getMinutes();
   const seconds = now.getSeconds();
-
-  // 次の「00分」または「30分」までのミリ秒
   const nextHalfHour =
     minutes < 30
       ? (30 - minutes) * 60 * 1000 - seconds * 1000
@@ -261,23 +249,61 @@ function scheduleTakarakujiUpdate() {
 
   console.log(`🕒 次の抽選更新は ${Math.ceil(nextHalfHour / 60000)}分後に実行予定`);
 
-  // 最初の更新
   setTimeout(async () => {
     await updateTakarakujiNumber();
-    // 以後30分ごとに実行
     setInterval(updateTakarakujiNumber, 30 * 60 * 1000);
   }, nextHalfHour);
 }
 
-// --- Bot起動時の初期処理 ---
-client.once("ready", async () => {
+// --- データベースサニタイズ ---
+async function sanitizeDatabase() {
+  console.log("🔹 データベースの初期化チェック中...");
+  const coinsDocs = await coinsCol.find({ userId: { $ne: "trade_history" } }).toArray();
+  for (const doc of coinsDocs) {
+    let needUpdate = false;
+    const update = {};
+
+    if (typeof doc.coins !== "number" || isNaN(doc.coins)) {
+      update.coins = 0;
+      needUpdate = true;
+    }
+    if (typeof doc.stocks !== "number" || isNaN(doc.stocks)) {
+      update.stocks = 0;
+      needUpdate = true;
+    }
+
+    if (needUpdate) {
+      await coinsCol.updateOne({ userId: doc.userId }, { $set: update });
+      console.log(`🛠 ${doc.userId} の壊れたコイン/株データを初期化しました`);
+    }
+  }
+
+  const hedgeDocs = await hedgeCol.find({}).toArray();
+  for (const doc of hedgeDocs) {
+    if (
+      typeof doc.amountPerDay !== "number" || isNaN(doc.amountPerDay) ||
+      typeof doc.accumulated !== "number" || isNaN(doc.accumulated) ||
+      typeof doc.lastUpdateJST !== "number" || isNaN(doc.lastUpdateJST)
+    ) {
+      await hedgeCol.deleteOne({ userId: doc.userId });
+      console.log(`🛠 ${doc.userId} の壊れた hedge データを削除しました`);
+    }
+  }
+
+  console.log("✅ データベースの初期化チェック完了");
+}
+
+// -------------------- ready イベント統合 --------------------
+client.once(Events.ClientReady, async () => {
   console.log(`✅ ログイン完了: ${client.user.tag}`);
 
-  // 宝くじ番号の初期化と自動更新開始
+  await sanitizeDatabase();
   await loadLatestTakarakuji();
   scheduleTakarakujiUpdate();
+  scheduleDailyLoanUpdate(client);
 
   console.log("🎰 宝くじ自動更新スケジュールが開始されました。");
+  console.log("✅ 借金日次更新スケジュールが開始されました。");
 });
 
 // ------------------ 🔁 ./commands/*.js を安全に自動読み込み --------------------
@@ -288,8 +314,6 @@ const commandFiles = fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'))
 
 for (const file of commandFiles) {
   const filePath = path.join(commandsPath, file);
-
-  // ESM互換のURLに変換して import
   const commandModule = await import(pathToFileURL(filePath).href);
 
   if ('data' in commandModule && 'execute' in commandModule) {
@@ -320,69 +344,6 @@ client.once(Events.ClientReady, async () => {
   } catch (err) {
     console.error('❌ コマンド登録失敗:', err);
   }
-});
-
-
-async function sanitizeDatabase() {
-  console.log("🔹 データベースの初期化チェック中...");
-
-  // coins コレクション（trade_history は無視）
-  const coinsDocs = await coinsCol.find({ userId: { $ne: "trade_history" } }).toArray();
-  for (const doc of coinsDocs) {
-    let needUpdate = false;
-    const update = {};
-
-    if (typeof doc.coins !== "number" || isNaN(doc.coins)) {
-      update.coins = 0;
-      needUpdate = true;
-    }
-    if (typeof doc.stocks !== "number" || isNaN(doc.stocks)) {
-      update.stocks = 0;
-      needUpdate = true;
-    }
-
-    if (needUpdate) {
-      await coinsCol.updateOne({ userId: doc.userId }, { $set: update });
-      console.log(`🛠 ${doc.userId} の壊れたコイン/株データを初期化しました`);
-    }
-  }
-
-  // hedges コレクション
-  const hedgeDocs = await hedgeCol.find({}).toArray();
-  for (const doc of hedgeDocs) {
-    if (
-      typeof doc.amountPerDay !== "number" || isNaN(doc.amountPerDay) ||
-      typeof doc.accumulated !== "number" || isNaN(doc.accumulated) ||
-      typeof doc.lastUpdateJST !== "number" || isNaN(doc.lastUpdateJST)
-    ) {
-      await hedgeCol.deleteOne({ userId: doc.userId });
-      console.log(`🛠 ${doc.userId} の壊れた hedge データを削除しました`);
-    }
-  }
-
-  console.log("✅ データベースの初期化チェック完了");
-}
-
-  // hedges コレクション
-  const hedgeDocs = await hedgeCol.find({}).toArray();
-  for (const doc of hedgeDocs) {
-    if (
-      typeof doc.amountPerDay !== "number" || isNaN(doc.amountPerDay) ||
-      typeof doc.accumulated !== "number" || isNaN(doc.accumulated) ||
-      typeof doc.lastUpdateJST !== "number" || isNaN(doc.lastUpdateJST)
-    ) {
-      await hedgeCol.deleteOne({ userId: doc.userId });
-      console.log(`🛠 ${doc.userId} の壊れた hedge データを削除しました`);
-    }
-  }
-
-  console.log("✅ データベースの初期化チェック完了");
-
-// client.once(Events.ClientReady) 内で呼ぶ
-client.once(Events.ClientReady, async () => {
-  console.log(`🤖 Logged in as ${client.user.tag}`);
-
-  await sanitizeDatabase(); // 起動時にチェック
 });
 
 client.on(Events.InteractionCreate, async interaction => {

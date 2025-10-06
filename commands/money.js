@@ -9,24 +9,24 @@ export async function execute(interaction) {
     const userId = interaction.user.id;
     const client = interaction.client;
 
-    // MongoDB版：ユーザーデータ取得
+    // ユーザーデータ取得
     const userDataDoc = await client.coinsCol.findOne({ userId });
     const coins = userDataDoc?.coins || 0;
     const stocks = userDataDoc?.stocks || 0;
 
-    // ヘッジ契約の確認（MongoDB版）
+    // ヘッジ契約確認
     const hedgeDoc = await client.getHedge(userId);
     let hedgeAccumulated = 0;
 
     if (hedgeDoc) {
       const now = new Date();
-      const jstOffset = 9 * 60; // JST +9時間
+      const jstOffset = 9 * 60;
       const nowJST = new Date(now.getTime() + jstOffset * 60 * 1000);
 
       const lastUpdate = new Date(hedgeDoc.lastUpdateJST || nowJST.getTime());
       const msPerDay = 24 * 60 * 60 * 1000;
-
       const daysPassed = Math.floor((nowJST.getTime() - lastUpdate.getTime()) / msPerDay);
+
       hedgeAccumulated = hedgeDoc.accumulated + hedgeDoc.amountPerDay * daysPassed;
 
       if (daysPassed > 0) {
@@ -37,12 +37,26 @@ export async function execute(interaction) {
       }
     }
 
+    // 借金情報取得
+    const loans = await client.db.collection("loans").find({ userId, paid: false }).toArray();
+    let totalDebt = 0;
+    let loanDetails = '';
+    const now = Date.now();
+
+    if (loans.length > 0) {
+      for (const loan of loans) {
+        totalDebt += loan.totalDue;
+        loanDetails += `\n- 借入: ${loan.principal} コイン | 利息込: ${loan.totalDue} コイン | 日数: ${loan.daysPassed} 日 | 期限: <t:${Math.floor(loan.dueTime/1000)}:D>`;
+      }
+    }
+
     const embed = new EmbedBuilder()
       .setColor('Green')
       .setDescription(
         `**あなたの所持金: ${coins} コイン**` +
         `\n**保有株数: ${stocks} 株**` +
-        (hedgeAccumulated > 0 ? `\n**契約中の保険金: ${hedgeAccumulated} コイン（次回加算済み）**` : '')
+        (hedgeAccumulated > 0 ? `\n**契約中の保険金: ${hedgeAccumulated} コイン（次回加算済み）**` : '') +
+        (totalDebt > 0 ? `\n**借金合計: ${totalDebt} コイン**${loanDetails}` : '')
       );
 
     await interaction.reply({ embeds: [embed] });
