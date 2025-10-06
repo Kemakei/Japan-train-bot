@@ -7,11 +7,11 @@ import {
 } from "discord.js";
 import fs from "fs";
 import path from "path";
-import { combineCards } from "../utils/combine.js";
+import { combineCards } from "../python/combine.py";
 import { getHandStrength } from "../utils/handStrength.js";
 
 export const data = new SlashCommandBuilder()
-  .setName("poker_test")
+  .setName("poker")
   .setDescription("4ラウンド制ポーカーゲームをプレイ！")
   .addIntegerOption(option =>
     option.setName("bet").setDescription("掛け金").setRequired(true)
