@@ -3,256 +3,194 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  AttachmentBuilder,
+  EmbedBuilder,
 } from "discord.js";
-import { spawn } from "child_process";
-import path from "path";
 import fs from "fs";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const pythonPath = path.resolve(__dirname, "../python/combine.py");
-const pythonCmd = process.platform === "win32" ? "py" : "python3";
-
-// --- ユーザー単位で進行中ゲーム管理 ---
-const ongoingGames = new Map();
+import path from "path";
+import { combineCards } from "../utils/combine.js";
+import { getHandStrength } from "../utils/handStrength.js";
 
 export const data = new SlashCommandBuilder()
-  .setName("poker")
-  .setDescription("Botと5枚ポーカーで勝負！");
+  .setName("poker_test")
+  .setDescription("4ラウンド制ポーカーゲームをプレイ！")
+  .addIntegerOption(option =>
+    option.setName("bet").setDescription("掛け金").setRequired(true)
+  );
 
 export async function execute(interaction) {
-  const client = interaction.client;
   const userId = interaction.user.id;
+  const client = interaction.client;
+  let initialBet = interaction.options.getInteger("bet");
+  const userCoins = await client.getCoins(userId);
 
-  if (ongoingGames.has(userId)) {
-    return interaction.reply({
-      content: "❌ 進行中のゲームがあります。まず終わらせてください！",
-      flags: 64,
-    });
-  }
+  if (userCoins < initialBet)
+    return interaction.reply({ content: "💰 コインが足りません！", flags: 64 });
 
-  const initialCoins = await client.getCoins(userId);
-  let bet = 1000; // 初期ベット
+  // --- 初期設定 ---
+  let playerBet = initialBet;
+  let botBet = initialBet;
+  let pot = playerBet + botBet;
+  let round = 1;
+  let playerFolded = false;
+  let playerRevealed = 3;
 
-  if (initialCoins < bet) {
-    return interaction.reply({ content: "❌ コインが足りません！", flags: 64 });
-  }
-
-  ongoingGames.set(userId, true);
-
-  await interaction.deferReply();
-
-  // --- デッキ作成 ---
-  const suits = ["S", "H", "D", "C"];
-  const ranks = ["2","3","4","5","6","7","8","9","T","J","Q","K","A"];
-  const deck = [];
-  for (const r of ranks) for (const s of suits) deck.push(r + s);
+  // --- デッキ生成 ---
+  const suits = ["♠", "♥", "♦", "♣"];
+  const ranks = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
+  let deck = suits.flatMap(s => ranks.map(r => r + s));
   deck.sort(() => Math.random() - 0.5);
 
-  const playerHand = deck.splice(0, 5);
-  let botHand = deck.splice(0, 5);
+  const playerCards = deck.splice(0, 5);
+  const botCards = deck.splice(0, 5);
 
-  const timestamp = Date.now();
-  const combinedPath = path.resolve(__dirname, `../python/images/combined_${userId}_${timestamp}.png`);
+  // --- カード画像描画 ---
+  const renderCards = async () => {
+    const imgPath = path.resolve(__dirname, `../tmp/poker_${userId}.png`);
+    await combineCards(playerCards, botCards, playerRevealed, imgPath);
+    return imgPath;
+  };
 
-  // --- Python で初期画像生成（コール前） ---
-  const pythonArgs = [pythonPath, ...playerHand, ...botHand, "0", combinedPath];
-  const pythonProc = spawn(pythonCmd, pythonArgs);
+  // --- Bot行動 ---
+  const botAction = (playerBet, botBet, botCards) => {
+    const strength = getHandStrength(botCards);
+    const diff = playerBet - botBet;
+    const r = Math.random();
+    const bluffRate = 0.15;
 
-  pythonProc.on("error", async (err) => {
-    console.error("Python 実行エラー:", err);
-    ongoingGames.delete(userId);
-    await interaction.editReply({ content: "❌ 画像生成中にエラーが発生しました", flags: 64 });
-  });
-
-  pythonProc.on("close", async (code) => {
-    if (code !== 0) {
-      ongoingGames.delete(userId);
-      return await interaction.editReply({ content: "❌ Python スクリプトが異常終了しました", flags: 64 });
+    if (strength <= 3) {
+      if (diff > 0) return r < bluffRate ? { action: "raise", amount: Math.floor(playerBet * 1.1) } : { action: "fold" };
+      return r < 0.5 ? { action: "call" } : { action: "fold" };
     }
+    if (strength <= 6) {
+      if (diff > 0) return r < 0.7 ? { action: "call" } : { action: "fold" };
+      const raiseAmount = Math.floor(playerBet * 1.2 + Math.random() * 3000);
+      return r < 0.3 ? { action: "raise", amount: raiseAmount } : { action: "call" };
+    }
+    if (diff > 0) return { action: "call" };
+    const raiseAmount = Math.floor(playerBet * 1.25 + Math.random() * 5000);
+    return r < 0.7 ? { action: "raise", amount: raiseAmount } : { action: "call" };
+  };
 
-    const file = new AttachmentBuilder(combinedPath);
+  // --- 次ラウンド ---
+  const nextRound = async (btn) => {
+    if (round >= 4 || playerFolded) return showResult(btn);
+    round++;
+    playerRevealed = Math.min(5, playerRevealed + 1);
+    const img = await renderCards();
+    const embed = new EmbedBuilder()
+      .setTitle(`🎲 第${round}ラウンド`)
+      .setDescription(`カードが1枚公開されました。\nポット: ${pot} コイン`)
+      .setImage("attachment://cards.png");
 
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("call").setLabel("コール").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId("fold").setLabel("フォールド").setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId("bet100").setLabel("ベット +100").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId("bet1000").setLabel("ベット +1000").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId("bet10000").setLabel("ベット +10000").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("bet").setLabel("ベット +1000").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId("call").setLabel("コール").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("fold").setLabel("フォールド").setStyle(ButtonStyle.Danger)
     );
 
-    const row2 = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("customBet").setLabel("💬 ベット指定").setStyle(ButtonStyle.Secondary),
-    );
+    await btn.update({ embeds: [embed], components: [row], files: [{ attachment: img, name: "cards.png" }] });
+  };
 
-    await interaction.editReply({
-      content: `🎲 あなたの手札です。現在のベット: ${bet} コイン`,
-      files: [file],
-      components: [row, row2],
-    });
+  // --- 勝敗表示 ---
+  const showResult = async (btn) => {
+    const img = await renderCards();
+    const playerPower = getHandStrength(playerCards);
+    const botPower = getHandStrength(botCards);
 
-    const filter = (btnInt) => {
-      if (btnInt.user.id !== userId) {
-        btnInt.reply({ content: "❌ あなたのゲームではありません！", flags: 64 });
-        return false;
+    let result = "";
+    let multiplier = Math.min(5, 1 + pot / 20000);
+
+    if (playerFolded) {
+      const refund = Math.floor(playerBet / 2);
+      await client.updateCoins(userId, refund);
+      result = `😞 フォールドしました。ベットの半額 ${refund} コイン返却`;
+    } else if (playerPower > botPower) {
+      const win = Math.floor(playerBet * multiplier);
+      await client.updateCoins(userId, win);
+      result = `🎉 勝ち！ +${win} コイン`;
+    } else if (playerPower === botPower) {
+      const refund = Math.floor(playerBet / 2);
+      await client.updateCoins(userId, refund);
+      result = `🤝 引き分け。ベットの半分返却: ${refund} コイン`;
+    } else {
+      result = `💀 負けです。`;
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle("🎯 結果発表")
+      .setDescription(result)
+      .setImage("attachment://cards.png");
+
+    await btn.update({ embeds: [embed], components: [], files: [{ attachment: img, name: "cards.png" }] });
+  };
+
+  // --- 初期ラウンド表示 ---
+  const img = await renderCards();
+  const embed = new EmbedBuilder()
+    .setTitle("🃏 ポーカー開始！")
+    .setDescription(`掛け金: ${playerBet} コイン\n最初の3枚が公開されました。\nポット: ${pot} コイン`)
+    .setImage("attachment://cards.png");
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("bet").setLabel("ベット +1000").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId("call").setLabel("コール").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("fold").setLabel("フォールド").setStyle(ButtonStyle.Danger)
+  );
+
+  // 初期ベット分を即引き
+  await client.updateCoins(userId, -playerBet);
+
+  const reply = await interaction.reply({ embeds: [embed], components: [row], files: [{ attachment: img, name: "cards.png" }] });
+
+  const collector = reply.createMessageComponentCollector({ time: 60000 });
+
+  collector.on("collect", async (btn) => {
+    if (btn.user.id !== userId) return btn.reply({ content: "❌ 他の人は操作できません！", flags: 64 });
+
+    // フォールド
+    if (btn.customId === "fold") {
+      playerFolded = true;
+      return showResult(btn);
+    }
+
+    // ベット追加
+    if (btn.customId === "bet") {
+      playerBet += 1000;
+      pot += 1000;
+      await client.updateCoins(userId, -1000); // 即減算
+    }
+
+    // コールチェック
+    if (btn.customId === "call") {
+      if (playerBet < botBet) {
+        return btn.reply({ content: `❌ まず ${botBet - playerBet} コインを追加ベットしてください！`, flags: 64 });
       }
-      return true;
-    };
+    }
 
-    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000 });
+    // Bot行動
+    const botMove = botAction(playerBet, botBet, botCards);
+    if (botMove.action === "fold") {
+      await client.updateCoins(userId, pot);
+      return btn.update({ content: `🤖 Botがフォールド！あなたの勝ち！ +${pot}`, components: [], embeds: [], files: [] });
+    } else if (botMove.action === "raise") {
+      botBet += botMove.amount;
+      pot += botMove.amount;
+      return btn.update({ content: `🤖 Botがレイズ！ +${botMove.amount} コイン\n合計ポット: ${pot}`, components: [], embeds: [] });
+    }
 
-    collector.on("collect", async (btnInt) => {
-      try {
-        // --- 固定ベット ---
-        if (btnInt.customId.startsWith("bet")) {
-          const add =
-            btnInt.customId === "bet100" ? 100 :
-            btnInt.customId === "bet1000" ? 1000 :
-            btnInt.customId === "bet10000" ? 10000 : 0;
+    await nextRound(btn);
+  });
 
-          if (bet + add > (await client.getCoins(userId)) + bet) {
-            return btnInt.reply({ content: "❌ コインが足りません！", flags: 64 });
-          }
-
-          await client.updateCoins(userId, -add);
-          bet += add;
-          await btnInt.update({ content: `🎲 現在のベット: ${bet} コイン`, components: [row, row2] });
-          return;
-        }
-
-        // --- カスタムベット ---
-        if (btnInt.customId === "customBet") {
-          const modal = new ModalBuilder().setCustomId("customBetModal").setTitle("ベット金額を入力");
-
-          const betInput = new TextInputBuilder()
-            .setCustomId("betAmount")
-            .setLabel("ベット金額（整数）")
-            .setStyle(TextInputStyle.Short)
-            .setPlaceholder("例: 50000")
-            .setRequired(true);
-
-          modal.addComponents(new ActionRowBuilder().addComponents(betInput));
-          await btnInt.showModal(modal);
-
-          const submitted = await btnInt.awaitModalSubmit({ time: 30000 }).catch(() => null);
-          if (!submitted) return;
-
-          const betValue = Number(submitted.fields.getTextInputValue("betAmount"));
-          if (isNaN(betValue) || betValue <= 0)
-            return submitted.reply({ content: "❌ 無効な金額です", flags: 64 });
-
-          const available = await client.getCoins(userId);
-          if (betValue > available + bet)
-            return submitted.reply({ content: "❌ コインが足りません！", flags: 64 });
-
-          await client.updateCoins(userId, -betValue);
-          bet += betValue;
-
-          await submitted.update({ content: `🎲 現在のベット: ${bet} コイン`, components: [row, row2] });
-          return;
-        }
-
-        // --- コール ---
-        if (btnInt.customId === "call") {
-          collector.stop("called");
-          await btnInt.deferUpdate();
-
-          // --- 段階制のbot強化倍率（無限増加） ---
-          let bias = 1;
-          if (bet <= 100000) {
-            bias = 1 + (bet / 100000) * 2; // 1〜3倍
-          } else {
-            bias = 3 + Math.floor((bet - 100000) / 100000); // 10万ごとに +1倍
-          }
-
-          // bias を元に botHand を再生成する確率を調整
-          const chance = Math.min(1, (bias - 1) / 3);
-          if (Math.random() < chance) {
-            deck.sort(() => Math.random() - 0.5);
-            botHand = deck.splice(0, 5);
-          }
-
-          const pyArgs = [pythonPath, ...playerHand, ...botHand, "1", combinedPath]; // コール後は全公開
-          const resultProc = spawn(pythonCmd, pyArgs);
-
-          let stdout = "";
-          resultProc.stdout.on("data", (data) => (stdout += data.toString()));
-          resultProc.stderr.on("data", (data) => console.error("Python stderr:", data.toString()));
-
-          resultProc.on("close", async (code) => {
-            ongoingGames.delete(userId);
-
-            if (code !== 0)
-              return btnInt.followUp({ content: "❌ 勝敗判定中にエラーが発生しました", flags: 64 });
-
-            const [winner, scoreStr] = stdout.trim().split(",").map((s) => s.trim());
-            let msg = "";
-            let amount = 0;
-
-            const multiplier = Math.min(7, 1 + bet / 16666);
-
-            if (winner === "player") {
-              amount = Math.floor(bet * multiplier);
-              await client.updateCoins(userId, amount);
-              msg = `🎉 勝ち！ +${amount} コイン`;
-            } else if (winner === "bot") {
-              amount = -Math.floor(bet * multiplier);
-              await client.updateCoins(userId, amount);
-              msg = `💀 負け！ ${amount} コイン`;
-            } else {
-              amount = Math.floor(bet / 2);
-              await client.updateCoins(userId, amount);
-              msg = `🤝 引き分け！ +${amount} コイン返却`;
-            }
-
-            let currentCoins = await client.getCoins(userId);
-            if (currentCoins < 0) {
-              await client.setCoins(userId, 0);
-              currentCoins = 0;
-            }
-
-            await interaction.editReply({ content: `${msg}\n所持金: ${currentCoins}`, files: [file], components: [] });
-
-            try { fs.unlinkSync(combinedPath); } catch (e) { console.error(e); }
-          });
-        }
-
-        // --- フォールド ---
-        if (btnInt.customId === "fold") {
-          collector.stop("folded");
-          ongoingGames.delete(userId);
-
-          const refund = Math.floor(bet / 2);
-          await client.updateCoins(userId, refund);
-
-          await interaction.editReply({ 
-            content: `🏳️ フォールドしました。ベットの半額 ${refund} コインを返却しました。\n所持金: ${await client.getCoins(userId)}`, 
-            components: [] 
-          });
-
-          try { fs.unlinkSync(combinedPath); } catch {}
-          return;
-        }
-      } catch (err) {
-        console.error(err);
-        ongoingGames.delete(userId);
-        if (!btnInt.replied) await btnInt.followUp({ content: "❌ 予期せぬエラーが発生しました", flags: 64 });
-      }
-    });
-
-    collector.on("end", async (_, reason) => {
-      ongoingGames.delete(userId);
-      if (reason !== "called" && reason !== "folded") {
-        await client.setCoins(userId, initialCoins);
-        await interaction.editReply({ content: `⌛ タイムアウト。ベットを返却しました。\n所持金: ${initialCoins}`, components: [] });
-        try { fs.unlinkSync(combinedPath); } catch {}
-      }
-    });
+  // --- タイムアウト処理 ---
+  collector.on("end", async (collected, reason) => {
+    if (reason === "time" && !playerFolded && round < 4) {
+      // ベット全額返却
+      await client.updateCoins(userId, playerBet);
+      return reply.edit({
+        content: `⌛ タイムアウトです。ベットした金額 ${playerBet} コインを返却しました。`,
+        embeds: [],
+        components: []
+      });
+    }
   });
 }
