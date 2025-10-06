@@ -60,7 +60,7 @@ export async function execute(interaction) {
   const combinedPath = path.resolve(__dirname, `../python/images/combined_${userId}_${timestamp}.png`);
 
   const gameState = {
-    turn: 1,
+    turn: 0,
     playerHand,
     botHand,
     deck,
@@ -71,7 +71,7 @@ export async function execute(interaction) {
   };
 
   await client.updateCoins(userId, -bet);
-  await generateImage(gameState, 3, combinedPath); // 初期は3枚公開
+  await generateImage(gameState, 3, combinedPath); // 初期：3枚公開
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("call").setLabel("コール").setStyle(ButtonStyle.Success),
@@ -134,7 +134,7 @@ export async function execute(interaction) {
       if (btnInt.customId === "fold") {
         ongoingGames.delete(gameKey);
         collector.stop("folded");
-        await finalizeGame(gameState, client, combinedPath, interaction, "bot"); // bot勝ち
+        await finalizeGame(gameState, client, combinedPath, interaction, "bot");
         return;
       }
 
@@ -169,10 +169,14 @@ async function botTurn(gameState, client, btnInt, combinedPath, interaction, col
 
   let decision = "call";
 
-  // 強い手ならレイズしやすく、弱い手ならフォールドしやすく
-  if (botStrength > 0.6 && randomFactor < 0.5) {
+  // 🧠 改良: ブラフ確率を導入
+  if (botStrength > 0.6 && randomFactor < 0.6) {
     decision = "raise";
-  } else if (botStrength < 0.4 && randomFactor < 0.3) {
+  } else if (botStrength > 0.4 && randomFactor < 0.3) {
+    decision = "raise"; // ミドルレンジのブラフ
+  } else if (botStrength < 0.3 && randomFactor < 0.1) {
+    decision = "raise"; // 弱手のブラフ（稀に）
+  } else if (botStrength < 0.35 && randomFactor < 0.4) {
     decision = "fold";
   }
 
@@ -196,14 +200,16 @@ async function botTurn(gameState, client, btnInt, combinedPath, interaction, col
 async function proceedToNextStage(gameState, client, combinedPath, interaction, collector) {
   gameState.turn++;
   let revealCount = 3;
-  if (gameState.turn === 2) revealCount = 4;
-  else if (gameState.turn >= 3) revealCount = 5;
+
+  if (gameState.turn === 1) revealCount = 4;
+  else if (gameState.turn === 2) revealCount = 5;
+  else if (gameState.turn >= 3) revealCount = 5; // turn3で公開（reveal=1）
 
   await generateImage(gameState, revealCount, combinedPath);
   const file = new AttachmentBuilder(combinedPath);
 
   await interaction.editReply({
-    content: `🃏 ターン${gameState.turn - 1} 終了。現在のベット: ${gameState.playerBet} コイン`,
+    content: `🃏 ターン${gameState.turn} 終了。現在のベット: ${gameState.playerBet} コイン`,
     files: [file],
   });
 
@@ -256,7 +262,7 @@ async function finalizeGame(gameState, client, combinedPath, interaction, forced
   });
 }
 
-// --- 手札強さ判定（ペア・フラッシュ対応） ---
+// --- 手札強さ（ペア・フラッシュ考慮） ---
 function evaluateHandStrength(hand) {
   const ranks = "23456789TJQKA";
   let score = 0;
@@ -288,7 +294,7 @@ async function generateImage(gameState, revealCount, combinedPath) {
     pythonPath,
     ...gameState.playerHand,
     ...gameState.botHand,
-    revealCount === 5 ? "1" : "0",
+    revealCount === 5 && gameState.turn >= 3 ? "1" : "0",
     combinedPath,
   ];
 
