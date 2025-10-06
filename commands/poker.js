@@ -134,11 +134,7 @@ export async function execute(interaction) {
       if (btnInt.customId === "fold") {
         ongoingGames.delete(gameKey);
         collector.stop("folded");
-        await interaction.editReply({
-          content: `🏳️ フォールドしました。掛け金を失いました。\n所持金: ${await client.getCoins(userId)}`,
-          components: [],
-        });
-        setTimeout(() => { try { fs.unlinkSync(combinedPath); } catch {} }, 5000);
+        await finalizeGame(gameState, client, combinedPath, interaction, "bot"); // bot勝ち
         return;
       }
 
@@ -172,8 +168,13 @@ async function botTurn(gameState, client, btnInt, combinedPath, interaction, col
   const randomFactor = Math.random();
 
   let decision = "call";
-  if (botStrength > 0.75 && randomFactor < 0.6) decision = "raise";
-  else if (botStrength < 0.3 && randomFactor < 0.4) decision = "fold";
+
+  // 強い手ならレイズしやすく、弱い手ならフォールドしやすく
+  if (botStrength > 0.6 && randomFactor < 0.5) {
+    decision = "raise";
+  } else if (botStrength < 0.4 && randomFactor < 0.3) {
+    decision = "fold";
+  }
 
   if (decision === "fold") {
     await btnInt.followUp({ content: "🤖 はフォールドしました！あなたの勝ちです。", ephemeral: true });
@@ -194,7 +195,9 @@ async function botTurn(gameState, client, btnInt, combinedPath, interaction, col
 // --- ターン進行 ---
 async function proceedToNextStage(gameState, client, combinedPath, interaction, collector) {
   gameState.turn++;
-  const revealCount = gameState.turn === 2 ? 4 : gameState.turn === 3 ? 5 : 5;
+  let revealCount = 3;
+  if (gameState.turn === 2) revealCount = 4;
+  else if (gameState.turn >= 3) revealCount = 5;
 
   await generateImage(gameState, revealCount, combinedPath);
   const file = new AttachmentBuilder(combinedPath);
@@ -253,15 +256,34 @@ async function finalizeGame(gameState, client, combinedPath, interaction, forced
   });
 }
 
-// --- 手札強さ判定（0〜1） ---
+// --- 手札強さ判定（ペア・フラッシュ対応） ---
 function evaluateHandStrength(hand) {
   const ranks = "23456789TJQKA";
-  return hand.reduce((sum, card) => sum + ranks.indexOf(card[0]), 0) / (13 * hand.length);
+  let score = 0;
+  const rankCounts = {};
+  const suits = {};
+
+  for (const card of hand) {
+    const rank = card[0];
+    const suit = card[1];
+    rankCounts[rank] = (rankCounts[rank] || 0) + 1;
+    suits[suit] = (suits[suit] || 0) + 1;
+    score += ranks.indexOf(rank);
+  }
+
+  const pairs = Object.values(rankCounts).filter(v => v === 2).length;
+  const trips = Object.values(rankCounts).filter(v => v === 3).length;
+  const flush = Object.values(suits).some(v => v >= 4);
+
+  if (pairs) score += 10 * pairs;
+  if (trips) score += 25;
+  if (flush) score += 30;
+
+  return Math.min(1, score / 120);
 }
 
-// --- カード画像生成（turnに応じて公開） ---
+// --- カード画像生成 ---
 async function generateImage(gameState, revealCount, combinedPath) {
-  // 🟢 修正版: combine.py は常に 10 枚のカードを要求する
   const args = [
     pythonPath,
     ...gameState.playerHand,
