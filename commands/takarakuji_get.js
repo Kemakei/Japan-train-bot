@@ -99,13 +99,13 @@ export async function execute(interaction) {
     { upsert: true }
   );
 
-  // 行単位で安全にEmbed分割
+  // Embed自動分割関数
   function createEmbedsByLine(lines, title, color = 0x00AE86) {
     const embeds = [];
     let chunk = "";
 
     for (const line of lines) {
-      if ((chunk + line + "\n").length > 5000) {
+      if ((chunk + line + "\n").length > 4000) { // 4096を安全圏内に調整
         embeds.push(
           new EmbedBuilder()
             .setTitle(title)
@@ -129,6 +129,7 @@ export async function execute(interaction) {
     return embeds;
   }
 
+  // 公開結果を送信
   if (publicLines.length > 0) {
     const publicEmbeds = createEmbedsByLine(publicLines, "🎉 抽選結果");
     for (const embed of publicEmbeds) {
@@ -136,6 +137,7 @@ export async function execute(interaction) {
     }
   }
 
+  // 未抽選の結果を送信（ephemeral）
   if (ephemeralLines.length > 0) {
     const ephemeralEmbeds = createEmbedsByLine(ephemeralLines, "⏳ 未公開の抽選", 0xAAAAAA);
     for (const embed of ephemeralEmbeds) {

@@ -303,7 +303,8 @@ function evaluateHandStrength(hand) {
 
 // --- カード画像生成（段階公開） ---
 async function generateImage(gameState, turn, combinedPath) {
-  let revealCount = 3 + (turn - 1);
+  // --- 修正: 初回は必ず5枚渡す ---
+  let revealCount = turn === 0 ? 5 : 3 + (turn - 1);
   if (revealCount > 5) revealCount = 5;
 
   const args = [
