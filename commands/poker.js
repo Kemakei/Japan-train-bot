@@ -48,7 +48,7 @@ export async function execute(interaction) {
 
   // --- デッキ構築 ---
   const suits = ["S", "H", "D", "C"];
-  const ranks = ["2","3","4","5","6","7","8","9","T","J","Q","K","A"];
+  const ranks = ["2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"];
   const deck = [];
   for (const r of ranks) for (const s of suits) deck.push(r + s);
   deck.sort(() => Math.random() - 0.5);
@@ -71,7 +71,7 @@ export async function execute(interaction) {
   };
 
   await client.updateCoins(userId, -bet);
-  await generateImage(gameState, 3, combinedPath); // 初期：3枚公開
+  await generateImage(gameState, 3, combinedPath); // 初期3枚公開
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("call").setLabel("コール").setStyle(ButtonStyle.Success),
@@ -130,10 +130,16 @@ export async function execute(interaction) {
         return;
       }
 
-      // --- フォールド ---
+      // --- フォールド修正版 ---
       if (btnInt.customId === "fold") {
-        ongoingGames.delete(gameKey);
+        gameState.active = false;
         collector.stop("folded");
+
+        await interaction.editReply({
+          content: "🫱 あなたはフォールドしました。🤖 の勝ちです！",
+          components: [],
+        });
+
         await finalizeGame(gameState, client, combinedPath, interaction, "bot");
         return;
       }
@@ -169,41 +175,42 @@ async function botTurn(gameState, client, btnInt, combinedPath, interaction, col
 
   let decision = "call";
 
-  // 🧠 改良: ブラフ確率を導入
+  // ブラフ・判断ロジック
   if (botStrength > 0.6 && randomFactor < 0.6) {
     decision = "raise";
   } else if (botStrength > 0.4 && randomFactor < 0.3) {
-    decision = "raise"; // ミドルレンジのブラフ
+    decision = "raise";
   } else if (botStrength < 0.3 && randomFactor < 0.1) {
-    decision = "raise"; // 弱手のブラフ（稀に）
+    decision = "raise";
   } else if (botStrength < 0.35 && randomFactor < 0.4) {
     decision = "fold";
   }
 
   if (decision === "fold") {
-    await btnInt.followUp({ content: "🤖 はフォールドしました！あなたの勝ちです。", ephemeral: true });
+    await interaction.followUp({ content: "🤖 はフォールドしました！あなたの勝ちです。" });
     collector.stop("folded");
     await finalizeGame(gameState, client, combinedPath, interaction, "player");
     return;
   } else if (decision === "raise") {
     const raiseAmount = Math.floor(1000 + Math.random() * 9000);
     gameState.playerBet += raiseAmount / 2;
-    await btnInt.followUp({ content: `🤖 はレイズしました！ (${raiseAmount} コイン)`, ephemeral: true });
+    await interaction.followUp({ content: `🤖 はレイズしました！ (${raiseAmount} コイン)` });
   } else {
-    await btnInt.followUp({ content: `🤖 はコールしました。`, ephemeral: true });
+    await interaction.followUp({ content: `🤖 はコールしました。` });
   }
 
   await proceedToNextStage(gameState, client, combinedPath, interaction, collector);
 }
 
-// --- ターン進行 ---
+// --- ターン進行（修正版） ---
 async function proceedToNextStage(gameState, client, combinedPath, interaction, collector) {
   gameState.turn++;
-  let revealCount = 3;
 
-  if (gameState.turn === 1) revealCount = 4;
+  let revealCount;
+  if (gameState.turn === 0) revealCount = 3;
+  else if (gameState.turn === 1) revealCount = 4;
   else if (gameState.turn === 2) revealCount = 5;
-  else if (gameState.turn >= 3) revealCount = 5; // turn3で公開（reveal=1）
+  else revealCount = 5;
 
   await generateImage(gameState, revealCount, combinedPath);
   const file = new AttachmentBuilder(combinedPath);
@@ -213,7 +220,7 @@ async function proceedToNextStage(gameState, client, combinedPath, interaction, 
     files: [file],
   });
 
-  if (gameState.turn >= 3) {
+  if (gameState.turn >= 2) {
     collector.stop("completed");
     await finalizeGame(gameState, client, combinedPath, interaction);
   }
@@ -262,7 +269,7 @@ async function finalizeGame(gameState, client, combinedPath, interaction, forced
   });
 }
 
-// --- 手札強さ（ペア・フラッシュ考慮） ---
+// --- 手札強さ ---
 function evaluateHandStrength(hand) {
   const ranks = "23456789TJQKA";
   let score = 0;
@@ -294,7 +301,7 @@ async function generateImage(gameState, revealCount, combinedPath) {
     pythonPath,
     ...gameState.playerHand,
     ...gameState.botHand,
-    revealCount === 5 && gameState.turn >= 3 ? "1" : "0",
+    revealCount === 5 && gameState.turn >= 2 ? "1" : "0",
     combinedPath,
   ];
 

@@ -25,32 +25,35 @@ export async function execute(interaction) {
     const client = interaction.client;
     const amount = interaction.options.getInteger("amount");
 
-    // 契約選択チェック
+    // --- 契約チェック ---
     const contract = contracts.find(c => c.daily === amount);
     if (!contract) return interaction.reply({ content: "❌ 無効な契約額です", flags: 64 });
 
-    // 既存契約チェック
     const userHedge = await client.getHedge(userId);
     if (userHedge) return interaction.reply({ content: "❌ 既に契約中です", flags: 64 });
 
-    // コイン残高チェック（契約額の3倍必要）
-    const coins = await client.getCoins(userId);
-    if (coins < contract.daily * 3) return interaction.reply({ content: `❌ 契約には最低 ${contract.daily * 3} コイン必要です`, flags: 64 });
+    // --- 所持コインチェック（手数料先に確認） ---
+    let coins = await client.getCoins(userId);
+    if (coins < contract.fee)
+      return interaction.reply({ content: `❌ 手数料 ${contract.fee} コインが足りません`, flags: 64 });
 
-    // コイン減算（手数料）
-    if (coins < contract.fee) return interaction.reply({ content: `❌ 手数料 ${contract.fee} コインが足りません`, flags: 64 });
     await client.updateCoins(userId, -contract.fee);
+    coins -= contract.fee;
 
-    // JST基準の日付（YYYY-MM-DD）
+    if (coins < contract.daily * 3)
+      return interaction.reply({ content: `❌ 契約には最低 ${contract.daily * 3} コイン必要です`, flags: 64 });
+
+    // --- JST基準の日付 ---
     const now = new Date();
     const nowJST = new Date(now.getTime() + 9 * 60 * 60 * 1000);
     const todayStr = nowJST.toISOString().split("T")[0];
 
-    // 契約データ保存
+    // --- 契約データ保存 ---
     await client.setHedge(userId, {
+      userId,
       amountPerDay: amount,
       accumulated: 0,
-      lastDate: todayStr, // JST基準の日付
+      lastDate: todayStr
     });
 
     await interaction.reply({

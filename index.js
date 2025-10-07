@@ -144,10 +144,19 @@ client.updateStockPrice = async (delta) => {
 };
 
 client.modifyStockByTrade = (type, count) => {
-  let delta = Math.max(1, Math.floor(count * 0.5));
+  // 株数の平方根をベースにした緩やかな変動
+  let delta = Math.max(1, Math.floor(Math.sqrt(count)));
+
+  // 小さなランダム要素（±10%）
+  const randomFactor = 1 + (Math.random() * 0.2 - 0.1);
+  delta = Math.round(delta * randomFactor);
+
+  // 売買方向を反映
   if (type === "sell") delta = -delta;
+
   client.updateStockPrice(delta);
 };
+
 
 function randomDelta() {
   const r = Math.random();
