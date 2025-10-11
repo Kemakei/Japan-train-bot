@@ -1,75 +1,126 @@
-// -------------------- takarakuji_buy.js --------------------
-import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
-import { getNextDrawId } from '../utils/draw.js';
+import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 
 export const data = new SlashCommandBuilder()
-  .setName('takarakuji_buy')
-  .setDescription('宝くじを購入する');
+  .setName("takarakuji_get")
+  .setDescription("購入した宝くじの当たり結果を確認します");
 
-for (let i = 1; i <= 10; i++) {
-  data.addStringOption(opt =>
-    opt.setName(`ticket${i}`)
-       .setDescription(`${i}枚目のチケット`)
-  );
-}
-
-export async function execute(interaction, { client }) {
+export async function execute(interaction) {
   const userId = interaction.user.id;
-  const tickets = [];
-  const drawId = getNextDrawId(new Date());
+  const { lotteryCol, db, updateCoins } = interaction.client;
 
-  for (let i = 1; i <= 10; i++) {
-    const ticketStr = interaction.options.getString(`ticket${i}`);
-    if (!ticketStr) continue;
+  await interaction.deferReply();
 
-    const match = ticketStr.match(/^(\d{5})([A-Z])$/i);
-    if (!match) {
-      return interaction.reply({ content: `❌ ticket${i} の形式が正しくありません`, flags: 64 });
-    }
+  const purchasesDoc = await lotteryCol.findOne({ userId });
+  const purchases = purchasesDoc?.purchases || [];
 
-    const [_, number, letter] = match;
-    tickets.push({
-      number,
-      letter: letter.toUpperCase(),
-      drawId,
-      claimed: false,
-      createdAt: new Date()
+  if (purchases.length === 0) {
+    return interaction.followUp({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("❌ 購入履歴なし")
+          .setDescription("現在、あなたの購入履歴はありません。")
+          .setColor(0xFF0000)
+      ],
+      flags: 64
     });
   }
 
-  if (tickets.length === 0) {
-    return interaction.reply({ content: '❌ 少なくとも1枚はチケットを指定してください', flags: 64 });
-  }
+  const drawResultsCol = db.collection("drawResults");
+  const publicLines = [];
+  const ephemeralLines = [];
+  const remainingPurchases = [];
 
-  const costPerTicket = 1000; // 1枚あたり1000コイン
-  const totalCost = tickets.length * costPerTicket;
-  const coins = await client.getCoins(userId);
+  // --- 非同期で一括処理 ---
+  await Promise.all(purchases.map(async (purchase) => {
+    const { number, letter, drawId, isWin, prize, claimed } = purchase;
 
-  if (coins < totalCost) {
-    return interaction.reply({ content: `❌ 所持コインが足りません (${coins}コイン) 手数料合計: ${totalCost}コイン`, flags: 64 });
-  }
+    const result = await drawResultsCol.findOne({ drawId });
+    if (!result) {
+      ephemeralLines.push(`🎟 ${number}${letter} → ⏳ まだ抽選結果は出ていません`);
+      remainingPurchases.push(purchase);
+      return;
+    }
 
-  // コインを引く
-  await client.updateCoins(userId, -totalCost);
+    if (isWin && !claimed) {
+      let line = "";
+      const prizeAmount = prize;
+      switch (prizeAmount) {
+        case 1000000000: line = `🎟 ${number}${letter} → 🏆 1等！💰 ${prizeAmount}コイン獲得！`; break;
+        case 500000000:  line = `🎟 ${number}${letter} → 🏆 2等！💰 ${prizeAmount}コイン獲得！`; break;
+        case 100000000:  line = `🎟 ${number}${letter} → 🏆 前後賞！💰 ${prizeAmount}コイン獲得！`; break;
+        case 10000000:   line = `🎟 ${number}${letter} → 🏆 4等！💰 ${prizeAmount}コイン獲得！`; break;
+        case 5000000:    line = `🎟 ${number}${letter} → 🏆 5等！💰 ${prizeAmount}コイン獲得！`; break;
+        case 3000000:    line = `🎟 ${number}${letter} → 🏆 6等！💰 ${prizeAmount}コイン獲得！`; break;
+        case 1000000:    line = `🎟 ${number}${letter} → 🏆 7等！💰 ${prizeAmount}コイン獲得！`; break;
+        case 500000:     line = `🎟 ${number}${letter} → 🏆 8等！💰 ${prizeAmount}コイン獲得！`; break;
+        case 100000:     line = `🎟 ${number}${letter} → 🏆 9等！💰 ${prizeAmount}コイン獲得！`; break;
+        case 10000:      line = `🎟 ${number}${letter} → 🏆 10等！💰 ${prizeAmount}コイン獲得！`; break;
+        case 5000:       line = `🎟 ${number}${letter} → 🏆 11等！💰 ${prizeAmount}コイン獲得！`; break;
+        default: line = `🎟 ${number}${letter} → 🏆 当たり！💰 ${prizeAmount}コイン獲得！`;
+      }
 
-  // DBに保存
-  await client.lotteryCol.updateOne(
+      publicLines.push(line);
+      await updateCoins(userId, prizeAmount);
+
+      await lotteryCol.updateOne(
+        { userId },
+        { $pull: { purchases: { number, letter, drawId } } }
+      );
+    } else {
+      remainingPurchases.push(purchase);
+    }
+  }));
+
+  // --- 残りの購入履歴を更新 ---
+  await lotteryCol.updateOne(
     { userId },
-    { $push: { purchases: { $each: tickets } } },
+    { $set: { purchases: remainingPurchases } },
     { upsert: true }
   );
 
-  // Embed表示: 「1個目」「2個目」…の形式
-  const embedDescription = tickets
-    .map((t, i) => `${i + 1}個目: ${t.number}${t.letter}`)
-    .join('\n');
+  // --- Embed自動分割関数 ---
+  function createEmbedsByLine(lines, title, color = 0x00AE86) {
+    const embeds = [];
+    let chunk = "";
 
-  const embed = new EmbedBuilder()
-    .setColor('Gold')
-    .setTitle('🎟 宝くじ購入完了')
-    .setDescription(embedDescription)
-    .addFields({ name: '手数料', value: `${totalCost}コイン`, inline: true })
-    .setFooter({ text: `残り所持金: ${coins - totalCost}コイン` });
+    for (const line of lines) {
+      if ((chunk + line + "\n").length > 4000) {
+        embeds.push(
+          new EmbedBuilder()
+            .setTitle(title)
+            .setDescription(chunk)
+            .setColor(color)
+        );
+        chunk = "";
+      }
+      chunk += line + "\n";
+    }
 
-  await interaction.reply({ embeds: [embed] });
+    if (chunk.length > 0) {
+      embeds.push(
+        new EmbedBuilder()
+          .setTitle(title)
+          .setDescription(chunk)
+          .setColor(color)
+      );
+    }
+
+    return embeds;
+  }
+
+  // --- 公開結果（当たり）送信 ---
+  if (publicLines.length > 0) {
+    const publicEmbeds = createEmbedsByLine(publicLines, "🎉 当たり結果");
+    for (const embed of publicEmbeds) {
+      await interaction.followUp({ embeds: [embed] });
+    }
+  }
+
+  // --- 未公開の抽選結果送信（ephemeral） ---
+  if (ephemeralLines.length > 0) {
+    const ephemeralEmbeds = createEmbedsByLine(ephemeralLines, "⏳ 未公開の抽選", 0xAAAAAA);
+    for (const embed of ephemeralEmbeds) {
+      await interaction.followUp({ embeds: [embed], flags: 64 });
+    }
+  }
 }
