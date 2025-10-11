@@ -1,126 +1,99 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
+import { getNextDrawId } from "../utils/draw.js";
 
 export const data = new SlashCommandBuilder()
-  .setName("takarakuji_get")
-  .setDescription("購入した宝くじの当たり結果を確認します");
+  .setName("takarakuji")
+  .setDescription("宝くじを購入（手動 or ランダム）")
+  .addIntegerOption(opt =>
+    opt.setName("count")
+       .setDescription("購入枚数（1〜500）")
+       .setRequired(true)
+  )
+  .addStringOption(opt =>
+    opt.setName("mode")
+       .setDescription("購入モード: manual or random")
+       .setRequired(true)
+       .addChoices(
+         { name: "manual", value: "manual" },
+         { name: "random", value: "random" }
+       )
+  );
 
-export async function execute(interaction) {
+// 購入時に判定する関数（DBに保存用でOK）
+function judgeTicket(ticketNumber, ticketLetter, drawNumber, drawLetter) {
+  let prizeAmount = 0;
+  const numInt = parseInt(ticketNumber, 10);
+  const drawInt = parseInt(drawNumber, 10);
+
+  if (ticketNumber === drawNumber && ticketLetter === drawLetter) prizeAmount = 1000000000;
+  else if (ticketNumber === drawNumber) prizeAmount = 500000000;
+  else if (ticketNumber.slice(1) === drawNumber.slice(1) && ticketLetter === drawLetter) prizeAmount = 10000000;
+  else if (ticketNumber.slice(1) === drawNumber.slice(1)) prizeAmount = 5000000;
+  else if (ticketNumber.slice(2) === drawNumber.slice(2) && ticketLetter === drawLetter) prizeAmount = 3000000;
+  else if (ticketNumber.slice(2) === drawNumber.slice(2)) prizeAmount = 1000000;
+  else if (ticketNumber.slice(3) === drawNumber.slice(3) && ticketLetter === drawLetter) prizeAmount = 500000;
+  else if (ticketNumber.slice(3) === drawNumber.slice(3)) prizeAmount = 100000;
+  else if (ticketLetter === drawLetter) prizeAmount = 10000;
+  else if (ticketNumber.slice(4) === drawNumber.slice(4)) prizeAmount = 5000;
+
+  return prizeAmount;
+}
+
+export async function execute(interaction, { client }) {
   const userId = interaction.user.id;
-  const { lotteryCol, db, updateCoins } = interaction.client;
+  const count = Math.min(interaction.options.getInteger("count"), 500);
+  const mode = interaction.options.getString("mode");
 
-  await interaction.deferReply();
+  const drawNumber = client.takarakuji.number;
+  const drawLetter = client.takarakuji.letter;
+  const drawId = getNextDrawId(new Date());
 
-  const purchasesDoc = await lotteryCol.findOne({ userId });
-  const purchases = purchasesDoc?.purchases || [];
+  const tickets = [];
+  for (let i = 0; i < count; i++) {
+    let number, letter;
+    if (mode === "manual") {
+      number = String(Math.floor(Math.random() * 100000)).padStart(5, "0");
+      letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+    } else {
+      number = String(Math.floor(Math.random() * 100000)).padStart(5, "0");
+      letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+    }
 
-  if (purchases.length === 0) {
-    return interaction.followUp({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("❌ 購入履歴なし")
-          .setDescription("現在、あなたの購入履歴はありません。")
-          .setColor(0xFF0000)
-      ],
-      flags: 64
+    const prize = judgeTicket(number, letter, drawNumber, drawLetter);
+    tickets.push({
+      number,
+      letter,
+      drawId,
+      isWin: prize > 0,
+      prize,
+      claimed: false,
+      createdAt: new Date()
     });
   }
 
-  const drawResultsCol = db.collection("drawResults");
-  const publicLines = [];
-  const ephemeralLines = [];
-  const remainingPurchases = [];
+  const costPerTicket = 1000;
+  const totalCost = tickets.length * costPerTicket;
+  const coins = await client.getCoins(userId);
 
-  // --- 非同期で一括処理 ---
-  await Promise.all(purchases.map(async (purchase) => {
-    const { number, letter, drawId, isWin, prize, claimed } = purchase;
+  if (coins < totalCost) {
+    return interaction.reply({ content: `❌ コイン不足 (${coins}/${totalCost})`, flags: 64 });
+  }
 
-    const result = await drawResultsCol.findOne({ drawId });
-    if (!result) {
-      ephemeralLines.push(`🎟 ${number}${letter} → ⏳ まだ抽選結果は出ていません`);
-      remainingPurchases.push(purchase);
-      return;
-    }
+  await client.updateCoins(userId, -totalCost);
 
-    if (isWin && !claimed) {
-      let line = "";
-      const prizeAmount = prize;
-      switch (prizeAmount) {
-        case 1000000000: line = `🎟 ${number}${letter} → 🏆 1等！💰 ${prizeAmount}コイン獲得！`; break;
-        case 500000000:  line = `🎟 ${number}${letter} → 🏆 2等！💰 ${prizeAmount}コイン獲得！`; break;
-        case 100000000:  line = `🎟 ${number}${letter} → 🏆 前後賞！💰 ${prizeAmount}コイン獲得！`; break;
-        case 10000000:   line = `🎟 ${number}${letter} → 🏆 4等！💰 ${prizeAmount}コイン獲得！`; break;
-        case 5000000:    line = `🎟 ${number}${letter} → 🏆 5等！💰 ${prizeAmount}コイン獲得！`; break;
-        case 3000000:    line = `🎟 ${number}${letter} → 🏆 6等！💰 ${prizeAmount}コイン獲得！`; break;
-        case 1000000:    line = `🎟 ${number}${letter} → 🏆 7等！💰 ${prizeAmount}コイン獲得！`; break;
-        case 500000:     line = `🎟 ${number}${letter} → 🏆 8等！💰 ${prizeAmount}コイン獲得！`; break;
-        case 100000:     line = `🎟 ${number}${letter} → 🏆 9等！💰 ${prizeAmount}コイン獲得！`; break;
-        case 10000:      line = `🎟 ${number}${letter} → 🏆 10等！💰 ${prizeAmount}コイン獲得！`; break;
-        case 5000:       line = `🎟 ${number}${letter} → 🏆 11等！💰 ${prizeAmount}コイン獲得！`; break;
-        default: line = `🎟 ${number}${letter} → 🏆 当たり！💰 ${prizeAmount}コイン獲得！`;
-      }
-
-      publicLines.push(line);
-      await updateCoins(userId, prizeAmount);
-
-      await lotteryCol.updateOne(
-        { userId },
-        { $pull: { purchases: { number, letter, drawId } } }
-      );
-    } else {
-      remainingPurchases.push(purchase);
-    }
-  }));
-
-  // --- 残りの購入履歴を更新 ---
-  await lotteryCol.updateOne(
+  // DBに保存
+  await client.lotteryCol.updateOne(
     { userId },
-    { $set: { purchases: remainingPurchases } },
+    { $push: { purchases: { $each: tickets } } },
     { upsert: true }
   );
 
-  // --- Embed自動分割関数 ---
-  function createEmbedsByLine(lines, title, color = 0x00AE86) {
-    const embeds = [];
-    let chunk = "";
+  // Embed作成（当たり判定は表示せず）
+  const embed = new EmbedBuilder()
+    .setTitle("🎟 宝くじ購入完了")
+    .setDescription(`購入枚数: ${tickets.length}枚\n支払金額: ${totalCost}コイン`)
+    .setColor("Gold")
+    .setFooter({ text: `残り所持金: ${coins - totalCost}コイン` });
 
-    for (const line of lines) {
-      if ((chunk + line + "\n").length > 4000) {
-        embeds.push(
-          new EmbedBuilder()
-            .setTitle(title)
-            .setDescription(chunk)
-            .setColor(color)
-        );
-        chunk = "";
-      }
-      chunk += line + "\n";
-    }
-
-    if (chunk.length > 0) {
-      embeds.push(
-        new EmbedBuilder()
-          .setTitle(title)
-          .setDescription(chunk)
-          .setColor(color)
-      );
-    }
-
-    return embeds;
-  }
-
-  // --- 公開結果（当たり）送信 ---
-  if (publicLines.length > 0) {
-    const publicEmbeds = createEmbedsByLine(publicLines, "🎉 当たり結果");
-    for (const embed of publicEmbeds) {
-      await interaction.followUp({ embeds: [embed] });
-    }
-  }
-
-  // --- 未公開の抽選結果送信（ephemeral） ---
-  if (ephemeralLines.length > 0) {
-    const ephemeralEmbeds = createEmbedsByLine(ephemeralLines, "⏳ 未公開の抽選", 0xAAAAAA);
-    for (const embed of ephemeralEmbeds) {
-      await interaction.followUp({ embeds: [embed], flags: 64 });
-    }
-  }
+  await interaction.reply({ embeds: [embed] });
 }
