@@ -2,7 +2,7 @@ import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { getNextDrawId } from "../utils/draw.js";
 
 export const data = new SlashCommandBuilder()
-  .setName("takarakuji")
+  .setName("takarakuji_buy")
   .setDescription("宝くじを購入（手動 or ランダム）")
   .addIntegerOption(opt =>
     opt.setName("count")
