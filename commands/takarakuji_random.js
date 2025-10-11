@@ -1,15 +1,7 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { getNextDrawId } from "../utils/draw.js";
 
-export const data = new SlashCommandBuilder()
-  .setName("takarakuji_buy")
-  .setDescription("宝くじを手動で購入")
-  .addStringOption(opt =>
-    opt.setName("tickets")
-       .setDescription("購入するチケット番号を:で区切って入力（例 91736P:10486Q）")
-       .setRequired(true)
-  );
-
+// 独立版 judgeTicket（takarakuji_buyとは干渉しない）
 function judgeTicket(ticketNumber, ticketLetter, drawNumber, drawLetter) {
   let prizeAmount = 0;
   if (ticketNumber === drawNumber && ticketLetter === drawLetter) prizeAmount = 1000000000;
@@ -25,38 +17,29 @@ function judgeTicket(ticketNumber, ticketLetter, drawNumber, drawLetter) {
   return prizeAmount;
 }
 
+export const data = new SlashCommandBuilder()
+  .setName("takarakuji_random")
+  .setDescription("宝くじをランダムで購入")
+  .addIntegerOption(opt =>
+    opt.setName("count")
+       .setDescription("購入枚数（1〜500）")
+       .setRequired(true)
+  );
+
 export async function execute(interaction, { client }) {
   const userId = interaction.user.id;
-  const input = interaction.options.getString("tickets");
-  
-  // :で区切る
-  let ticketInputs = input.split(":").map(s => s.trim()).filter(Boolean);
-
-  if (ticketInputs.length === 0) {
-    return interaction.reply({ content: "❌ チケット番号を1枚以上入力してください", flags: 64 });
-  }
-
-  if (ticketInputs.length > 10) {
-    return interaction.reply({ content: "❌ 最大10枚まで購入可能です", flags: 64 });
-  }
+  const count = Math.min(interaction.options.getInteger("count"), 500);
 
   const drawNumber = client.takarakuji.number;
   const drawLetter = client.takarakuji.letter;
   const drawId = getNextDrawId(new Date());
 
   const tickets = [];
-
-  for (const ticket of ticketInputs) {
-    // 入力チェック：最後の1文字が英字かどうか
-    if (!/^\d{5}[A-Z]$/i.test(ticket)) {
-      return interaction.reply({ content: `❌ 無効なチケット番号: ${ticket}（形式: 5桁の数字+アルファベット）`, flags: 64 });
-    }
-
-    const number = ticket.slice(0, 5);
-    const letter = ticket.slice(5).toUpperCase();
+  for (let i = 0; i < count; i++) {
+    const number = String(Math.floor(Math.random() * 100000)).padStart(5, "0");
+    const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
 
     const prize = judgeTicket(number, letter, drawNumber, drawLetter);
-
     tickets.push({
       number,
       letter,
@@ -71,25 +54,20 @@ export async function execute(interaction, { client }) {
   const costPerTicket = 1000;
   const totalCost = tickets.length * costPerTicket;
   const coins = await client.getCoins(userId);
-
-  if (coins < totalCost) {
+  if (coins < totalCost)
     return interaction.reply({ content: `❌ コイン不足 (${coins}/${totalCost})`, flags: 64 });
-  }
 
   await client.updateCoins(userId, -totalCost);
-
   await client.lotteryCol.updateOne(
     { userId },
     { $push: { purchases: { $each: tickets } } },
     { upsert: true }
   );
 
-  // Embedにチケット番号を表示
-  const ticketList = tickets.map((t, i) => `${i + 1}個目 ${t.number}${t.letter}`).join("\n");
-
+  // Embedには購入枚数と支払金額だけ表示
   const embed = new EmbedBuilder()
     .setTitle("🎟 宝くじ購入完了")
-    .setDescription(`購入枚数: ${tickets.length}枚\n支払金額: ${totalCost}コイン\n\n**購入チケット:**\n${ticketList}`)
+    .setDescription(`購入枚数: ${tickets.length}枚\n支払金額: ${totalCost}コイン`)
     .setColor("Gold")
     .setFooter({ text: `残り所持金: ${coins - totalCost}コイン` });
 
