@@ -10,6 +10,7 @@ export async function execute(interaction) {
 
   await interaction.deferReply();
 
+  // ユーザーの購入履歴を取得
   const purchasesDoc = await lotteryCol.findOne({ userId });
   const purchases = purchasesDoc?.purchases || [];
 
@@ -31,35 +32,42 @@ export async function execute(interaction) {
   let pendingCount = 0;
 
   for (const t of purchases) {
-    const { number, letter, isWin, prize, rank, claimed } = t;
+    // buy/random で保存している正しいプロパティを使う
+    const { number, letter, drawId, isWin, prize, rank, claimed } = t;
 
-    if (!t.drawId) {
+    if (!drawId) {
       pendingCount++;
       remainingPurchases.push(t);
       continue;
     }
 
     if (isWin && !claimed) {
-      const line = `🎟 ${number}${letter} → 🏆 **${rank}等！** 💰 ${prize.toLocaleString()}コイン獲得！`;
-      winLines.push(line);
+      // 当たりだけ表示
+      winLines.push(`🎟 ${number}${letter} → 🏆 **${rank}等！** 💰 ${prize.toLocaleString()}コイン獲得！`);
       totalPrize += prize;
+
+      // 賞金を受け取ったことを記録
       t.claimed = true;
     } else if (!isWin && !claimed) {
       // 外れは破棄
       continue;
     } else {
+      // すでに受け取り済みの当たりは残す
       remainingPurchases.push(t);
     }
   }
 
+  // データベース更新
   await lotteryCol.updateOne(
     { userId },
     { $set: { purchases: remainingPurchases } },
     { upsert: true }
   );
 
+  // コイン加算
   if (totalPrize > 0) await updateCoins(userId, totalPrize);
 
+  // Embed作成関数
   const createEmbeds = (lines, title, color = 0xFFD700) => {
     const embeds = [];
     let chunk = "";
@@ -72,17 +80,19 @@ export async function execute(interaction) {
       chunk += line + "\n";
     }
 
-    if (chunk.length > 0) {
-      embeds.push(new EmbedBuilder().setTitle(title).setDescription(chunk).setColor(color));
-    }
-
+    if (chunk) embeds.push(new EmbedBuilder().setTitle(title).setDescription(chunk).setColor(color));
     return embeds;
   };
 
   const embeds = [];
 
   if (winLines.length > 0) embeds.push(...createEmbeds(winLines, "🎉 当選結果"));
-  if (pendingCount > 0) embeds.push(new EmbedBuilder().setTitle("⏳ 未抽選チケット").setDescription(`現在 **${pendingCount}枚** のチケットはまだ抽選結果が公開されていません。`).setColor(0xAAAAAA));
+  if (pendingCount > 0) embeds.push(
+    new EmbedBuilder()
+      .setTitle("⏳ 未抽選チケット")
+      .setDescription(`現在 **${pendingCount}枚** のチケットはまだ抽選結果が公開されていません。`)
+      .setColor(0xAAAAAA)
+  );
 
   if (embeds.length > 0) {
     await Promise.all(embeds.map(embed => interaction.followUp({ embeds: [embed] })));

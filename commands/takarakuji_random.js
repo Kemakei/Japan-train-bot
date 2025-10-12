@@ -1,20 +1,19 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { getNextDrawId } from "../utils/draw.js";
 
-// 独立版 judgeTicket（takarakuji_buyとは干渉しない）
+// 当選判定（賞金と等級を返す）
 function judgeTicket(ticketNumber, ticketLetter, drawNumber, drawLetter) {
-  let prizeAmount = 0;
-  if (ticketNumber === drawNumber && ticketLetter === drawLetter) prizeAmount = 1000000000;
-  else if (ticketNumber === drawNumber) prizeAmount = 500000000;
-  else if (ticketNumber.slice(1) === drawNumber.slice(1) && ticketLetter === drawLetter) prizeAmount = 10000000;
-  else if (ticketNumber.slice(1) === drawNumber.slice(1)) prizeAmount = 5000000;
-  else if (ticketNumber.slice(2) === drawNumber.slice(2) && ticketLetter === drawLetter) prizeAmount = 3000000;
-  else if (ticketNumber.slice(2) === drawNumber.slice(2)) prizeAmount = 1000000;
-  else if (ticketNumber.slice(3) === drawNumber.slice(3) && ticketLetter === drawLetter) prizeAmount = 500000;
-  else if (ticketNumber.slice(3) === drawNumber.slice(3)) prizeAmount = 100000;
-  else if (ticketLetter === drawLetter) prizeAmount = 10000;
-  else if (ticketNumber.slice(4) === drawNumber.slice(4)) prizeAmount = 5000;
-  return prizeAmount;
+  if (ticketNumber === drawNumber && ticketLetter === drawLetter) return { prize: 1000000000, rank: 1 };
+  if (ticketNumber === drawNumber) return { prize: 500000000, rank: 2 };
+  if (ticketNumber.slice(1) === drawNumber.slice(1) && ticketLetter === drawLetter) return { prize: 10000000, rank: 3 };
+  if (ticketNumber.slice(1) === drawNumber.slice(1)) return { prize: 5000000, rank: 4 };
+  if (ticketNumber.slice(2) === drawNumber.slice(2) && ticketLetter === drawLetter) return { prize: 3000000, rank: 5 };
+  if (ticketNumber.slice(2) === drawNumber.slice(2)) return { prize: 1000000, rank: 6 };
+  if (ticketNumber.slice(3) === drawNumber.slice(3) && ticketLetter === drawLetter) return { prize: 500000, rank: 7 };
+  if (ticketNumber.slice(3) === drawNumber.slice(3)) return { prize: 100000, rank: 8 };
+  if (ticketLetter === drawLetter) return { prize: 10000, rank: 9 };
+  if (ticketNumber.slice(4) === drawNumber.slice(4)) return { prize: 5000, rank: 10 };
+  return { prize: 0, rank: null };
 }
 
 export const data = new SlashCommandBuilder()
@@ -39,13 +38,14 @@ export async function execute(interaction, { client }) {
     const number = String(Math.floor(Math.random() * 100000)).padStart(5, "0");
     const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
 
-    const prize = judgeTicket(number, letter, drawNumber, drawLetter);
+    const { prize, rank } = judgeTicket(number, letter, drawNumber, drawLetter);
     tickets.push({
       number,
       letter,
       drawId,
       isWin: prize > 0,
       prize,
+      rank,
       claimed: false,
       createdAt: new Date()
     });
@@ -54,10 +54,12 @@ export async function execute(interaction, { client }) {
   const costPerTicket = 1000;
   const totalCost = tickets.length * costPerTicket;
   const coins = await client.getCoins(userId);
+
   if (coins < totalCost)
     return interaction.reply({ content: `❌ コイン不足 (${coins}/${totalCost})`, flags: 64 });
 
   await client.updateCoins(userId, -totalCost);
+
   await client.lotteryCol.updateOne(
     { userId },
     { $push: { purchases: { $each: tickets } } },
