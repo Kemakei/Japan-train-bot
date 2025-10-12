@@ -30,17 +30,23 @@ export async function execute(interaction) {
   const now = new Date();
   const latestDrawId = getLatestDrawId(now);
 
-  // 未公開チケットと抽選済みチケットに分割
+  // 未公開・公開済みを同時に仕分け（早期処理）
   const unpublishedPurchases = [];
   const processedPurchases = [];
-
-  for (const purchase of purchases) {
-    if (!purchase.drawId || purchase.drawId > latestDrawId) {
-      unpublishedPurchases.push(purchase);
+  for (const p of purchases) {
+    if (!p.drawId || p.drawId > latestDrawId) {
+      unpublishedPurchases.push(p);
     } else {
-      processedPurchases.push(purchase);
+      processedPurchases.push(p);
     }
   }
+
+  // DB更新を早めに行う（未公開のみ残す）
+  await lotteryCol.updateOne(
+    { userId },
+    { $set: { purchases: unpublishedPurchases } },
+    { upsert: true }
+  );
 
   let totalPrize = 0;
   const publicLines = [];
@@ -48,45 +54,42 @@ export async function execute(interaction) {
   // 抽選済みチケットの当たり判定
   for (const p of processedPurchases) {
     if (p.isWin) {
-      publicLines.push(`🎟 ${p.number}${p.letter} → 🏆 ${p.rank}等 💰 ${p.prize.toLocaleString()}コイン獲得！`);
+      publicLines.push(
+        `🎟 ${p.number}${p.letter} → 🏆 ${p.rank}等 💰 ${p.prize.toLocaleString()}コイン獲得！`
+      );
       totalPrize += p.prize;
       await updateCoins(userId, p.prize);
     }
   }
 
-  // 未公開チケットだけ残す
-  await lotteryCol.updateOne(
-    { userId },
-    { $set: { purchases: unpublishedPurchases } },
-    { upsert: true }
-  );
-
   const coins = await getCoins(userId);
 
-  // Embed作成関数（複数Embed対応）
+  // Embed分割関数（行単位で安全に分割）
   const createEmbedsByLine = (lines, title, color = 0xFFD700) => {
     const embeds = [];
-    let chunk = "";
+    let chunk = [];
 
     for (const line of lines) {
-      const lineWithNewline = line + "\n";
-      if ((chunk + lineWithNewline).length > 4000) {
+      const joined = [...chunk, line].join("\n");
+      if (joined.length > 4000) {
+        // 長さ超えたら前のチャンクをpush
         embeds.push(
           new EmbedBuilder()
             .setTitle(title)
-            .setDescription(chunk + `\n合計当選金額: ${totalPrize.toLocaleString()}コイン\n残り所持金: ${coins.toLocaleString()}コイン`)
+            .setDescription(chunk.join("\n") + `\n\n合計当選金額: ${totalPrize.toLocaleString()}コイン\n残り所持金: ${coins.toLocaleString()}コイン`)
             .setColor(color)
         );
-        chunk = "";
+        chunk = [line]; // 新しいチャンクに現在行を入れる
+      } else {
+        chunk.push(line);
       }
-      chunk += lineWithNewline;
     }
 
     if (chunk.length > 0) {
       embeds.push(
         new EmbedBuilder()
           .setTitle(title)
-          .setDescription(chunk + `\n合計当選金額: ${totalPrize.toLocaleString()}コイン\n残り所持金: ${coins.toLocaleString()}コイン`)
+          .setDescription(chunk.join("\n") + `\n\n合計当選金額: ${totalPrize.toLocaleString()}コイン\n残り所持金: ${coins.toLocaleString()}コイン`)
           .setColor(color)
       );
     }
@@ -102,10 +105,20 @@ export async function execute(interaction) {
     }
   }
 
-  // 未公開チケット（枚数だけ、ephemeral）
+  // 未公開チケット
   if (unpublishedPurchases.length > 0) {
     const pendingLines = [`未公開チケット: ${unpublishedPurchases.length}枚`];
     const pendingEmbeds = createEmbedsByLine(pendingLines, "⏳ 未公開の抽選", 0xAAAAAA);
+
+    // 未公開しかない場合 → ephemeral返信で完結
+    if (publicLines.length === 0) {
+      for (const embed of pendingEmbeds) {
+        await interaction.followUp({ embeds: [embed], flags: 64 });
+      }
+      return; // 他の返信不要
+    }
+
+    // 当選結果もある場合 → 普通の追記
     for (const embed of pendingEmbeds) {
       await interaction.followUp({ embeds: [embed], flags: 64 });
     }
@@ -115,7 +128,9 @@ export async function execute(interaction) {
   if (publicLines.length === 0 && unpublishedPurchases.length === 0) {
     const emptyEmbed = new EmbedBuilder()
       .setTitle("📭 当選結果なし")
-      .setDescription(`当選したチケットはありませんでした。\n合計当選金額: ${totalPrize.toLocaleString()}コイン\n残り所持金: ${coins.toLocaleString()}コイン`)
+      .setDescription(
+        `当選したチケットはありませんでした。\n合計当選金額: ${totalPrize.toLocaleString()}コイン\n残り所持金: ${coins.toLocaleString()}コイン`
+      )
       .setColor(0x888888);
     await interaction.followUp({ embeds: [emptyEmbed] });
   }

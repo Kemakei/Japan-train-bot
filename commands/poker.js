@@ -102,10 +102,21 @@ export async function execute(interaction) {
         const add = btnInt.customId === "bet1000" ? 1000 : 10000;
         if (add > userCoins)
           return btnInt.reply({ content: "❌ コインが足りません！", ephemeral: true });
+
         gameState.playerBet += add;
         gameState.requiredBet = Math.max(gameState.requiredBet, gameState.playerBet);
         await client.updateCoins(userId, -add);
-        await btnInt.reply({ content: `💰 ${add} コインを追加しました（合計ベット: ${gameState.playerBet}）`, ephemeral: true });
+
+        // ✅ メッセージ更新（リアルタイム反映）
+        await interaction.editReply({
+          content: `🎲 あなたの手札です。現在のベット: ${gameState.playerBet} コイン`,
+          components: [btnInt.message.components[0]],
+        });
+
+        await btnInt.reply({
+          content: `💰 ${add} コインを追加しました（合計ベット: ${gameState.playerBet}）`,
+          ephemeral: true,
+        });
         return;
       }
 
@@ -126,10 +137,21 @@ export async function execute(interaction) {
           return submitted.reply({ content: "❌ 無効な金額です", ephemeral: true });
         if (betValue > userCoins)
           return submitted.reply({ content: "❌ コインが足りません！", ephemeral: true });
+
         gameState.playerBet += betValue;
         gameState.requiredBet = Math.max(gameState.requiredBet, gameState.playerBet);
         await client.updateCoins(userId, -betValue);
-        await submitted.reply({ content: `💰 ${betValue} コインを追加しました`, ephemeral: true });
+
+        // ✅ メッセージ更新（リアルタイム反映）
+        await interaction.editReply({
+          content: `🎲 あなたの手札です。現在のベット: ${gameState.playerBet} コイン`,
+          components: [submitted.message.components[0]],
+        });
+
+        await submitted.reply({
+          content: `💰 ${betValue} コインを追加しました（合計ベット: ${gameState.playerBet}）`,
+          ephemeral: true,
+        });
         return;
       }
 
@@ -198,7 +220,7 @@ async function botTurn(gameState, client, btnInt, combinedPath, interaction, col
   await proceedToNextStage(gameState, client, combinedPath, interaction, collector);
 }
 
-// --- ターン進行（3→4→5枚） ---
+// --- ターン進行 ---
 async function proceedToNextStage(gameState, client, combinedPath, interaction, collector) {
   let revealCount;
   if (gameState.turn === 0) revealCount = 3;

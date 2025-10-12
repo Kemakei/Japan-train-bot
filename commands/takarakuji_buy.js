@@ -5,11 +5,11 @@ import { getNextDrawId } from "../utils/draw.js";
 function judgeTicket(ticketNumber, ticketLetter, drawNumber, drawLetter) {
   if (ticketNumber === drawNumber && ticketLetter === drawLetter) return { prize: 1000000000, rank: 1 };
   if (ticketNumber === drawNumber) return { prize: 500000000, rank: 2 };
-  if (ticketNumber.slice(1) === drawNumber.slice(1) && ticketLetter === drawLetter) return { prize: 10000000, rank: 3 };
-  if (ticketNumber.slice(1) === drawNumber.slice(1)) return { prize: 5000000, rank: 4 };
-  if (ticketNumber.slice(2) === drawNumber.slice(2) && ticketLetter === drawLetter) return { prize: 3000000, rank: 5 };
-  if (ticketNumber.slice(2) === drawNumber.slice(2)) return { prize: 1000000, rank: 6 };
-  if (ticketNumber.slice(3) === drawNumber.slice(3) && ticketLetter === drawLetter) return { prize: 500000, rank: 7 };
+  if (ticketNumber.slice(1) === drawNumber.slice(1) && ticketLetter === drawLetter) return { prize: 100000000, rank: 3 };
+  if (ticketNumber.slice(1) === drawNumber.slice(1)) return { prize: 10000000, rank: 4 };
+  if (ticketNumber.slice(2) === drawNumber.slice(2) && ticketLetter === drawLetter) return { prize: 5000000, rank: 5 };
+  if (ticketNumber.slice(2) === drawNumber.slice(2)) return { prize: 3000000, rank: 6 };
+  if (ticketNumber.slice(3) === drawNumber.slice(3) && ticketLetter === drawLetter) return { prize: 100000, rank: 7 };
   if (ticketNumber.slice(3) === drawNumber.slice(3)) return { prize: 100000, rank: 8 };
   if (ticketLetter === drawLetter) return { prize: 10000, rank: 9 };
   if (ticketNumber.slice(4) === drawNumber.slice(4)) return { prize: 5000, rank: 10 };

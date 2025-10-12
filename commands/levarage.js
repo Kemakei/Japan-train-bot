@@ -22,28 +22,45 @@ export async function execute(interaction) {
 
     if (interaction.options.getSubcommand() === "borrow") {
       const amount = interaction.options.getInteger("amount");
-      if (amount <= 0) return interaction.reply({ content: "❌ 正の金額を指定してください", flags: 64 });
+
+      // 💡 借入額のバリデーション
+      if (amount <= 0)
+        return interaction.reply({ content: "❌ 正の金額を指定してください。", flags: 64 });
+      if (amount > 1_000_000)
+        return interaction.reply({ content: "⚠️ 最大借入金額は 1,000,000 コインです。", flags: 64 });
 
       const now = Date.now();
-      const due = now + 7*24*60*60*1000;
+      const due = now + 7 * 24 * 60 * 60 * 1000;
+      const interestRate = 0.05;
+      const totalDue = Math.floor(amount * (1 + interestRate)); // 💥 初日に5%即時加算
 
+      // データ登録
       await client.db.collection("loans").insertOne({
         userId,
         principal: amount,
-        interestRate: 0.05,
+        interestRate,
         startTime: now,
         daysPassed: 0,
-        totalDue: amount,
+        totalDue,
         dueTime: due,
         paid: false
       });
 
+      // コイン増加
       await client.updateCoins(userId, amount);
-      return interaction.reply({ content: `💰 ${amount} コインを借りました。返済期限は7日後です。`, ephemeral: false });
+
+      return interaction.reply({
+        content:
+          `💰 ${amount.toLocaleString()} コインを借りました。\n` +
+          `初日の利息5%が加算され、返済総額は **${totalDue.toLocaleString()} コイン** です。\n` +
+          `返済期限は7日後です。`,
+        ephemeral: false
+      });
 
     } else if (interaction.options.getSubcommand() === "repay") {
       const loans = await client.db.collection("loans").find({ userId, paid: false }).toArray();
-      if (loans.length === 0) return interaction.reply({ content: "✅ 返済すべき借金はありません", flags: 64 });
+      if (loans.length === 0)
+        return interaction.reply({ content: "✅ 返済すべき借金はありません。", flags: 64 });
 
       let coins = await client.getCoins(userId);
       let totalRepaid = 0;
@@ -98,7 +115,11 @@ export async function execute(interaction) {
             totalRepaid += remaining;
           }
 
-          await client.db.collection("loans").updateOne({ _id: loan._id }, { $set: { paid: true } });
+          await client.db.collection("loans").updateOne(
+            { _id: loan._id },
+            { $set: { paid: true } }
+          );
+
         } else {
           // 通常返済処理（所持コインのみ）
           const repayAmount = Math.min(loan.totalDue, coins);
@@ -108,20 +129,39 @@ export async function execute(interaction) {
           totalRepaid += repayAmount;
 
           if (repayAmount >= loan.totalDue) {
-            await client.db.collection("loans").updateOne({ _id: loan._id }, { $set: { paid: true } });
+            await client.db.collection("loans").updateOne(
+              { _id: loan._id },
+              { $set: { paid: true } }
+            );
           } else {
             const remainingPrincipal = Math.floor(loan.totalDue - repayAmount);
-            await client.db.collection("loans").updateOne({ _id: loan._id }, { $set: { principal: remainingPrincipal, startTime: now, daysPassed: 0, totalDue: remainingPrincipal } });
+            await client.db.collection("loans").updateOne(
+              { _id: loan._id },
+              {
+                $set: {
+                  principal: remainingPrincipal,
+                  startTime: now,
+                  daysPassed: 0,
+                  totalDue: remainingPrincipal
+                }
+              }
+            );
           }
         }
       }
 
       await client.setCoins(userId, coins);
-      return interaction.reply({ content: `💸 自動徴収・返済合計: ${totalRepaid} コイン`, ephemeral: false });
+      return interaction.reply({
+        content: `💸 自動徴収・返済合計: ${totalRepaid.toLocaleString()} コイン`,
+        ephemeral: false
+      });
     }
 
   } catch (err) {
     console.error(err);
-    await interaction.reply({ content: "❌ 処理中にエラーが発生しました", flags: 64 });
+    await interaction.reply({
+      content: "❌ 処理中にエラーが発生しました。",
+      flags: 64
+    });
   }
 }
