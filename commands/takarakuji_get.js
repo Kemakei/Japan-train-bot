@@ -37,6 +37,7 @@ export async function execute(interaction) {
   const now = new Date();
   const latestDrawId = getLatestDrawId(now);
 
+  // 各チケット処理
   for (const purchase of purchases) {
     const { number, letter, drawId } = purchase;
 
@@ -47,6 +48,7 @@ export async function execute(interaction) {
       continue;
     }
 
+    // 抽選済みの結果取得
     const result = await drawResultsCol.findOne({ drawId });
     if (!result) {
       ephemeralLines.push(`🎟 ${number}${letter} → ⏳ まだ抽選結果は出ていません`);
@@ -54,7 +56,7 @@ export async function execute(interaction) {
       continue;
     }
 
-    // 抽選済みチケット削除
+    // 抽選済みチケットは削除
     await lotteryCol.updateOne(
       { userId },
       { $pull: { purchases: { drawId } } }
@@ -67,16 +69,17 @@ export async function execute(interaction) {
     }
   }
 
-  // 残り購入履歴更新
+  // 未公開チケットを残して DB 更新
   await lotteryCol.updateOne(
     { userId },
     { $set: { purchases: remainingPurchases } },
     { upsert: true }
   );
 
+  // 最新コイン残高取得
   const coins = await getCoins(userId);
 
-  // Embed作成関数（本文最後に合計当選金額と残り所持金を追加）
+  // Embed作成関数（本文最後に合計当選金額と残り所持金）
   const createEmbedsByLine = (lines, title, color = 0xFFD700) => {
     const embeds = [];
     let chunk = "";
@@ -107,14 +110,18 @@ export async function execute(interaction) {
     return embeds;
   };
 
+  const hasAnyTickets = publicLines.length > 0 || ephemeralLines.length > 0;
+
   // 公開済みチケット
   if (publicLines.length > 0) {
     const publicEmbeds = createEmbedsByLine(publicLines, "🎉 当選結果");
     for (const embed of publicEmbeds) {
       await interaction.followUp({ embeds: [embed] });
     }
-  } else {
-    // 当選なし
+  }
+
+  // 当選なしEmbedは、公開も未公開もない場合のみ表示
+  if (!hasAnyTickets) {
     await interaction.followUp({
       embeds: [
         new EmbedBuilder()
@@ -125,7 +132,7 @@ export async function execute(interaction) {
     });
   }
 
-  // 未公開チケットは ephemeral
+  // 未公開チケットはephemeralで表示
   if (ephemeralLines.length > 0) {
     const ephemeralEmbeds = createEmbedsByLine(ephemeralLines, "⏳ 未公開の抽選", 0xAAAAAA);
     for (const embed of ephemeralEmbeds) {
