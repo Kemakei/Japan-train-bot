@@ -64,9 +64,11 @@ export async function execute(interaction) {
 
     // 当選判定
     if (result.isWin) {
-      publicLines.push(`🎟 ${number}${letter} → 🏆 ${result.rank}等 💰 ${result.prize.toLocaleString()}コイン`);
+      publicLines.push(`🎟 ${number}${letter} → 🏆 ${result.rank}等 💰 ${result.prize.toLocaleString()}コイン獲得！`);
       totalPrize += result.prize;
       await updateCoins(userId, result.prize);
+    } else {
+      // 外れも残す場合はここに処理追加（今は削除して表示なし）
     }
   }
 
@@ -80,12 +82,14 @@ export async function execute(interaction) {
   // 最新のコイン残高取得
   const coins = await getCoins(userId);
 
-  // Embed作成関数（最後にフッターで残り所持金を表示）
+  // Embed作成関数（最後の行まで確実に表示し、フッターに残り所持金）
   const createEmbedsByLine = (lines, title, color = 0xFFD700) => {
     const embeds = [];
     let chunk = "";
+
     for (const line of lines) {
-      if ((chunk + line + "\n").length > 4000) {
+      const lineWithNewline = line + "\n"; // 行末に必ず改行
+      if ((chunk + lineWithNewline).length > 4000) {
         embeds.push(
           new EmbedBuilder()
             .setTitle(title)
@@ -95,8 +99,10 @@ export async function execute(interaction) {
         );
         chunk = "";
       }
-      chunk += line + "\n";
+      chunk += lineWithNewline;
     }
+
+    // 最後の chunk も必ず追加
     if (chunk.length > 0) {
       embeds.push(
         new EmbedBuilder()
@@ -106,12 +112,13 @@ export async function execute(interaction) {
           .setFooter({ text: `残り所持金: ${coins.toLocaleString()}コイン` })
       );
     }
+
     return embeds;
   };
 
   // 公開済みチケットの Embed を送信
   if (publicLines.length > 0) {
-    const publicEmbeds = createEmbedsByLine(publicLines, "🎉 抽選結果");
+    const publicEmbeds = createEmbedsByLine(publicLines, "🎉 当選結果");
     for (const embed of publicEmbeds) {
       await interaction.followUp({ embeds: [embed] });
     }
@@ -127,6 +134,6 @@ export async function execute(interaction) {
 
   // 最後にユーザーメンションで合計当選金額と残りコインを表示
   await interaction.followUp({
-    content: `<@${userId}> の合計当選金額: ${totalPrize.toLocaleString()}コイン`
+    content: `<@${userId}> の合計当選金額: ${totalPrize.toLocaleString()}コイン、残りコイン: ${coins.toLocaleString()}コイン`
   });
 }
