@@ -6,7 +6,7 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   const userId = interaction.user.id;
-  const { lotteryCol, updateCoins, getCoins } = interaction.client;
+  const { lotteryCol, updateCoins, getCoins, lotteryDraws } = interaction.client;
 
   await interaction.deferReply();
 
@@ -31,10 +31,14 @@ export async function execute(interaction) {
   let totalPrize = 0;
   let pendingCount = 0;
 
+  const now = new Date();
+
   for (const t of purchases) {
     const { number, letter, drawId, isWin, prize, rank, claimed } = t;
 
-    if (!drawId) {
+    // 抽選日時がまだの場合は未公開扱い
+    const drawInfo = drawId ? lotteryDraws[drawId] : null;
+    if (!drawInfo || now < drawInfo.drawTime) {
       pendingCount++;
       remainingPurchases.push(t);
       continue;
@@ -45,11 +49,8 @@ export async function execute(interaction) {
       winLines.push(`🎟 ${number}${letter} → 🏆 **${rank}等！** 💰 ${prize.toLocaleString()}コイン獲得！`);
       totalPrize += prize;
       t.claimed = true; // データベース更新用
-    } else if (!isWin && !claimed) {
-      // 外れは破棄
-      continue;
     } else {
-      // すでに受け取り済みの当たりは残す
+      // 外れ or 既に受け取り済み
       remainingPurchases.push(t);
     }
   }
@@ -73,7 +74,6 @@ export async function execute(interaction) {
     let chunk = "";
 
     for (const line of lines) {
-      // Embed文字数制限を超える場合は分割
       if ((chunk + line + "\n").length > 4000) {
         embeds.push(
           new EmbedBuilder()
@@ -87,7 +87,6 @@ export async function execute(interaction) {
       chunk += line + "\n";
     }
 
-    // 最後のchunkも必ず追加
     if (chunk.length > 0) {
       embeds.push(
         new EmbedBuilder()
@@ -107,7 +106,7 @@ export async function execute(interaction) {
   if (pendingCount > 0) {
     embeds.push(
       new EmbedBuilder()
-        .setTitle("⏳ 未抽選チケット")
+        .setTitle("⏳ 未公開チケット")
         .setDescription(`現在 **${pendingCount}枚** のチケットはまだ抽選結果が公開されていません。`)
         .setColor(0xAAAAAA)
         .setFooter({ text: `残り所持金: ${coins}コイン` })
@@ -115,12 +114,10 @@ export async function execute(interaction) {
   }
 
   if (embeds.length > 0) {
-    // 全てのEmbedを順に送信
     for (const embed of embeds) {
       await interaction.followUp({ embeds: [embed] });
     }
   } else {
-    // 当選なし
     await interaction.followUp({
       embeds: [
         new EmbedBuilder()
