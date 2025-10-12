@@ -21,18 +21,28 @@ export async function execute(interaction) {
     const client = interaction.client;
 
     if (interaction.options.getSubcommand() === "borrow") {
+
+      // 未返済の借金があるか確認
+      const existingLoans = await client.db.collection("loans").find({ userId, paid: false }).toArray();
+      if (existingLoans.length > 0) {
+        return interaction.reply({
+          content: "❌ 返済していない借金が残っています。先に返済してください。",
+          flags: 64
+        });
+      }
+
       const amount = interaction.options.getInteger("amount");
 
-      // 💡 借入額のバリデーション
+      // 借入額のバリデーション
       if (amount <= 0)
         return interaction.reply({ content: "❌ 正の金額を指定してください。", flags: 64 });
       if (amount > 1_000_000)
         return interaction.reply({ content: "⚠️ 最大借入金額は 1,000,000 コインです。", flags: 64 });
 
       const now = Date.now();
-      const due = now + 7 * 24 * 60 * 60 * 1000;
+      const due = now + 7 * 24 * 60 * 60 * 1000; // 7日後
       const interestRate = 0.05;
-      const totalDue = Math.floor(amount * (1 + interestRate)); // 💥 初日に5%即時加算
+      const totalDue = Math.floor(amount * (1 + interestRate)); // 初日に5%即時加算
 
       // データ登録
       await client.db.collection("loans").insertOne({
@@ -58,6 +68,7 @@ export async function execute(interaction) {
       });
 
     } else if (interaction.options.getSubcommand() === "repay") {
+
       const loans = await client.db.collection("loans").find({ userId, paid: false }).toArray();
       if (loans.length === 0)
         return interaction.reply({ content: "✅ 返済すべき借金はありません。", flags: 64 });
@@ -67,6 +78,7 @@ export async function execute(interaction) {
       const now = Date.now();
 
       for (const loan of loans) {
+
         // 期限切れ自動回収
         if (now >= loan.dueTime) {
           let remaining = loan.totalDue;
