@@ -10,26 +10,25 @@ export const data = new SlashCommandBuilder()
        .setRequired(true)
   );
 
+// 当選判定（賞金と等級を返す）
 function judgeTicket(ticketNumber, ticketLetter, drawNumber, drawLetter) {
-  let prizeAmount = 0;
-  if (ticketNumber === drawNumber && ticketLetter === drawLetter) prizeAmount = 1000000000;
-  else if (ticketNumber === drawNumber) prizeAmount = 500000000;
-  else if (ticketNumber.slice(1) === drawNumber.slice(1) && ticketLetter === drawLetter) prizeAmount = 10000000;
-  else if (ticketNumber.slice(1) === drawNumber.slice(1)) prizeAmount = 5000000;
-  else if (ticketNumber.slice(2) === drawNumber.slice(2) && ticketLetter === drawLetter) prizeAmount = 3000000;
-  else if (ticketNumber.slice(2) === drawNumber.slice(2)) prizeAmount = 1000000;
-  else if (ticketNumber.slice(3) === drawNumber.slice(3) && ticketLetter === drawLetter) prizeAmount = 500000;
-  else if (ticketNumber.slice(3) === drawNumber.slice(3)) prizeAmount = 100000;
-  else if (ticketLetter === drawLetter) prizeAmount = 10000;
-  else if (ticketNumber.slice(4) === drawNumber.slice(4)) prizeAmount = 5000;
-  return prizeAmount;
+  if (ticketNumber === drawNumber && ticketLetter === drawLetter) return { prize: 1000000000, rank: 1 };
+  if (ticketNumber === drawNumber) return { prize: 500000000, rank: 2 };
+  if (ticketNumber.slice(1) === drawNumber.slice(1) && ticketLetter === drawLetter) return { prize: 10000000, rank: 3 };
+  if (ticketNumber.slice(1) === drawNumber.slice(1)) return { prize: 5000000, rank: 4 };
+  if (ticketNumber.slice(2) === drawNumber.slice(2) && ticketLetter === drawLetter) return { prize: 3000000, rank: 5 };
+  if (ticketNumber.slice(2) === drawNumber.slice(2)) return { prize: 1000000, rank: 6 };
+  if (ticketNumber.slice(3) === drawNumber.slice(3) && ticketLetter === drawLetter) return { prize: 500000, rank: 7 };
+  if (ticketNumber.slice(3) === drawNumber.slice(3)) return { prize: 100000, rank: 8 };
+  if (ticketLetter === drawLetter) return { prize: 10000, rank: 9 };
+  if (ticketNumber.slice(4) === drawNumber.slice(4)) return { prize: 5000, rank: 10 };
+  return { prize: 0, rank: null };
 }
 
 export async function execute(interaction, { client }) {
   const userId = interaction.user.id;
   const input = interaction.options.getString("tickets");
   
-  // :で区切る
   let ticketInputs = input.split(":").map(s => s.trim()).filter(Boolean);
 
   if (ticketInputs.length === 0) {
@@ -47,15 +46,13 @@ export async function execute(interaction, { client }) {
   const tickets = [];
 
   for (const ticket of ticketInputs) {
-    // 入力チェック：最後の1文字が英字かどうか
     if (!/^\d{5}[A-Z]$/i.test(ticket)) {
       return interaction.reply({ content: `❌ 無効なチケット番号: ${ticket}（形式: 5桁の数字+アルファベット）`, flags: 64 });
     }
 
     const number = ticket.slice(0, 5);
     const letter = ticket.slice(5).toUpperCase();
-
-    const prize = judgeTicket(number, letter, drawNumber, drawLetter);
+    const { prize, rank } = judgeTicket(number, letter, drawNumber, drawLetter);
 
     tickets.push({
       number,
@@ -63,6 +60,7 @@ export async function execute(interaction, { client }) {
       drawId,
       isWin: prize > 0,
       prize,
+      rank,
       claimed: false,
       createdAt: new Date()
     });
@@ -84,8 +82,12 @@ export async function execute(interaction, { client }) {
     { upsert: true }
   );
 
-  // Embedにチケット番号を表示
-  const ticketList = tickets.map((t, i) => `${i + 1}個目 ${t.number}${t.letter}`).join("\n");
+  const ticketList = tickets.map((t, i) => {
+    if (t.isWin)
+      return `${i + 1}個目 ${t.number}${t.letter} → 🏆 **${t.rank}等！** 💰 ${t.prize.toLocaleString()}コイン当選！`;
+    else
+      return `${i + 1}個目 ${t.number}${t.letter} → ❌ ハズレ`;
+  }).join("\n");
 
   const embed = new EmbedBuilder()
     .setTitle("🎟 宝くじ購入完了")
