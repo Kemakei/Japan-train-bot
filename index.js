@@ -227,6 +227,7 @@ async function updateTakarakujiNumber() {
     if (client.takarakuji) {
       const { number: oldNumber, letter: oldLetter } = client.takarakuji;
 
+      // 前回分を保存（公開用）
       await db.collection("drawResults").updateOne(
         { drawId: previousDrawId },
         { $set: { number: oldNumber, letter: oldLetter, drawId: previousDrawId } },
@@ -236,11 +237,22 @@ async function updateTakarakujiNumber() {
       console.log(`💾 保存完了: ${oldNumber}${oldLetter} (${previousDrawId})`);
     }
 
+    // 次回分を生成
     const newNumber = String(Math.floor(Math.random() * 100000)).padStart(5, "0");
     const newLetter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
 
+    // client に保持
     client.takarakuji = { number: newNumber, letter: newLetter };
-    console.log(`🎰 新しい宝くじ番号を生成: ${newNumber}${newLetter} (次回公開用)`);
+
+    // 次回分も DB に保存しておく（drawId は次回のもの）
+    const nextDrawId = previousDrawId + 1; // getLatestDrawId のルールに合わせて適宜調整
+    await db.collection("drawResults").updateOne(
+      { drawId: nextDrawId },
+      { $set: { number: newNumber, letter: newLetter, drawId: nextDrawId, published: false } },
+      { upsert: true }
+    );
+
+    console.log(`🎰 新しい宝くじ番号を生成: ${newNumber}${newLetter} (次回公開用, drawId: ${nextDrawId})`);
   } catch (err) {
     console.error("DB保存失敗:", err);
   }
@@ -263,6 +275,7 @@ function scheduleTakarakujiUpdate() {
     setInterval(updateTakarakujiNumber, 30 * 60 * 1000);
   }, nextHalfHour);
 }
+
 
 // --- データベースサニタイズ ---
 async function sanitizeDatabase() {

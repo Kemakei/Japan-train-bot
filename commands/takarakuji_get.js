@@ -31,36 +31,31 @@ export async function execute(interaction) {
 
   let totalPrize = 0;
   const publicLines = [];
-
-  const keptPurchases = []; // ← 残すものをここに
+  const keptPurchases = [];
 
   for (const p of purchases) {
-    // 公開前 → 保持
-    if (!p.drawId || p.drawId > latestDrawId) {
+    // --- 未公開判定を効率化 ---
+    // 「未公開 = published が false または存在しない」
+    if (!p.drawId || p.published === false) {
       keptPurchases.push(p);
       continue;
     }
 
-    // 公開済み
-    if (p.drawId <= latestDrawId) {
-      // 結果未確認なら保持
-      if (!p.checked) {
-        if (p.isWin) {
-          publicLines.push(
-            `🎟 ${p.number}${p.letter} → 🏆 ${p.rank}等 💰 ${p.prize.toLocaleString()}コイン獲得！`
-          );
-          totalPrize += p.prize;
-          await updateCoins(userId, p.prize);
-        } else {
-          publicLines.push(`🎟 ${p.number}${p.letter} → ❌ はずれ`);
-        }
-
-        // 結果確認済みにマーク（次回削除対象）
-        p.checked = true;
-        keptPurchases.push(p);
+    // 公開済みチケット
+    if (!p.checked) {
+      if (p.isWin) {
+        publicLines.push(
+          `🎟 ${p.number}${p.letter} → 🏆 ${p.rank}等 💰 ${p.prize.toLocaleString()}コイン獲得！`
+        );
+        totalPrize += p.prize;
+        await updateCoins(userId, p.prize);
       }
-      // 既に checked=true のものは削除（保持しない）
+
+      // 結果確認済みにマーク（次回削除対象）
+      p.checked = true;
+      keptPurchases.push(p);
     }
+    // 既に checked=true のものは削除（保持しない）
   }
 
   // DB更新（保持対象だけ残す）
@@ -86,7 +81,7 @@ export async function execute(interaction) {
 
   // 公開済みの新規結果がない場合
   if (publicLines.length === 0) {
-    const keptUnpublished = keptPurchases.filter(p => !p.drawId || p.drawId > latestDrawId);
+    const keptUnpublished = keptPurchases.filter(p => !p.drawId || p.published === false);
     if (keptUnpublished.length > 0) {
       const embed = new EmbedBuilder()
         .setTitle("⏳ 未公開の抽選")
