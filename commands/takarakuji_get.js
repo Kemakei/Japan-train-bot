@@ -35,7 +35,6 @@ export async function execute(interaction) {
 
   for (const p of purchases) {
     // --- 未公開判定を効率化 ---
-    // 「未公開 = published が false または存在しない」
     if (!p.drawId || p.published === false) {
       keptPurchases.push(p);
       continue;
@@ -51,11 +50,10 @@ export async function execute(interaction) {
         await updateCoins(userId, p.prize);
       }
 
-      // 結果確認済みにマーク（次回削除対象）
+      // 結果確認済みにマーク
       p.checked = true;
       keptPurchases.push(p);
     }
-    // 既に checked=true のものは削除（保持しない）
   }
 
   // DB更新（保持対象だけ残す）
@@ -67,35 +65,61 @@ export async function execute(interaction) {
 
   const coins = await getCoins(userId);
 
-  // --- 表示処理 ---
-  if (publicLines.length > 0) {
-    const embed = new EmbedBuilder()
-      .setTitle("🎉 当選結果")
-      .setDescription(
-        publicLines.join("\n") +
-          `\n\n合計当選金額: ${totalPrize.toLocaleString()}コイン\n残り所持金: ${coins.toLocaleString()}コイン`
-      )
-      .setColor(0xFFD700);
-    await interaction.followUp({ embeds: [embed] });
-  }
+  // --- Embed 分割関数 ---
+  const createEmbedsByLine = (lines, title, color = 0xFFD700) => {
+    const embeds = [];
+    let chunk = [];
+    for (const line of lines) {
+      const joined = [...chunk, line].join("\n");
+      if (joined.length > 4000) {
+        embeds.push(
+          new EmbedBuilder()
+            .setTitle(title)
+            .setDescription(chunk.join("\n") + `\n\n合計当選金額: ${totalPrize.toLocaleString()}コイン\n残り所持金: ${coins.toLocaleString()}コイン`)
+            .setColor(color)
+        );
+        chunk = [line];
+      } else {
+        chunk.push(line);
+      }
+    }
+    if (chunk.length > 0) {
+      embeds.push(
+        new EmbedBuilder()
+          .setTitle(title)
+          .setDescription(chunk.join("\n") + `\n\n合計当選金額: ${totalPrize.toLocaleString()}コイン\n残り所持金: ${coins.toLocaleString()}コイン`)
+          .setColor(color)
+      );
+    }
+    return embeds;
+  };
 
-  // 公開済みの新規結果がない場合
-  if (publicLines.length === 0) {
-    const keptUnpublished = keptPurchases.filter(p => !p.drawId || p.published === false);
-    if (keptUnpublished.length > 0) {
-      const embed = new EmbedBuilder()
-        .setTitle("⏳ 未公開の抽選")
-        .setDescription(`未公開チケット: ${keptUnpublished.length}枚`)
-        .setColor(0xAAAAAA);
-      await interaction.followUp({ embeds: [embed], flags: 64 });
-    } else {
-      const embed = new EmbedBuilder()
-        .setTitle("📭 当選結果なし")
-        .setDescription(
-          `当選したチケットはありませんでした。\n合計当選金額: ${totalPrize.toLocaleString()}コイン\n残り所持金: ${coins.toLocaleString()}コイン`
-        )
-        .setColor(0x888888);
+  // --- 公開済み当選チケットの表示（分割対応） ---
+  if (publicLines.length > 0) {
+    const publicEmbeds = createEmbedsByLine(publicLines, "🎉 当選結果");
+    for (const embed of publicEmbeds) {
       await interaction.followUp({ embeds: [embed] });
     }
+  }
+
+  // --- 未公開チケットの表示 ---
+  const keptUnpublished = keptPurchases.filter(p => !p.drawId || p.published === false);
+  if (publicLines.length === 0 && keptUnpublished.length > 0) {
+    const embed = new EmbedBuilder()
+      .setTitle("⏳ 未公開の抽選")
+      .setDescription(`未公開チケット: ${keptUnpublished.length}枚`)
+      .setColor(0xAAAAAA);
+    await interaction.followUp({ embeds: [embed], flags: 64 });
+  }
+
+  // --- 当選なし・未公開なし ---
+  if (publicLines.length === 0 && keptUnpublished.length === 0) {
+    const embed = new EmbedBuilder()
+      .setTitle("📭 当選結果なし")
+      .setDescription(
+        `当選したチケットはありませんでした。\n合計当選金額: ${totalPrize.toLocaleString()}コイン\n残り所持金: ${coins.toLocaleString()}コイン`
+      )
+      .setColor(0x888888);
+    await interaction.followUp({ embeds: [embed] });
   }
 }
