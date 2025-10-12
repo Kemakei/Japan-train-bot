@@ -1,4 +1,5 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
+import { getLatestDrawId } from "../utils/draw.js";
 
 export const data = new SlashCommandBuilder()
   .setName("takarakuji_get")
@@ -6,11 +7,11 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   const userId = interaction.user.id;
-  const { lotteryCol, updateCoins, getCoins, lotteryDraws } = interaction.client;
+  const { lotteryCol, db, updateCoins, getCoins } = interaction.client;
 
   await interaction.deferReply();
 
-  // ユーザーの購入履歴を取得
+  // 購入履歴を取得
   const purchasesDoc = await lotteryCol.findOne({ userId });
   const purchases = purchasesDoc?.purchases || [];
 
@@ -26,53 +27,53 @@ export async function execute(interaction) {
     });
   }
 
-  const winLines = [];
+  const drawResultsCol = db.collection("drawResults");
+  const publicLines = [];
+  const ephemeralLines = [];
   const remainingPurchases = [];
   let totalPrize = 0;
-  let pendingCount = 0;
 
   const now = new Date();
+  const latestDrawId = getLatestDrawId(now);
 
-  for (const t of purchases) {
-    const { number, letter, drawId, isWin, prize, rank, claimed } = t;
+  for (const purchase of purchases) {
+    const { number, letter, drawId } = purchase;
 
-    // 抽選日時がまだの場合は未公開扱い
-    const drawInfo = drawId ? lotteryDraws[drawId] : null;
-    if (!drawInfo || now < drawInfo.drawTime) {
-      pendingCount++;
-      remainingPurchases.push(t);
+    // 抽選前または未公開の場合
+    if (!drawId || drawId > latestDrawId) {
+      ephemeralLines.push(`🎟 ${number}${letter} → ⏳ まだ抽選結果は出ていません`);
+      remainingPurchases.push(purchase);
       continue;
     }
 
-    if (isWin && !claimed) {
-      // 当たりのみ追加
-      winLines.push(`🎟 ${number}${letter} → 🏆 **${rank}等！** 💰 ${prize.toLocaleString()}コイン獲得！`);
-      totalPrize += prize;
-      t.claimed = true; // データベース更新用
-    } else {
-      // 外れ or 既に受け取り済み
-      remainingPurchases.push(t);
+    // 抽選済みの結果を取得
+    const result = await drawResultsCol.findOne({ drawId });
+
+    if (!result) {
+      // DBに結果がまだ存在しない場合も未公開扱い
+      ephemeralLines.push(`🎟 ${number}${letter} → ⏳ まだ抽選結果は出ていません`);
+      remainingPurchases.push(purchase);
+      continue;
+    }
+
+    // 抽選済みのチケットは削除（再取得されないように）
+    await lotteryCol.updateOne(
+      { userId },
+      { $pull: { purchases: { drawId } } }
+    );
+
+    // 当選判定
+    if (result.isWin) {
+      publicLines.push(`🎟 ${number}${letter} → 🏆 ${result.rank}等 💰 ${result.prize.toLocaleString()}コイン`);
+      totalPrize += result.prize;
+      await updateCoins(userId, result.prize);
     }
   }
 
-  // データベース更新
-  await lotteryCol.updateOne(
-    { userId },
-    { $set: { purchases: remainingPurchases } },
-    { upsert: true }
-  );
-
-  // コイン加算
-  if (totalPrize > 0) await updateCoins(userId, totalPrize);
-
-  // 最新のコイン残高取得
-  const coins = await getCoins(userId);
-
   // Embed作成関数
-  const createEmbeds = (lines, title, color = 0xFFD700) => {
+  const createEmbedsByLine = (lines, title, color = 0xFFD700) => {
     const embeds = [];
     let chunk = "";
-
     for (const line of lines) {
       if ((chunk + line + "\n").length > 4000) {
         embeds.push(
@@ -80,52 +81,50 @@ export async function execute(interaction) {
             .setTitle(title)
             .setDescription(chunk)
             .setColor(color)
-            .setFooter({ text: `残り所持金: ${coins}コイン` })
         );
         chunk = "";
       }
       chunk += line + "\n";
     }
-
     if (chunk.length > 0) {
       embeds.push(
         new EmbedBuilder()
           .setTitle(title)
           .setDescription(chunk)
           .setColor(color)
-          .setFooter({ text: `残り所持金: ${coins}コイン` })
       );
     }
-
     return embeds;
   };
 
-  const embeds = [];
-
-  if (winLines.length > 0) embeds.push(...createEmbeds(winLines, "🎉 当選結果"));
-  if (pendingCount > 0) {
-    embeds.push(
-      new EmbedBuilder()
-        .setTitle("⏳ 未公開チケット")
-        .setDescription(`現在 **${pendingCount}枚** のチケットはまだ抽選結果が公開されていません。`)
-        .setColor(0xAAAAAA)
-        .setFooter({ text: `残り所持金: ${coins}コイン` })
-    );
-  }
-
-  if (embeds.length > 0) {
-    for (const embed of embeds) {
+  // 公開済みの結果を送信
+  if (publicLines.length > 0) {
+    const publicEmbeds = createEmbedsByLine(publicLines, "🎉 抽選結果");
+    for (const embed of publicEmbeds) {
       await interaction.followUp({ embeds: [embed] });
     }
-  } else {
-    await interaction.followUp({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("📭 当選結果なし")
-          .setDescription("当選したチケットはありませんでした。")
-          .setColor(0x888888)
-          .setFooter({ text: `残り所持金: ${coins}コイン` })
-      ]
-    });
   }
+
+  // 未公開の結果を ephemeral で送信
+  if (ephemeralLines.length > 0) {
+    const ephemeralEmbeds = createEmbedsByLine(ephemeralLines, "⏳ 未公開の抽選", 0xAAAAAA);
+    for (const embed of ephemeralEmbeds) {
+      await interaction.followUp({ embeds: [embed], flags: 64 });
+    }
+  }
+
+  // 残りの購入履歴を DB に更新（未公開チケットを残す）
+  await lotteryCol.updateOne(
+    { userId },
+    { $set: { purchases: remainingPurchases } },
+    { upsert: true }
+  );
+
+  // 最新のコイン残高取得
+  const coins = await getCoins(userId);
+
+  // 最後にユーザーをメンションして合計当選金額・残りコインを表示
+  await interaction.followUp({
+    content: `<@${userId}> の合計当選金額: ${totalPrize.toLocaleString()}コイン、残りコイン: ${coins.toLocaleString()}コイン`
+  });
 }
