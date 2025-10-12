@@ -78,10 +78,13 @@ export async function execute(interaction, { client }) {
     { upsert: true }
   );
 
-  // Embedには購入枚数と支払金額のみ表示
+  // 購入チケット番号をリスト化
+  const ticketList = tickets.map((t, i) => `${i + 1}枚目: ${t.number}${t.letter}`).join("\n");
+
+  // Embed作成
   const embed = new EmbedBuilder()
     .setTitle("🎟 宝くじ購入完了")
-    .setDescription(`購入枚数: ${tickets.length}枚\n支払金額: ${totalCost}コイン`)
+    .setDescription(`購入枚数: ${tickets.length}枚\n支払金額: ${totalCost}コイン\n\n**購入チケット:**\n${ticketList}`)
     .setColor("Gold")
     .setFooter({ text: `残り所持金: ${coins - totalCost}コイン` });
 

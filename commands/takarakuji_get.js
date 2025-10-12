@@ -6,7 +6,7 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   const userId = interaction.user.id;
-  const { lotteryCol, updateCoins } = interaction.client;
+  const { lotteryCol, updateCoins, getCoins } = interaction.client;
 
   await interaction.deferReply();
 
@@ -32,7 +32,6 @@ export async function execute(interaction) {
   let pendingCount = 0;
 
   for (const t of purchases) {
-    // buy/random で保存している正しいプロパティを使う
     const { number, letter, drawId, isWin, prize, rank, claimed } = t;
 
     if (!drawId) {
@@ -42,12 +41,10 @@ export async function execute(interaction) {
     }
 
     if (isWin && !claimed) {
-      // 当たりだけ表示
+      // 当たりのみ追加
       winLines.push(`🎟 ${number}${letter} → 🏆 **${rank}等！** 💰 ${prize.toLocaleString()}コイン獲得！`);
       totalPrize += prize;
-
-      // 賞金を受け取ったことを記録
-      t.claimed = true;
+      t.claimed = true; // データベース更新用
     } else if (!isWin && !claimed) {
       // 外れは破棄
       continue;
@@ -67,42 +64,70 @@ export async function execute(interaction) {
   // コイン加算
   if (totalPrize > 0) await updateCoins(userId, totalPrize);
 
+  // 最新のコイン残高取得
+  const coins = await getCoins(userId);
+
   // Embed作成関数
   const createEmbeds = (lines, title, color = 0xFFD700) => {
     const embeds = [];
     let chunk = "";
 
     for (const line of lines) {
+      // Embed文字数制限を超える場合は分割
       if ((chunk + line + "\n").length > 4000) {
-        embeds.push(new EmbedBuilder().setTitle(title).setDescription(chunk).setColor(color));
+        embeds.push(
+          new EmbedBuilder()
+            .setTitle(title)
+            .setDescription(chunk)
+            .setColor(color)
+            .setFooter({ text: `残り所持金: ${coins}コイン` })
+        );
         chunk = "";
       }
       chunk += line + "\n";
     }
 
-    if (chunk) embeds.push(new EmbedBuilder().setTitle(title).setDescription(chunk).setColor(color));
+    // 最後のchunkも必ず追加
+    if (chunk.length > 0) {
+      embeds.push(
+        new EmbedBuilder()
+          .setTitle(title)
+          .setDescription(chunk)
+          .setColor(color)
+          .setFooter({ text: `残り所持金: ${coins}コイン` })
+      );
+    }
+
     return embeds;
   };
 
   const embeds = [];
 
   if (winLines.length > 0) embeds.push(...createEmbeds(winLines, "🎉 当選結果"));
-  if (pendingCount > 0) embeds.push(
-    new EmbedBuilder()
-      .setTitle("⏳ 未抽選チケット")
-      .setDescription(`現在 **${pendingCount}枚** のチケットはまだ抽選結果が公開されていません。`)
-      .setColor(0xAAAAAA)
-  );
+  if (pendingCount > 0) {
+    embeds.push(
+      new EmbedBuilder()
+        .setTitle("⏳ 未抽選チケット")
+        .setDescription(`現在 **${pendingCount}枚** のチケットはまだ抽選結果が公開されていません。`)
+        .setColor(0xAAAAAA)
+        .setFooter({ text: `残り所持金: ${coins}コイン` })
+    );
+  }
 
   if (embeds.length > 0) {
-    await Promise.all(embeds.map(embed => interaction.followUp({ embeds: [embed] })));
+    // 全てのEmbedを順に送信
+    for (const embed of embeds) {
+      await interaction.followUp({ embeds: [embed] });
+    }
   } else {
+    // 当選なし
     await interaction.followUp({
       embeds: [
         new EmbedBuilder()
           .setTitle("📭 当選結果なし")
           .setDescription("当選したチケットはありませんでした。")
           .setColor(0x888888)
+          .setFooter({ text: `残り所持金: ${coins}コイン` })
       ]
     });
   }
