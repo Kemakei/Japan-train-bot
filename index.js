@@ -105,7 +105,7 @@ client.updateStocks = async (userId, delta) => {
   );
 };
 
-// -------------------- 株価管理（MongoDB版） --------------------
+// -------------------- 株価管理（MongoDB + TTL対応） --------------------
 let forceSign = 0; // -1 = 下げ強制, 1 = 上げ強制, 0 = ランダム
 
 client.getStockPrice = async () => {
@@ -114,6 +114,9 @@ client.getStockPrice = async () => {
 };
 
 client.updateStockPrice = async (delta) => {
+  const db = client.db;
+  const stockHistoryCol = db.collection("stock_history");
+
   let price = await client.getStockPrice() + delta;
 
   if (price < 850) {
@@ -124,23 +127,23 @@ client.updateStockPrice = async (delta) => {
     forceSign = -1;
   }
 
+  // ---- 現在価格を更新 ----
   await coinsCol.updateOne(
     { userId: "stock_price" },
     { $set: { coins: price } },
     { upsert: true }
   );
 
-  // 履歴管理
-  const historyDoc = await coinsCol.findOne({ userId: "trade_history" });
-  const history = Array.isArray(historyDoc?.coins) ? historyDoc.coins : [];
-  history.push({ time: new Date().toISOString(), price });
-  if (history.length > 144) history.shift();
+  // ---- 履歴を別コレクションに保存 ----
+  await stockHistoryCol.insertOne({
+    price,
+    delta,
+    createdAt: new Date(), // TTL対象
+  });
 
-  await coinsCol.updateOne(
-    { userId: "trade_history" },
-    { $set: { coins: history } },
-    { upsert: true }
-  );
+  // ---- TTLインデックス（25時間）----
+  // expireAfterSeconds: 25時間 = 25 * 60 * 60 = 90000秒
+  await stockHistoryCol.createIndex({ createdAt: 1 }, { expireAfterSeconds: 90000 });
 };
 
 client.modifyStockByTrade = (type, count) => {
@@ -157,7 +160,7 @@ client.modifyStockByTrade = (type, count) => {
   client.updateStockPrice(delta);
 };
 
-
+// ---- 自動変動 ----
 function randomDelta() {
   const r = Math.random();
   return Math.max(1, Math.floor(r * r * 31));
@@ -168,8 +171,10 @@ setInterval(() => {
   forceSign = 0;
   const delta = sign * randomDelta();
   client.updateStockPrice(delta);
-  client.getStockPrice().then(price => console.log(`株価自動変動: ${delta}, 現在株価: ${price}`));
-}, 10 * 60 * 1000);
+  client
+    .getStockPrice()
+    .then(price => console.log(`株価自動変動: ${delta}, 現在株価: ${price}`));
+}, 10 * 60 * 1000); // 10分ごと
 
 // -------------------- ヘッジ契約管理（MongoDB版） --------------------
 client.getHedge = async (userId) => {
