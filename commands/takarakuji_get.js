@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } from "discord.js";
+import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 
 export const data = new SlashCommandBuilder()
   .setName("takarakuji_get")
@@ -13,7 +13,9 @@ export async function execute(interaction) {
   await interaction.deferReply();
 
   const draws = await drawCol.find().toArray();
-  const publishedDrawIds = new Set(draws.map(r => r.drawId));
+  const publishedDrawIds = new Set(
+    draws.filter(r => r.published).map(r => r.drawId)
+  );
 
   const tickets = await lotteryCol.find({ userId }).toArray();
   if (tickets.length === 0)
@@ -33,7 +35,7 @@ export async function execute(interaction) {
     }
 
     if (t.isWin && t.prize > 0 && t.published === false) {
-      winResults.push(`🎟 ${t.number}${t.letter} → 🏆${t.rank}等！${t.prize.toLocaleString()}コインゲット！`);
+      winResults.push(`🎟️ ${t.number}${t.letter} → 🏆${t.rank}等！${t.prize.toLocaleString()}コインゲット！`);
       totalPrize += t.prize;
       await lotteryCol.updateOne({ _id: t._id }, { $set: { published: true } });
     }
@@ -60,21 +62,39 @@ export async function execute(interaction) {
   await updateCoins(userId, totalPrize);
   const coins = await getCoins(userId);
 
-  const fullText = winResults.join("\n");
-  if (fullText.length > 4000) {
-    const buffer = Buffer.from(fullText + `\n\n💰 合計: ${totalPrize.toLocaleString()}コイン\n💎 現在の所持金: ${coins.toLocaleString()}コイン`, "utf8");
-    const file = new AttachmentBuilder(buffer, { name: "lottery_results.txt" });
+  // ----- Embed 分割処理 -----
+  const embeds = [];
+  const maxLength = 4000; // Discord Embed Description 最大文字数
+  let buffer = "";
 
-    return interaction.followUp({
-      content: `🎉 当選結果が多いためファイルでお送りします。\n💰 合計: ${totalPrize.toLocaleString()}コイン`,
-      files: [file]
-    });
+  for (const line of winResults) {
+    // 追加しても上限超えない場合は追加
+    if ((buffer + line + "\n").length > maxLength) {
+      embeds.push(
+        new EmbedBuilder()
+          .setTitle("🎉 当選結果")
+          .setDescription(buffer)
+          .setColor(0xffd700)
+          .setFooter({ text: `💰 合計: ${totalPrize.toLocaleString()}コイン | 💎 現在の所持金: ${coins.toLocaleString()}コイン` })
+      );
+      buffer = "";
+    }
+    buffer += line + "\n";
   }
 
-  const embed = new EmbedBuilder()
-    .setTitle("🎉 当選結果")
-    .setDescription(`${fullText}\n\n💰 合計: ${totalPrize.toLocaleString()}コイン\n💎 現在の所持金: ${coins.toLocaleString()}コイン`)
-    .setColor(0xffd700);
+  // 最後に残った分を追加
+  if (buffer) {
+    embeds.push(
+      new EmbedBuilder()
+        .setTitle("🎉 当選結果")
+        .setDescription(buffer)
+        .setColor(0xffd700)
+        .setFooter({ text: `💰 合計: ${totalPrize.toLocaleString()}コイン | 💎 現在の所持金: ${coins.toLocaleString()}コイン` })
+    );
+  }
 
-  await interaction.followUp({ embeds: [embed] });
+  // 複数 Embed を順番に送信
+  for (const embed of embeds) {
+    await interaction.followUp({ embeds: [embed] });
+  }
 }

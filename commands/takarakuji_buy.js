@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
-import { getNextDrawId, getNextDrawNumbers } from "../utils/draw.js"; // ← 抽選番号を取得する関数（後述）
+import { getNextDrawId } from "../utils/draw.js";
 
 export const data = new SlashCommandBuilder()
   .setName("takarakuji_buy")
@@ -51,7 +51,7 @@ export async function execute(interaction, { client }) {
     return interaction.reply({ content: "❌ 一度に最大500枚まで購入可能です", flags: 64 });
 
   const drawId = getNextDrawId(new Date());
-  const nextDraw = await getNextDrawNumbers(client.db); // { drawId, number, letter } を返す想定
+  const nextDraw = client.takarakuji; // client に保持されている次回抽選番号 { number, letter }
 
   const costPerTicket = 1000;
   const totalCost = ticketInputs.length * costPerTicket;
@@ -84,7 +84,7 @@ export async function execute(interaction, { client }) {
       prize,
       rank,
       isWin: prize > 0,
-      published: false, // ← 未公開
+      published: false,
       checked: false,
       createdAt: now
     });
