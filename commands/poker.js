@@ -46,6 +46,41 @@ export async function execute(interaction) {
   ongoingGames.set(gameKey, true);
   await interaction.deferReply();
 
+  // --- Botの手札をベット額に応じて調整 ---
+function drawBotHand(deck, bet) {
+  const maxBet = 100000; // 最大強化ベット額（ここ以上は最大強化）
+  const betRatio = Math.min(1, bet / maxBet); // 0〜1 に正規化
+
+  // trialsは10回〜最大1000回まで、ベット額に比例して増える
+  const trials = Math.floor(10 + 990 * betRatio);
+
+  let bestHand = null;
+  let bestStrength = -1;
+
+  for (let i = 0; i < trials; i++) {
+    // deckのコピーから5枚引く
+    const tempDeck = [...deck];
+    const hand = tempDeck.splice(0, 5);
+
+    // 手札の強さを評価
+    const strength = evaluateHandStrength(hand);
+
+    // 最も強い手札を更新
+    if (strength > bestStrength) {
+      bestStrength = strength;
+      bestHand = hand;
+    }
+  }
+
+  // deck から bestHand のカードを除去（本物のデッキから引くため）
+  for (const card of bestHand) {
+    const index = deck.indexOf(card);
+    if (index !== -1) deck.splice(index, 1);
+  }
+
+  return bestHand;
+}
+
   // --- デッキ構築 ---
   const suits = ["S", "H", "D", "C"];
   const ranks = ["2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"];
@@ -54,7 +89,7 @@ export async function execute(interaction) {
   deck.sort(() => Math.random() - 0.5);
 
   const playerHand = deck.splice(0, 5);
-  const botHand = deck.splice(0, 5);
+  const botHand = drawBotHand(deck, bet);
 
   const timestamp = Date.now();
   const combinedPath = path.resolve(__dirname, `../python/images/combined_${userId}_${timestamp}.png`);
@@ -202,14 +237,9 @@ async function botTurn(gameState, client, btnInt, combinedPath, interaction, col
   if (botStrength > 0.6 && randomFactor < 0.6) decision = "raise";
   else if (botStrength > 0.4 && randomFactor < 0.3) decision = "raise";
   else if (botStrength < 0.3 && randomFactor < 0.1) decision = "raise";
-  else if (botStrength < 0.35 && randomFactor < 0.4) decision = "fold";
+  else decision = "call";
 
-  if (decision === "fold") {
-    await interaction.followUp({ content: "🤖 はフォールドしました！あなたの勝ちです。" });
-    collector.stop("folded");
-    await finalizeGame(gameState, client, combinedPath, interaction, "player");
-    return;
-  } else if (decision === "raise") {
+  if (decision === "raise") {
     const raiseAmount = Math.floor(1000 + Math.random() * 9000);
     gameState.requiredBet += raiseAmount;
     await interaction.followUp({ content: `🤖 はレイズしました！ (${raiseAmount} コイン)` });
