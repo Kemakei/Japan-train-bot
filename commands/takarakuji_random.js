@@ -21,13 +21,13 @@ export const data = new SlashCommandBuilder()
   .setDescription("宝くじをランダムで購入")
   .addIntegerOption(opt =>
     opt.setName("count")
-       .setDescription("購入枚数（1〜500）")
+       .setDescription("購入枚数（1〜10000）")
        .setRequired(true)
   );
 
 export async function execute(interaction, { client }) {
   const userId = interaction.user.id;
-  const count = Math.min(interaction.options.getInteger("count"), 500);
+  const count = Math.min(interaction.options.getInteger("count"), 10000);
 
   const drawNumber = client.takarakuji.number;
   const drawLetter = client.takarakuji.letter;
