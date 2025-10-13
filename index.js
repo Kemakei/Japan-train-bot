@@ -105,7 +105,7 @@ client.updateStocks = async (userId, delta) => {
   );
 };
 
-// -------------------- 株価管理（MongoDB対応） --------------------
+// -------------------- 株価管理（MongoDB版） --------------------
 let forceSign = 0; // -1 = 下げ強制, 1 = 上げ強制, 0 = ランダム
 
 client.getStockPrice = async () => {
@@ -114,9 +114,6 @@ client.getStockPrice = async () => {
 };
 
 client.updateStockPrice = async (delta) => {
-  const db = client.db;
-  const stockHistoryCol = db.collection("stock_history");
-
   let price = await client.getStockPrice() + delta;
 
   if (price < 850) {
@@ -127,12 +124,17 @@ client.updateStockPrice = async (delta) => {
     forceSign = -1;
   }
 
+  await coinsCol.updateOne(
+    { userId: "stock_price" },
+    { $set: { coins: price } },
+    { upsert: true }
+  );
+
   // 履歴管理
   const historyDoc = await coinsCol.findOne({ userId: "trade_history" });
   const history = Array.isArray(historyDoc?.coins) ? historyDoc.coins : [];
   history.push({ time: new Date().toISOString(), price });
   if (history.length > 144) history.shift();
-
 
   await coinsCol.updateOne(
     { userId: "trade_history" },
@@ -140,13 +142,6 @@ client.updateStockPrice = async (delta) => {
     { upsert: true }
   );
 };
-
-  // ---- 現在価格を更新 ----
-  await coinsCol.updateOne(
-    { userId: "stock_price" },
-    { $set: { coins: price } },
-    { upsert: true }
-  );
 
 client.modifyStockByTrade = (type, count) => {
   // 株数の平方根をベースにした緩やかな変動
@@ -162,7 +157,6 @@ client.modifyStockByTrade = (type, count) => {
   client.updateStockPrice(delta);
 };
 
-// ---- 自動変動 ----
 function randomDelta() {
   const r = Math.random();
   return Math.max(1, Math.floor(r * r * 31));
