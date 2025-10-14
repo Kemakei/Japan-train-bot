@@ -6,7 +6,7 @@ import {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
-  MessageAttachment,
+  AttachmentBuilder,
 } from "discord.js";
 import { spawn } from "child_process";
 import path from "path";
