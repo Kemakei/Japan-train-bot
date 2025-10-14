@@ -196,7 +196,7 @@ export async function execute(interaction) {
       if (btnInt.customId === "call") {
         if (gameState.playerBet < gameState.requiredBet)
           return btnInt.reply({ content: `❌ レイズ額が未払いです。最低 ${gameState.requiredBet} コインまでベットしてください`, flags: 64});
-        await btnInt.reply({ content: "コールしました！", flags: 64});
+        await btnInt.reply({ content: "📞 コールしました！", flags: 64});
         await botTurn(gameState, client, btnInt, combinedPath, interaction, collector);
       }
 
@@ -232,7 +232,7 @@ async function botTurn(gameState, client, btnInt, combinedPath, interaction, col
   if (decision === "raise") {
     const raiseAmount = Math.floor(1000 + Math.random() * 9000);
     gameState.requiredBet += raiseAmount;
-    await interaction.followUp({ content: `🤖 はレイズしました！ (+${raiseAmount}コイン)` });
+    await interaction.followUp({ content: `🤖 はレイズしました！ (${raiseAmount} コイン)` });
   } else {
     await interaction.followUp({ content: `🤖 はコールしました。` });
   }
