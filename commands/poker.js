@@ -298,7 +298,7 @@ async function finalizeGame(gameState, client, combinedPath, interaction, forced
       finalAmount = Math.floor(partA + partB);
     }
 
-    const lossMultiplier = 1.8; // ← 負けの時はこれだけ多く失う
+    const lossMultiplier = 3; // ← 負けの時はこれだけ多く失う
     let msg = "";
 
     if (winner === "player") {

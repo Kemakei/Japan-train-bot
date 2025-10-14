@@ -291,67 +291,106 @@ async function proceedToNextStage(gameState, client, combinedPath, interaction, 
   }
 }
 
+// --- 手札強さ評価（役考慮版） ---
+function evaluateHandStrength(hand) {
+  const rankValue = { "2":2,"3":3,"4":4,"5":5,"6":6,"7":7,"8":8,"9":9,"T":10,"J":11,"Q":12,"K":13,"A":14 };
+  const ranks = hand.map(c => c[0]);
+  const suits = hand.map(c => c[1]);
+
+  let score = 0;
+
+  // ランク合計
+  for(const r of ranks) score += rankValue[r] || 0;
+
+  // ペア
+  const rankCounts = {};
+  for(const r of ranks) rankCounts[r] = (rankCounts[r]||0)+1;
+  if(Object.values(rankCounts).includes(2)) score += 20;
+
+  // ストレート（2枚なので隣接していればストレート扱い）
+  const values = ranks.map(r => rankValue[r]).sort((a,b)=>a-b);
+  if(values[1] - values[0] === 1) score += 30;
+
+  // フラッシュ（同スート）
+  if(suits[0] === suits[1]) score += 10;
+
+  // 正規化 0〜1
+  const minScore = 4;   // 最低 2+2
+  const maxScore = 28 + 20 + 30 + 10; // 最大 A+A + ペア + ストレート + フラッシュ
+  const normalized = (score - minScore) / (maxScore - minScore);
+  return Math.max(0, Math.min(1, normalized));
+}
+
+// --- 0〜1 を 77〜200 に変換 ---
+function botStrength77to200(normStrength) {
+  const min = 77;
+  const max = 200;
+  return Math.round(min + normStrength * (max - min));
+}
+
+// --- プレイヤー勝利時報酬倍率計算（2〜5倍） ---
+function calculatePlayerReward(baseBet, botStrength) {
+  const minStrength = 77;
+  const maxStrength = 200;
+  const minMultiplier = 2;
+  const maxMultiplier = 5;
+
+  const norm = (botStrength - minStrength) / (maxStrength - minStrength);
+  const multiplier = minMultiplier + norm * (maxMultiplier - minMultiplier);
+  return Math.round(baseBet * multiplier);
+}
+
 // --- 勝敗判定 ---
-async function finalizeGame(gameState, client, combinedPath, interaction, forcedWinner=null){
-  const pythonArgs=[pythonPath,...gameState.playerHand,...gameState.botHand,"1",combinedPath];
-  const proc=spawn(pythonCmd,pythonArgs);
-  let stdout="";
-  proc.stdout.on("data",d=>stdout+=d.toString());
-  proc.stderr.on("data",d=>console.error("Python stderr:",d.toString()));
-  proc.on("close",async code=>{
-    const userId=interaction.user.id;
-    if(code!==0) return interaction.followUp({content:"❌ 勝敗判定エラー", flags:64});
-    const [winner]=forcedWinner?[forcedWinner]:stdout.trim().split(",").map(s=>s.trim());
-    const bet = Math.max(1, gameState.playerBet || 1);
-    const botStrength = calcBotStrength(bet);
+export async function finalizeGame(gameState, client, combinedPath, interaction, forcedWinner = null) {
+  const pythonArgs = [pythonPath, ...gameState.playerHand, ...gameState.botHand, "1", combinedPath];
+  const proc = spawn(pythonCmd, pythonArgs);
+
+  let stdout = "";
+  proc.stdout.on("data", d => stdout += d.toString());
+  proc.stderr.on("data", d => console.error("Python stderr:", d.toString()));
+
+  proc.on("close", async code => {
+    const userId = interaction.user.id;
+    if (code !== 0) return interaction.followUp({ content: "❌ 勝敗判定エラー", flags: 64 });
+
+    const [winner] = forcedWinner ? [forcedWinner] : stdout.trim().split(",").map(s => s.trim());
+    const baseBet = Math.max(1, gameState.playerBet || 1);
+
+    const botNorm = evaluateHandStrength(gameState.botHand);
+    const botStrength = botStrength77to200(botNorm);
 
     let msg = "";
+    let playerChange = 0;
 
     if (winner === "player") {
-      const gain = Math.floor(bet * botStrength);
-      await client.updateCoins(userId, gain);
-      msg = `🎉 勝ち！ +${gain} 金コイン（Bot強さ×${botStrength.toFixed(2)}）`;
+      playerChange = calculatePlayerReward(baseBet, botStrength);
+      await client.updateCoins(userId, playerChange);
+      msg = `🎉 勝ち！ +${playerChange} 金コイン（Bot強さ×${botStrength}）`;
     } else if (winner === "bot") {
-      const loss = Math.floor(bet * (6 - botStrength));
-      await client.updateCoins(userId, -loss);
+      playerChange = -baseBet * 5;
+      await client.updateCoins(userId, playerChange);
       const current = await client.getCoins(userId);
       if (current < 0) await client.setCoins(userId, 0);
-      msg = `💀 負け！ -${loss} 金コイン（Bot強さ×${botStrength.toFixed(2)}）`;
+      msg = `💀 負け！ -${-playerChange} 金コイン`;
     } else {
-      const refund = Math.floor(bet / 2);
+      const refund = Math.floor(baseBet / 2);
       await client.updateCoins(userId, refund);
       msg = `🤝 引き分け！ +${refund} 金コイン返却`;
     }
 
-    await generateImage(gameState,5,combinedPath);
+    await generateImage(gameState, 5, combinedPath);
     const file = new AttachmentBuilder(combinedPath);
     const currentCoins = await client.getCoins(userId);
-    await interaction.editReply({content:`${msg}\n🤖 Bot手札: ${gameState.botHand.join(" ")}\n現在の金コイン: ${currentCoins}`, files:[file], components:[]});
-    setTimeout(()=>{try{fs.unlinkSync(combinedPath);}catch{}},5000);
+    await interaction.editReply({
+      content: `${msg}\n🤖 Bot手札: ${gameState.botHand.join(" ")}\n現在の金コイン: ${currentCoins}`,
+      files: [file],
+      components: []
+    });
+
+    setTimeout(() => { try { fs.unlinkSync(combinedPath); } catch {} }, 5000);
   });
 }
 
-// --- 手札強さ評価 ---
-function evaluateHandStrength(hand){
-  const ranks="23456789TJQKA";
-  let score=0;
-  const rankCounts={};
-  const suits={};
-  for(const card of hand){
-    const rank=card[0];
-    const suit=card[1];
-    rankCounts[rank]=(rankCounts[rank]||0)+1;
-    suits[suit]=(suits[suit]||0)+1;
-    score+=ranks.indexOf(rank);
-  }
-  const pairs=Object.values(rankCounts).filter(v=>v===2).length;
-  const trips=Object.values(rankCounts).filter(v=>v===3).length;
-  const flush=Object.values(suits).some(v=>v>=4);
-  if(pairs) score+=10*pairs;
-  if(trips) score+=25;
-  if(flush) score+=30;
-  return Math.min(1,score/120);
-}
 
 // --- 画像生成 ---
 async function generateImage(gameState, revealCount, combinedPath) {
