@@ -115,7 +115,7 @@ export async function execute(interaction) {
     new ButtonBuilder().setCustomId("bet10000").setLabel("ベット +10000").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId("customBet").setLabel("💬 ベット指定").setStyle(ButtonStyle.Secondary)
   );
-  
+
   const file = new AttachmentBuilder(combinedPath);
   await interaction.editReply({ content:`🎲 あなたの手札です。現在のベット: ${bet} 金コイン`, files:[file], components:[row] });
 
@@ -192,17 +192,29 @@ export async function execute(interaction) {
   });
 }
 
-// --- Botターン ---
+// --- Botターン（手札強さに応じて積極的にレイズ） ---
 async function botTurn(gameState, client, btnInt, combinedPath, interaction, collector){
-  const botNorm = evaluateHandStrength(gameState.botHand);
-  let decision = Math.random()<0.5?"call":"raise";
-  if(decision==="raise"){
-    const raiseAmount = Math.floor(1000+Math.random()*9000);
-    gameState.requiredBet+=raiseAmount;
-    await interaction.followUp({content:`🤖 はレイズしました！ (${raiseAmount} 金コイン)`});
-  }else{
+  const botStrength = evaluateHandStrength(gameState.botHand); // 0〜1で強さ
+
+  // 手札強さに応じてレイズ確率（0.2〜0.9）
+  const raiseProb = 0.2 + 0.7 * botStrength; 
+  let decision = Math.random() < raiseProb ? "raise" : "call";
+
+  // ベット額に応じたレイズ額を計算
+  function calcRaiseAmount(currentBet, strength){
+    const minRaise = Math.max(1, Math.floor(currentBet * 0.05 * (1 + strength)));
+    const maxRaise = Math.max(1, Math.floor(currentBet * 0.15 * (1 + strength)));
+    return Math.floor(minRaise + Math.random() * (maxRaise - minRaise + 1));
+  }
+
+  if(decision === "raise") {
+    const raiseAmount = calcRaiseAmount(gameState.requiredBet, botStrength);
+    gameState.requiredBet += raiseAmount;
+    await interaction.followUp({content:`🤖 はレイズしました！ (+${raiseAmount} 金コイン)`});
+  } else {
     await interaction.followUp({content:`🤖 はコールしました。`});
   }
+
   await proceedToNextStage(gameState, client, combinedPath, interaction, collector);
 }
 
