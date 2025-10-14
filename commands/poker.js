@@ -46,7 +46,6 @@ export async function execute(interaction) {
   ongoingGames.set(gameKey, true);
   await interaction.deferReply();
 
-  // --- Botの手札をベット額に応じて調整 ---
   function drawBotHand(deck, bet) {
     const maxBet = 100000;
     const betRatio = Math.min(1, bet / maxBet);
@@ -73,7 +72,6 @@ export async function execute(interaction) {
     return bestHand;
   }
 
-  // --- デッキ構築 ---
   const suits = ["S", "H", "D", "C"];
   const ranks = ["2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"];
   const deck = [];
@@ -124,7 +122,6 @@ export async function execute(interaction) {
       const userCoins = await client.getCoins(userId);
       gameState.hasActed = true;
 
-      // --- 固定ベット ---
       if (btnInt.customId.startsWith("bet")) {
         const add = btnInt.customId === "bet1000" ? 1000 : 10000;
         if (add > userCoins)
@@ -146,7 +143,6 @@ export async function execute(interaction) {
         return;
       }
 
-      // --- カスタムベット ---
       if (btnInt.customId === "customBet") {
         const modal = new ModalBuilder().setCustomId("customBetModal").setTitle("ベット金額を入力");
         const input = new TextInputBuilder()
@@ -180,7 +176,6 @@ export async function execute(interaction) {
         return;
       }
 
-      // --- フォールド ---
       if (btnInt.customId === "fold") {
         gameState.active = false;
         collector.stop("folded");
@@ -192,7 +187,6 @@ export async function execute(interaction) {
         return;
       }
 
-      // --- コール ---
       if (btnInt.customId === "call") {
         if (gameState.playerBet < gameState.requiredBet)
           return btnInt.reply({ content: `❌ レイズ額が未払いです。最低 ${gameState.requiredBet} コインまでベットしてください`, flags: 64});
@@ -208,13 +202,18 @@ export async function execute(interaction) {
     }
   });
 
+  // ------------------- collector 終了処理（execute 内） -------------------
   collector.on("end", async (_, reason) => {
     ongoingGames.delete(gameKey);
+
     if (!gameState.hasActed) {
       await client.updateCoins(userId, gameState.playerBet);
       await interaction.editReply({ content: `⌛ タイムアウト。ベットを返却しました。`, components: [] });
-      setTimeout(() => { try { fs.unlinkSync(combinedPath); } catch {} }, 5000);
+    } else if (reason === "completed") {
+      await finalizeGame(gameState, client, combinedPath, interaction);
     }
+
+    setTimeout(() => { try { fs.unlinkSync(combinedPath); } catch {} }, 5000);
   });
 }
 
@@ -259,24 +258,6 @@ async function proceedToNextStage(gameState, client, combinedPath, interaction, 
     collector.stop("completed"); // 勝敗判定は collector.end で行う
   }
 }
-
-// --- collector 終了時処理 ---
-collector.on("end", async (_, reason) => {
-  ongoingGames.delete(gameKey);
-
-  if (!gameState.hasActed) {
-    // タイムアウト時はベット返却
-    await client.updateCoins(userId, gameState.playerBet);
-    await interaction.editReply({ content: `⌛ タイムアウト。ベットを返却しました。`, components: [] });
-  } else if (reason === "completed") {
-    // 勝敗判定
-    await finalizeGame(gameState, client, combinedPath, interaction);
-  }
-
-  // 画像削除
-  setTimeout(() => { try { fs.unlinkSync(combinedPath); } catch {} }, 5000);
-});
-
 
 // --- Bot 強さ 0〜1 → 77〜200 に変換 ---
 function botStrength77to200(normStrength) {
