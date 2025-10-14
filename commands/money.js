@@ -2,27 +2,53 @@ import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 
 export const data = new SlashCommandBuilder()
   .setName('money')
-  .setDescription('あなたの所持金等を確認します');
+  .setDescription('あなたの所持金等を確認します')
+  .addUserOption(option =>
+    option.setName('user')
+      .setDescription('確認したいユーザー')
+      .setRequired(false) // 空白なら自分
+  );
 
 // -------------------- 数字フォーマット関数 --------------------
 function formatCoins(amount) {
-  if (amount >= 1_0000_0000_0000) return Math.floor(amount / 1_0000_0000_0000) + '兆' + (amount % 1_0000_0000_0000 !== 0 ? (amount % 1_0000_0000_0000 / 1_0000_0000_000).toFixed(1) + '兆' : '');
-  if (amount >= 1_0000_0000) return Math.floor(amount / 1_0000_0000) + '億' + (amount % 1_0000_0000 !== 0 ? (amount % 1_0000_0000 / 1_0000_0000).toFixed(1) + '億' : '');
-  if (amount >= 1_0000) return Math.floor(amount / 1_0000) + '万' + (amount % 1_0000 !== 0 ? (amount % 1_0000 / 1_0000).toFixed(1) + '万' : '');
-  return amount.toString();
+  let result = '';
+  if (amount >= 1_0000_0000_0000) { 
+    const cho = Math.floor(amount / 1_0000_0000_0000);
+    amount %= 1_0000_0000_0000;
+    result += `${cho}兆`;
+  }
+  if (amount >= 1_0000_0000) { 
+    const oku = Math.floor(amount / 1_0000_0000);
+    amount %= 1_0000_0000;
+    result += `${oku}億`;
+  }
+  if (amount >= 1_0000) { 
+    const man = Math.floor(amount / 1_0000);
+    amount %= 1_0000;
+    result += `${man}万`;
+  }
+  if (amount > 0) { 
+    result += `${amount}`;
+  }
+  return result + 'コイン';
 }
 
 export async function execute(interaction) {
   try {
-    const userId = interaction.user.id;
     const client = interaction.client;
+    // メンションがある場合はそのID、なければ自分
+    const targetUser = interaction.options.getUser('user') || interaction.user;
+    const userId = targetUser.id;
 
     // -------------------- ユーザーデータ取得 --------------------
     const userDataDoc = await client.coinsCol.findOne({ userId });
     const coins = userDataDoc?.coins || 0;
     const VIPCoins = userDataDoc?.VIPCoins || 0;
     const stocks = userDataDoc?.stocks || 0;
-    const lotteryCount = userDataDoc?.lotteryCount || 0;
+
+    // -------------------- 宝くじ保有枚数取得 --------------------
+    const lotteryDoc = await client.lotteryCol.findOne({ userId }, { projection: { purchases: 1 } });
+    const lotteryCount = lotteryDoc?.purchases?.length || 0;
 
     // -------------------- ヘッジ契約確認 --------------------
     const hedgeDoc = await client.getHedge(userId);
@@ -51,25 +77,25 @@ export async function execute(interaction) {
     const loans = await client.db.collection("loans").find({ userId, paid: false }).toArray();
     let totalDebt = 0;
     let loanDetails = '';
-    const now = Date.now();
 
     if (loans.length > 0) {
       for (const loan of loans) {
         totalDebt += loan.totalDue;
-        loanDetails += `\n- 借入: ${formatCoins(loan.principal)} コイン | 利息込: ${formatCoins(loan.totalDue)} コイン | 日数: ${loan.daysPassed} 日 | 期限: <t:${Math.floor(loan.dueTime/1000)}:D>`;
+        loanDetails += `\n- 借入: ${formatCoins(loan.principal)} | 利息込: ${formatCoins(loan.totalDue)} | 日数: ${loan.daysPassed} 日 | 期限: <t:${Math.floor(loan.dueTime/1000)}:D>`;
       }
     }
 
     // -------------------- Embed作成 --------------------
     const embed = new EmbedBuilder()
       .setColor('Green')
+      .setTitle(`${targetUser.tag} の所持金`)
       .setDescription(
-        `**あなたの所持金: ${formatCoins(coins)} コイン**` +
-        `\n**金コイン: ${formatCoins(VIPCoins)} コイン**` +
+        `**所持金: ${formatCoins(coins)}**` +
+        `\n**金コイン: ${formatCoins(VIPCoins)}**` +
         `\n**保有株数: ${stocks} 株**` +
         `\n**宝くじ保有枚数: ${lotteryCount} 枚**` +
-        (hedgeAccumulated > 0 ? `\n**契約中の保険金: ${formatCoins(hedgeAccumulated)} コイン（次回加算済み）**` : '') +
-        (totalDebt > 0 ? `\n**借金合計: ${formatCoins(totalDebt)} コイン**${loanDetails}` : '')
+        (hedgeAccumulated > 0 ? `\n**契約中の保険金: ${formatCoins(hedgeAccumulated)}（次回加算済み）**` : '') +
+        (totalDebt > 0 ? `\n**借金合計: ${formatCoins(totalDebt)}**${loanDetails}` : '')
       );
 
     await interaction.reply({ embeds: [embed] });

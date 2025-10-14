@@ -4,6 +4,30 @@ export const data = new SlashCommandBuilder()
   .setName('rank')
   .setDescription('サーバー内のコインランキングを表示します');
 
+// -------------------- 数字フォーマット関数 --------------------
+function formatCoins(amount) {
+  let result = '';
+  if (amount >= 1_0000_0000_0000) { 
+    const cho = Math.floor(amount / 1_0000_0000_0000);
+    amount %= 1_0000_0000_0000;
+    result += `${cho}兆`;
+  }
+  if (amount >= 1_0000_0000) { 
+    const oku = Math.floor(amount / 1_0000_0000);
+    amount %= 1_0000_0000;
+    result += `${oku}億`;
+  }
+  if (amount >= 1_0000) { 
+    const man = Math.floor(amount / 1_0000);
+    amount %= 1_0000;
+    result += `${man}万`;
+  }
+  if (amount > 0) { 
+    result += `${amount}`;
+  }
+  return result + 'コイン';
+}
+
 export async function execute(interaction, { client }) {
   const guild = interaction.guild;
   if (!guild) return await interaction.reply({ content: '❌ ギルド情報が取得できません', flags: 64 });
@@ -45,14 +69,14 @@ export async function execute(interaction, { client }) {
     let description = '';
     for (let i = 0; i < top10.length; i++) {
       const { username, coins } = top10[i];
-      description += `**${i + 1}. ${username}** - 💰 ${coins} コイン\n`;
+      description += `**${i + 1}. ${username}** - 💰 ${formatCoins(coins)}\n`;
     }
 
     // 自分の順位も表示
     const userIndex = ranking.findIndex(r => r.userId === interaction.user.id);
     if (userIndex !== -1 && userIndex >= 10) {
       const { coins } = ranking[userIndex];
-      description += `\n... \n**${userIndex + 1}. ${interaction.user.tag}** - 💰 ${coins} コイン`;
+      description += `\n... \n**${userIndex + 1}. ${interaction.user.tag}** - 💰 ${formatCoins(coins)}`;
     }
 
     embed.setDescription(description);
