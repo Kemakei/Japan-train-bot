@@ -1,74 +1,120 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
-import { getNextDrawId } from "../utils/draw.js";
+import { getLatestDrawId } from "../utils/draw.js";
 
 export const data = new SlashCommandBuilder()
   .setName("takarakuji_get")
-  .setDescription("購入した宝くじの結果を確認します");
+  .setDescription("購入した宝くじの当選結果を確認します");
 
 export async function execute(interaction) {
   const userId = interaction.user.id;
-  const { lotteryCol, db, updateBalance, publishedDrawIds } = interaction.client;
+  const { lotteryCol, updateCoins, getCoins, db } = interaction.client;
 
-  const userData = await lotteryCol.findOne({ userId });
-  if (!userData || !userData.purchases?.length) {
-    return interaction.reply({ content: "❌ 購入履歴がありません。", ephemeral: true });
+  await interaction.deferReply();
+
+  const purchasesDoc = await lotteryCol.findOne({ userId }, { projection: { purchases: 1 } });
+  const purchases = purchasesDoc?.purchases || [];
+
+  if (purchases.length === 0) {
+    return interaction.followUp({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("❌ 購入履歴なし")
+          .setDescription("現在、あなたの購入履歴はありません。")
+          .setColor(0xff0000)
+      ],
+      flags: 64
+    });
   }
 
-  const purchases = userData.purchases;
-  const publicLines = [];
-  const unpublishedLines = [];
-  let hadAnyWinPublished = false;
+  const now = new Date();
+  const latestDrawId = getLatestDrawId(now);
+
+  const drawResultsArr = await db.collection("drawResults").find().toArray();
+  const publishedDrawIds = new Set(drawResultsArr.map(r => r.drawId));
+
   let totalPrize = 0;
-  const newPurchases = [];
+  let winCount = 0;
+  const publicLines = [];
+  const remainingPurchases = [];
 
   for (const p of purchases) {
-    const isPublished = p.drawId && publishedDrawIds.has(p.drawId);
+    const isUnpublished = !p.drawId || !publishedDrawIds.has(p.drawId);
 
-    if (!isPublished) {
-      newPurchases.push(p);
+    if (isUnpublished) {
+      remainingPurchases.push(p);
       continue;
     }
 
-    if (!p.checked) {
-      p.checked = true;
+    if (!p.checked && p.isWin) {
+      totalPrize += p.prize;
+      winCount++;
 
-      if (p.isWin) {
-        hadAnyWinPublished = true;
-        totalPrize += p.prize || 0;
-        if (publicLines.length < 500) {
-          publicLines.push(
-            `🎟 ${p.number}${p.letter} → 🏆 ${p.rank}等 💰 ${Number(p.prize || 0).toLocaleString()}コイン獲得！`
-          );
-        }
-      } else if (publicLines.length < 500) {
-        publicLines.push(`🎟 ${p.number}${p.letter} → ✖ 残念、外れ...`);
+      if (publicLines.length < 100) {
+        publicLines.push(
+          `🎟 ${p.number}${p.letter} → 🏆 ${p.rank}等 💰 ${p.prize.toLocaleString()}コイン獲得！`
+        );
       }
+      // チェック済みとして削除対象にするので remainingPurchases には追加しない
+      continue;
     }
+
+    remainingPurchases.push(p);
   }
 
-  if (unpublishedLines.length === 0 && publicLines.length === 0) {
-    return interaction.reply({ content: "📭 当選結果はまだ発表されていません。", ephemeral: true });
+  if (totalPrize > 0) {
+    await updateCoins(userId, totalPrize);
   }
 
-  await lotteryCol.updateOne(
-    { userId },
-    { $pull: { purchases: { checked: true } } } // 確認済みを削除
-  );
-
-  if (hadAnyWinPublished) {
-    await updateBalance(userId, totalPrize);
-  }
-
-  const embed = new EmbedBuilder()
-    .setTitle("🎟 宝くじ結果")
-    .setDescription(publicLines.join("\n") || "📭 当選結果なし")
-    .setColor(hadAnyWinPublished ? 0xffd700 : 0x00bfff)
-    .setFooter({ text: hadAnyWinPublished ? `💰 獲得合計: ${totalPrize.toLocaleString()}コイン` : "またの挑戦を！" });
-
-  await interaction.reply({ embeds: [embed], ephemeral: false });
-
-  const updated = await lotteryCol.findOne({ userId });
-  if (!updated?.purchases?.length) {
+  // DBの購入履歴を更新（チェック済みの当たりチケットは削除）
+  if (remainingPurchases.length > 0) {
+    await lotteryCol.updateOne(
+      { userId },
+      { $set: { purchases: remainingPurchases } },
+      { upsert: true }
+    );
+  } else {
+    // 購入履歴が空になったらユーザー自体を削除
     await lotteryCol.deleteOne({ userId });
+  }
+
+  const coins = await getCoins(userId);
+  const embedList = [];
+
+  if (publicLines.length > 0) {
+    const embed = new EmbedBuilder()
+      .setTitle("🎉 当選結果")
+      .setDescription(publicLines.join("\n"))
+      .setColor(0xffd700)
+      .setFooter({
+        text: `🎟 当選チケット: ${winCount}${winCount > 100 ? " (最初の100枚のみ表示)" : ""} | 💰 合計当選金額: ${totalPrize.toLocaleString()}コイン | 所持金: ${coins.toLocaleString()}コイン`
+      });
+
+    embedList.push(embed);
+  }
+
+  const unpublishedCount = purchases.filter(p => !p.drawId || !publishedDrawIds.has(p.drawId)).length;
+  if (unpublishedCount > 0 && publicLines.length === 0) {
+    embedList.push(
+      new EmbedBuilder()
+        .setTitle("⏳ 未公開の抽選")
+        .setDescription(`未公開チケット: ${unpublishedCount.toLocaleString()}枚`)
+        .setColor(0xaaaaaa)
+    );
+  }
+
+  if (publicLines.length === 0 && unpublishedCount === 0) {
+    embedList.push(
+      new EmbedBuilder()
+        .setTitle("📭 当選結果なし")
+        .setDescription(
+          `当選したチケットはありませんでした。\n` +
+            `合計当選金額: ${totalPrize.toLocaleString()}コイン\n所持金: ${coins.toLocaleString()}コイン`
+        )
+        .setColor(0x888888)
+    );
+  }
+
+  for (const embed of embedList) {
+    await interaction.followUp({ embeds: [embed] });
   }
 }

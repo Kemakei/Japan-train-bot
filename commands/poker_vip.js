@@ -111,8 +111,9 @@ export async function execute(interaction) {
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("call").setLabel("コール").setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId("fold").setLabel("フォールド").setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId("bet1000").setLabel("ベット +1000").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("bet10000").setLabel("ベット +10000").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("bet1").setLabel("ベット +1").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("bet10").setLabel("ベット +10").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("bet100").setLabel("ベット +100").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId("customBet").setLabel("💬 ベット指定").setStyle(ButtonStyle.Secondary)
   );
 
@@ -129,7 +130,7 @@ export async function execute(interaction) {
 
       // 固定ベット
       if(btnInt.customId.startsWith("bet")){
-        const add = btnInt.customId==="bet1000"?1000:10000;
+      const addMap = { bet1: 1, bet10: 10, bet100: 100 };
         if(add>userCoins) return btnInt.reply({content:"❌ 金コインが足りません！", flags:64});
         gameState.playerBet+=add;
         gameState.requiredBet=Math.max(gameState.requiredBet, gameState.playerBet);
