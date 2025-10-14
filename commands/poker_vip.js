@@ -113,7 +113,6 @@ const row = new ActionRowBuilder().addComponents(
   new ButtonBuilder().setCustomId("fold").setLabel("フォールド").setStyle(ButtonStyle.Danger),
   new ButtonBuilder().setCustomId("bet1").setLabel("ベット +1").setStyle(ButtonStyle.Primary),
   new ButtonBuilder().setCustomId("bet10").setLabel("ベット +10").setStyle(ButtonStyle.Primary),
-  new ButtonBuilder().setCustomId("bet100").setLabel("ベット +100").setStyle(ButtonStyle.Primary),
   new ButtonBuilder().setCustomId("customBet").setLabel("💬 ベット指定").setStyle(ButtonStyle.Secondary)
 );
 
@@ -134,7 +133,6 @@ collector.on("collect", async btnInt => {
       switch(btnInt.customId){
         case "bet1": add = 1; break;
         case "bet10": add = 10; break;
-        case "bet100": add = 100; break;
       }
 
       if(add > userCoins) return btnInt.reply({ content: "❌ 金コインが足りません！", flags: 64 });
@@ -198,7 +196,7 @@ collector.on("collect", async btnInt => {
     gameState.playerBet += callAmount;
     }
 
-    await btnInt.reply({ content: "📞 コールしました！", flags: 64 });
+    await btnInt.reply({ content: "コールしました！", flags: 64 });
 
     await generateImage(gameState, 3, combinedPath);
 
