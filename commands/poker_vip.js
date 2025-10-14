@@ -109,13 +109,13 @@ export async function execute(interaction) {
   await generateImage(gameState,3,combinedPath);
 
   const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId("call").setLabel("コール").setStyle(ButtonStyle.SUCCESS),
-    new ButtonBuilder().setCustomId("fold").setLabel("フォールド").setStyle(ButtonStyle.DANGER),
-    new ButtonBuilder().setCustomId("bet1000").setLabel("ベット +1000").setStyle(ButtonStyle.PRIMARY),
-    new ButtonBuilder().setCustomId("bet10000").setLabel("ベット +10000").setStyle(ButtonStyle.PRIMARY),
-    new ButtonBuilder().setCustomId("customBet").setLabel("💬 ベット指定").setStyle(ButtonStyle.SECONDARY)
+    new ButtonBuilder().setCustomId("call").setLabel("コール").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId("fold").setLabel("フォールド").setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId("bet1000").setLabel("ベット +1000").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("bet10000").setLabel("ベット +10000").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("customBet").setLabel("💬 ベット指定").setStyle(ButtonStyle.Secondary)
   );
-
+  
   const file = new AttachmentBuilder(combinedPath);
   await interaction.editReply({ content:`🎲 あなたの手札です。現在のベット: ${bet} 金コイン`, files:[file], components:[row] });
 
