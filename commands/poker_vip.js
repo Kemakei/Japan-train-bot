@@ -89,8 +89,9 @@ export async function execute(interaction) {
   const playerHand = deck.splice(0,5);
   const botHand = drawBotHand(deck, bet);
 
+  // ★ 画像干渉防止のためユニークパス
   const timestamp = Date.now();
-  const combinedPath = path.resolve(__dirname, `../python/images/combined_${userId}_${timestamp}.png`);
+  const combinedPath = path.resolve(__dirname, `../python/images/poker_vip_${userId}_${timestamp}.png`);
 
   const gameState = {
     turn:0,
@@ -115,7 +116,7 @@ export async function execute(interaction) {
     new ButtonBuilder().setCustomId("customBet").setLabel("💬 ベット指定").setStyle(ButtonStyle.SECONDARY)
   );
 
-  const file = new MessageAttachment(combinedPath);
+  const file = new AttachmentBuilder(combinedPath);
   await interaction.editReply({ content:`🎲 あなたの手札です。現在のベット: ${bet} 金コイン`, files:[file], components:[row] });
 
   const filter = i => i.user.id === userId;
@@ -209,7 +210,7 @@ async function botTurn(gameState, client, btnInt, combinedPath, interaction, col
 async function proceedToNextStage(gameState, client, combinedPath, interaction, collector){
   let revealCount = gameState.turn===0?3:gameState.turn===1?4:5;
   await generateImage(gameState,revealCount,combinedPath);
-  const file = new MessageAttachment(combinedPath);
+  const file = new AttachmentBuilder(combinedPath);
   await interaction.editReply({content:`🃏 ターン${gameState.turn+1} 終了。現在のベット: ${gameState.playerBet} 金コイン`, files:[file]});
   gameState.turn++;
   if(gameState.turn>=3){
@@ -230,32 +231,28 @@ async function finalizeGame(gameState, client, combinedPath, interaction, forced
     if(code!==0) return interaction.followUp({content:"❌ 勝敗判定エラー", flags:64});
     const [winner]=forcedWinner?[forcedWinner]:stdout.trim().split(",").map(s=>s.trim());
     const bet = Math.max(1, gameState.playerBet || 1);
-    const botStrength = calcBotStrength(bet); // 2〜5
+    const botStrength = calcBotStrength(bet);
 
     let msg = "";
 
     if (winner === "player") {
-    const gain = Math.floor(bet * botStrength);
-    await client.updateCoins(userId, gain);
-    msg = `🎉 勝ち！ +${gain} 金コイン（Bot強さ×${botStrength.toFixed(2)}）`;
+      const gain = Math.floor(bet * botStrength);
+      await client.updateCoins(userId, gain);
+      msg = `🎉 勝ち！ +${gain} 金コイン（Bot強さ×${botStrength.toFixed(2)}）`;
     } else if (winner === "bot") {
-    const loss = Math.floor(bet * (6 - botStrength)); // 強いほど失う量は減る
-    await client.updateCoins(userId, -loss);
-
-    // 所持金が0未満になったら0に補正
-    const current = await client.getCoins(userId);
-    if (current < 0) await client.setCoins(userId, 0);
-
-    msg = `💀 負け！ -${loss} 金コイン（Bot強さ×${botStrength.toFixed(2)}）`;
+      const loss = Math.floor(bet * (6 - botStrength));
+      await client.updateCoins(userId, -loss);
+      const current = await client.getCoins(userId);
+      if (current < 0) await client.setCoins(userId, 0);
+      msg = `💀 負け！ -${loss} 金コイン（Bot強さ×${botStrength.toFixed(2)}）`;
     } else {
-    const refund = Math.floor(bet / 2);
-    await client.updateCoins(userId, refund);
-    msg = `🤝 引き分け！ +${refund} 金コイン返却`;
+      const refund = Math.floor(bet / 2);
+      await client.updateCoins(userId, refund);
+      msg = `🤝 引き分け！ +${refund} 金コイン返却`;
     }
 
-
     await generateImage(gameState,5,combinedPath);
-    const file = new MessageAttachment(combinedPath);
+    const file = new AttachmentBuilder(combinedPath);
     const currentCoins = await client.getCoins(userId);
     await interaction.editReply({content:`${msg}\n🤖 Bot手札: ${gameState.botHand.join(" ")}\n現在の金コイン: ${currentCoins}`, files:[file], components:[]});
     setTimeout(()=>{try{fs.unlinkSync(combinedPath);}catch{}},5000);
