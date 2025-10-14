@@ -41,45 +41,37 @@ export async function execute(interaction) {
   const initialCoins = await client.getCoins(userId);
   const bet = 1000;
   if (initialCoins < bet)
-    return interaction.reply({ content: "❌ コインが足りません！", ephemeral: true });
+    return interaction.reply({ content: "❌ コインが足りません！", flags: 64});
 
   ongoingGames.set(gameKey, true);
   await interaction.deferReply();
 
   // --- Botの手札をベット額に応じて調整 ---
-function drawBotHand(deck, bet) {
-  const maxBet = 100000; // 最大強化ベット額（ここ以上は最大強化）
-  const betRatio = Math.min(1, bet / maxBet); // 0〜1 に正規化
+  function drawBotHand(deck, bet) {
+    const maxBet = 100000;
+    const betRatio = Math.min(1, bet / maxBet);
+    const trials = Math.floor(10 + 990 * betRatio);
 
-  // trialsは10回〜最大1000回まで、ベット額に比例して増える
-  const trials = Math.floor(10 + 990 * betRatio);
+    let bestHand = null;
+    let bestStrength = -1;
 
-  let bestHand = null;
-  let bestStrength = -1;
-
-  for (let i = 0; i < trials; i++) {
-    // deckのコピーから5枚引く
-    const tempDeck = [...deck];
-    const hand = tempDeck.splice(0, 5);
-
-    // 手札の強さを評価
-    const strength = evaluateHandStrength(hand);
-
-    // 最も強い手札を更新
-    if (strength > bestStrength) {
-      bestStrength = strength;
-      bestHand = hand;
+    for (let i = 0; i < trials; i++) {
+      const tempDeck = [...deck];
+      const hand = tempDeck.splice(0, 5);
+      const strength = evaluateHandStrength(hand);
+      if (strength > bestStrength) {
+        bestStrength = strength;
+        bestHand = hand;
+      }
     }
-  }
 
-  // deck から bestHand のカードを除去（本物のデッキから引くため）
-  for (const card of bestHand) {
-    const index = deck.indexOf(card);
-    if (index !== -1) deck.splice(index, 1);
-  }
+    for (const card of bestHand) {
+      const index = deck.indexOf(card);
+      if (index !== -1) deck.splice(index, 1);
+    }
 
-  return bestHand;
-}
+    return bestHand;
+  }
 
   // --- デッキ構築 ---
   const suits = ["S", "H", "D", "C"];
@@ -136,13 +128,12 @@ function drawBotHand(deck, bet) {
       if (btnInt.customId.startsWith("bet")) {
         const add = btnInt.customId === "bet1000" ? 1000 : 10000;
         if (add > userCoins)
-          return btnInt.reply({ content: "❌ コインが足りません！", ephemeral: true });
+          return btnInt.reply({ content: "❌ コインが足りません！", flags: 64});
 
         gameState.playerBet += add;
         gameState.requiredBet = Math.max(gameState.requiredBet, gameState.playerBet);
         await client.updateCoins(userId, -add);
 
-        // ✅ メッセージ更新（リアルタイム反映）
         await interaction.editReply({
           content: `🎲 あなたの手札です。現在のベット: ${gameState.playerBet} コイン`,
           components: [btnInt.message.components[0]],
@@ -169,15 +160,14 @@ function drawBotHand(deck, bet) {
         if (!submitted) return;
         const betValue = Number(submitted.fields.getTextInputValue("betAmount"));
         if (isNaN(betValue) || betValue <= 0)
-          return submitted.reply({ content: "❌ 無効な金額です", ephemeral: true });
+          return submitted.reply({ content: "❌ 無効な金額です", flags: 64});
         if (betValue > userCoins)
-          return submitted.reply({ content: "❌ コインが足りません！", ephemeral: true });
+          return submitted.reply({ content: "❌ コインが足りません！", flags: 64});
 
         gameState.playerBet += betValue;
         gameState.requiredBet = Math.max(gameState.requiredBet, gameState.playerBet);
         await client.updateCoins(userId, -betValue);
 
-        // ✅ メッセージ更新（リアルタイム反映）
         await interaction.editReply({
           content: `🎲 あなたの手札です。現在のベット: ${gameState.playerBet} コイン`,
           components: [submitted.message.components[0]],
@@ -205,8 +195,8 @@ function drawBotHand(deck, bet) {
       // --- コール ---
       if (btnInt.customId === "call") {
         if (gameState.playerBet < gameState.requiredBet)
-          return btnInt.reply({ content: `❌ レイズ額が未払いです。最低 ${gameState.requiredBet} コインまでベットしてください`, ephemeral: true });
-        await btnInt.reply({ content: "📞 コールしました！", ephemeral: true });
+          return btnInt.reply({ content: `❌ レイズ額が未払いです。最低 ${gameState.requiredBet} コインまでベットしてください`, flags: 64});
+        await btnInt.reply({ content: "📞 コールしました！", flags: 64});
         await botTurn(gameState, client, btnInt, combinedPath, interaction, collector);
       }
 
@@ -214,7 +204,7 @@ function drawBotHand(deck, bet) {
       console.error(err);
       ongoingGames.delete(gameKey);
       if (!btnInt.replied)
-        await btnInt.reply({ content: "❌ エラーが発生しました", ephemeral: true });
+        await btnInt.reply({ content: "❌ エラーが発生しました", flags: 64});
     }
   });
 
@@ -273,7 +263,15 @@ async function proceedToNextStage(gameState, client, combinedPath, interaction, 
   }
 }
 
-// --- 勝敗判定 ---
+// --- Bot 強さ 0〜1 → 77〜200 に変換 ---
+function botStrength77to200(normStrength) {
+  const min = 77;
+  const max = 200;
+  const val = Math.round(min + normStrength * (max - min));
+  return Math.max(min, Math.min(max, val));
+}
+
+// --- 勝敗判定（負け時に損失強化付き） ---
 async function finalizeGame(gameState, client, combinedPath, interaction, forcedWinner = null) {
   const pythonArgs = [pythonPath, ...gameState.playerHand, ...gameState.botHand, "1", combinedPath];
   const proc = spawn(pythonCmd, pythonArgs);
@@ -284,23 +282,40 @@ async function finalizeGame(gameState, client, combinedPath, interaction, forced
   proc.on("close", async (code) => {
     const userId = interaction.user.id;
     if (code !== 0)
-      return interaction.followUp({ content: "❌ 勝敗判定エラー", ephemeral: true });
+      return interaction.followUp({ content: "❌ 勝敗判定エラー", flags: 64});
 
     const [winner] = forcedWinner ? [forcedWinner] : stdout.trim().split(",").map((s) => s.trim());
+    const bet = Math.max(0, Number(gameState.playerBet || 0));
+    const botNorm = evaluateHandStrength(gameState.botHand);
+    const botStrength77 = botStrength77to200(botNorm);
+
+    // 勝ち時の計算
+    let finalAmount = 0;
+    if (bet <= 1_000_000) {
+      const multiplier = 1 + bet / 1_000_000;
+      finalAmount = Math.floor(bet * multiplier);
+    } else {
+      const tiny = 1e-12;
+      const denom = Math.max(tiny, bet * 0.0001);
+      const partA = (1_000_000 / denom) * 1_000_000;
+      const partB = bet * 0.01 * botStrength77;
+      finalAmount = Math.floor(partA + partB);
+    }
+
+    const lossMultiplier = 1.8; // ← 負けの時はこれだけ多く失う
     let msg = "";
-    const multiplier = Math.min(5, 1 + (gameState.playerBet / 125000));
-    const finalAmount = Math.floor(gameState.playerBet * multiplier);
 
     if (winner === "player") {
       await client.updateCoins(userId, finalAmount);
-      msg = `🎉 勝ち！ +${finalAmount} コイン（倍率 ${multiplier.toFixed(2)}x）`;
+      msg = `🎉 勝ち！ +${finalAmount} コイン（計算式適用）\nBot 強さ（77-200）: ${botStrength77}`;
     } else if (winner === "bot") {
-      await client.updateCoins(userId, -finalAmount);
-      msg = `💀 負け！ -${finalAmount} コイン（倍率 ${multiplier.toFixed(2)}x）`;
+      const loss = Math.floor(finalAmount * lossMultiplier);
+      await client.updateCoins(userId, -loss);
+      msg = `💀 負け！ -${loss} コイン（損失倍率 ${lossMultiplier}x）\nBot 強さ（77-200）: ${botStrength77}`;
     } else {
-      const refund = Math.floor(gameState.playerBet / 2);
+      const refund = Math.floor(bet / 2);
       await client.updateCoins(userId, refund);
-      msg = `🤝 引き分け！ +${refund} コイン返却`;
+      msg = `🤝 引き分け！ +${refund} コイン返却\nBot 強さ（77-200）: ${botStrength77}`;
     }
 
     await generateImage(gameState, 5, combinedPath);

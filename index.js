@@ -70,17 +70,20 @@ client.lastSentCopies = new Map();
 client.autoRoleMap = new Map();
 client.commands = new Collection();
 
-// -------------------- コイン・株管理（MongoDB版） --------------------
+// -------------------- コイン・株管理（MongoDB版 + VIPCoins追加） --------------------
+
+// 既存: ユーザーデータ取得
 client.getUserData = async (userId) => {
   const doc = await coinsCol.findOne({ userId });
-  return doc || { userId, coins: 0, stocks: 0 };
+  // VIPCoinsを未設定なら0で初期化
+  return doc || { userId, coins: 0, stocks: 0, VIPCoins: 0 };
 };
 
+// 既存: Coins
 client.getCoins = async (userId) => {
   const doc = await client.getUserData(userId);
   return doc.coins || 0;
 };
-
 client.setCoins = async (userId, amount) => {
   await coinsCol.updateOne(
     { userId },
@@ -88,7 +91,6 @@ client.setCoins = async (userId, amount) => {
     { upsert: true }
   );
 };
-
 client.updateCoins = async (userId, delta) => {
   await coinsCol.updateOne(
     { userId },
@@ -97,6 +99,7 @@ client.updateCoins = async (userId, delta) => {
   );
 };
 
+// 既存: Stocks
 client.updateStocks = async (userId, delta) => {
   await coinsCol.updateOne(
     { userId },
@@ -104,6 +107,29 @@ client.updateStocks = async (userId, delta) => {
     { upsert: true }
   );
 };
+
+// -------------------- 新規: VIPCoins --------------------
+client.getVIPCoins = async (userId) => {
+  const doc = await client.getUserData(userId);
+  return doc.VIPCoins || 0;
+};
+
+client.setVIPCoins = async (userId, amount) => {
+  await coinsCol.updateOne(
+    { userId },
+    { $set: { VIPCoins: amount } },
+    { upsert: true }
+  );
+};
+
+client.updateVIPCoins = async (userId, delta) => {
+  await coinsCol.updateOne(
+    { userId },
+    { $inc: { VIPCoins: delta } },
+    { upsert: true }
+  );
+};
+
 
 // -------------------- 株価管理（MongoDB版） --------------------
 let forceSign = 0; // -1 = 下げ強制, 1 = 上げ強制, 0 = ランダム
