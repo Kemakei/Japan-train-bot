@@ -261,17 +261,24 @@ async function botTurn(gameState, client, btnInt, combinedPath, interaction, col
 
 
 // --- ターン進行 ---
-async function proceedToNextStage(gameState, client, combinedPath, interaction, collector){
-  let revealCount = gameState.turn===0?3:gameState.turn===1?4:5;
-  await generateImage(gameState,revealCount,combinedPath);
+async function proceedToNextStage(gameState, client, combinedPath, interaction, collector) {
+  let revealCount = gameState.turn === 0 ? 3 : gameState.turn === 1 ? 4 : 5;
+  
+  await generateImage(gameState, revealCount, combinedPath);
   const file = new AttachmentBuilder(combinedPath);
-  await interaction.editReply({content:`🃏 ターン${gameState.turn+1} 終了。現在のベット: ${gameState.playerBet} 金コイン`, files:[file]});
-  gameState.turn++;
-  if(gameState.turn>=3){
+
+  await interaction.editReply({
+    content: `🃏 ターン${gameState.turn + 1} 終了。現在のベット: ${gameState.playerBet} 金コイン`,
+    files: [file]
+  });
+  if (gameState.turn >= 3) {
     collector.stop("completed");
     await finalizeGame(gameState, client, combinedPath, interaction);
+  } else {
+    gameState.turn++;
   }
 }
+
 
 // --- 勝敗判定 ---
 async function finalizeGame(gameState, client, combinedPath, interaction, forcedWinner=null){
@@ -336,14 +343,16 @@ function evaluateHandStrength(hand){
 }
 
 // --- 画像生成 ---
-async function generateImage(gameState,revealCount,combinedPath){
-  const args=[pythonPath,...gameState.playerHand,...gameState.botHand,revealCount===5&&gameState.turn>=2?"1":"0",combinedPath];
-  return new Promise((resolve,reject)=>{
-    const proc=spawn(pythonCmd,args);
-    let stderr="";
-    proc.stderr.on("data",d=>stderr+=d.toString());
-    proc.on("close",code=>{
-      if(code===0) resolve();
+async function generateImage(gameState, revealCount, combinedPath) {
+  const isRevealAll = gameState.turn >= 3;
+  const args = [pythonPath, ...gameState.playerHand, ...gameState.botHand, isRevealAll ? "1" : "0", combinedPath];
+
+  return new Promise((resolve, reject) => {
+    const proc = spawn(pythonCmd, args);
+    let stderr = "";
+    proc.stderr.on("data", d => stderr += d.toString());
+    proc.on("close", code => {
+      if (code === 0) resolve();
       else reject(new Error(`Python error (code ${code}): ${stderr}`));
     });
   });
