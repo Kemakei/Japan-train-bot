@@ -192,7 +192,7 @@ export async function execute(interaction) {
   });
 }
 
-// --- Botターン（手札強さに応じて積極的にレイズ） ---
+// --- Botターン（手札強さに応じて積極的にレイズ、小額ベット調整版） ---
 async function botTurn(gameState, client, btnInt, combinedPath, interaction, collector){
   const botStrength = evaluateHandStrength(gameState.botHand); // 0〜1で強さ
 
@@ -202,8 +202,13 @@ async function botTurn(gameState, client, btnInt, combinedPath, interaction, col
 
   // ベット額に応じたレイズ額を計算
   function calcRaiseAmount(currentBet, strength){
+    // currentBet が 1 のときは従来通り
+    if(currentBet === 1) return 1 + Math.floor(Math.random() * 2);
+
+    // 小額ベット調整（10コインで最大8くらいになるように）
     const minRaise = Math.max(1, Math.floor(currentBet * 0.05 * (1 + strength)));
-    const maxRaise = Math.max(1, Math.floor(currentBet * 0.15 * (1 + strength)));
+    const maxRaise = Math.max(minRaise + 1, Math.floor(currentBet * 0.15 * (1 + strength) * 1.5));
+
     return Math.floor(minRaise + Math.random() * (maxRaise - minRaise + 1));
   }
 
@@ -217,6 +222,7 @@ async function botTurn(gameState, client, btnInt, combinedPath, interaction, col
 
   await proceedToNextStage(gameState, client, combinedPath, interaction, collector);
 }
+
 
 // --- ターン進行 ---
 async function proceedToNextStage(gameState, client, combinedPath, interaction, collector){
