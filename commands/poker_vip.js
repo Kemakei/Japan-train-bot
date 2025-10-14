@@ -259,25 +259,43 @@ async function botTurn(gameState, client, btnInt, combinedPath, interaction, col
   await proceedToNextStage(gameState, client, combinedPath, interaction, collector);
 }
 
-
 // --- ターン進行 ---
 async function proceedToNextStage(gameState, client, combinedPath, interaction, collector) {
   let revealCount = gameState.turn === 0 ? 3 : gameState.turn === 1 ? 4 : 5;
-  
-  await generateImage(gameState, revealCount, combinedPath);
+  const isRevealAll = gameState.turn >= 3; // ターン3以降は全公開
+
+  await generateImage(gameState, isRevealAll ? 5 : revealCount, combinedPath);
   const file = new AttachmentBuilder(combinedPath);
 
   await interaction.editReply({
     content: `🃏 ターン${gameState.turn + 1} 終了。現在のベット: ${gameState.playerBet} 金コイン`,
     files: [file]
   });
-  if (gameState.turn >= 3) {
-    collector.stop("completed");
-    await finalizeGame(gameState, client, combinedPath, interaction);
-  } else {
-    gameState.turn++;
+
+  gameState.turn++; // ターンを進めるだけ
+
+  if (gameState.turn > 3) { 
+    collector.stop("completed"); // 勝敗判定は collector.end で行う
   }
 }
+
+// --- collector 終了時処理 ---
+collector.on("end", async (_, reason) => {
+  ongoingGames.delete(gameKey);
+
+  if (!gameState.hasActed) {
+    // タイムアウト時はベット返却
+    await client.updateCoins(userId, gameState.playerBet);
+    await interaction.editReply({ content: `⌛ タイムアウト。ベットを返却しました。`, components: [] });
+  } else if (reason === "completed") {
+    // 勝敗判定
+    await finalizeGame(gameState, client, combinedPath, interaction);
+  }
+
+  // 画像削除
+  setTimeout(() => { try { fs.unlinkSync(combinedPath); } catch {} }, 5000);
+});
+
 
 
 // --- 勝敗判定 ---
@@ -344,7 +362,7 @@ function evaluateHandStrength(hand){
 
 // --- 画像生成 ---
 async function generateImage(gameState, revealCount, combinedPath) {
-  const isRevealAll = gameState.turn >= 3;
+  const isRevealAll = gameState.turn >= 3; // ターン3以上は全公開
   const args = [pythonPath, ...gameState.playerHand, ...gameState.botHand, isRevealAll ? "1" : "0", combinedPath];
 
   return new Promise((resolve, reject) => {

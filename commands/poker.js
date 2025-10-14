@@ -196,7 +196,7 @@ export async function execute(interaction) {
       if (btnInt.customId === "call") {
         if (gameState.playerBet < gameState.requiredBet)
           return btnInt.reply({ content: `❌ レイズ額が未払いです。最低 ${gameState.requiredBet} コインまでベットしてください`, flags: 64});
-        await btnInt.reply({ content: "📞 コールしました！", flags: 64});
+        await btnInt.reply({ content: "コールしました！", flags: 64});
         await botTurn(gameState, client, btnInt, combinedPath, interaction, collector);
       }
 
@@ -232,7 +232,7 @@ async function botTurn(gameState, client, btnInt, combinedPath, interaction, col
   if (decision === "raise") {
     const raiseAmount = Math.floor(1000 + Math.random() * 9000);
     gameState.requiredBet += raiseAmount;
-    await interaction.followUp({ content: `🤖 はレイズしました！ (${raiseAmount} コイン)` });
+    await interaction.followUp({ content: `🤖 はレイズしました！ (+${raiseAmount}コイン)` });
   } else {
     await interaction.followUp({ content: `🤖 はコールしました。` });
   }
@@ -243,8 +243,9 @@ async function botTurn(gameState, client, btnInt, combinedPath, interaction, col
 // --- ターン進行 ---
 async function proceedToNextStage(gameState, client, combinedPath, interaction, collector) {
   let revealCount = gameState.turn === 0 ? 3 : gameState.turn === 1 ? 4 : 5;
-  
-  await generateImage(gameState, revealCount, combinedPath);
+  const isRevealAll = gameState.turn >= 3; // ターン3以降は全公開
+
+  await generateImage(gameState, isRevealAll ? 5 : revealCount, combinedPath);
   const file = new AttachmentBuilder(combinedPath);
 
   await interaction.editReply({
@@ -252,14 +253,30 @@ async function proceedToNextStage(gameState, client, combinedPath, interaction, 
     files: [file]
   });
 
-  // ターン4（0ベースで3）で勝敗判定
-  if (gameState.turn >= 3) {
-    collector.stop("completed");
-    await finalizeGame(gameState, client, combinedPath, interaction);
-  } else {
-    gameState.turn++;
+  gameState.turn++; // ターンを進めるだけ
+
+  if (gameState.turn > 3) { 
+    collector.stop("completed"); // 勝敗判定は collector.end で行う
   }
 }
+
+// --- collector 終了時処理 ---
+collector.on("end", async (_, reason) => {
+  ongoingGames.delete(gameKey);
+
+  if (!gameState.hasActed) {
+    // タイムアウト時はベット返却
+    await client.updateCoins(userId, gameState.playerBet);
+    await interaction.editReply({ content: `⌛ タイムアウト。ベットを返却しました。`, components: [] });
+  } else if (reason === "completed") {
+    // 勝敗判定
+    await finalizeGame(gameState, client, combinedPath, interaction);
+  }
+
+  // 画像削除
+  setTimeout(() => { try { fs.unlinkSync(combinedPath); } catch {} }, 5000);
+});
+
 
 // --- Bot 強さ 0〜1 → 77〜200 に変換 ---
 function botStrength77to200(normStrength) {
