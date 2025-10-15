@@ -48,7 +48,6 @@ await mongoClient.connect();
 const db = mongoClient.db("discordBot");
 const coinsCol = db.collection("coins"); // coins + stocks + trade_history
 const hedgeCol = db.collection("hedges");
-client.lotteryTickets = client.db.collection("lotteryTickets");
 
 // Discordクライアント初期化
 const client = new Client({
@@ -68,6 +67,7 @@ client.monitoredMessages = new Map();
 client.lastSentCopies = new Map();
 client.autoRoleMap = new Map();
 client.commands = new Collection();
+client.lotteryTickets = client.db.collection("lotteryTickets");
 
 // -------------------- コイン・株管理（MongoDB版 + VIPCoins追加） --------------------
 
