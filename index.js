@@ -48,7 +48,7 @@ await mongoClient.connect();
 const db = mongoClient.db("discordBot");
 const coinsCol = db.collection("coins"); // coins + stocks + trade_history
 const hedgeCol = db.collection("hedges");
-const lotteryCol = db.collection("lottery"); // 宝くじ購入履歴
+client.lotteryTickets = client.db.collection("lotteryTickets");
 
 // Discordクライアント初期化
 const client = new Client({
@@ -63,7 +63,6 @@ const client = new Client({
 // ★ Discordクライアントにくっつける
 client.coinsCol = coinsCol;
 client.hedgeCol = hedgeCol;
-client.lotteryCol = lotteryCol;
 client.db = db;
 client.monitoredMessages = new Map();
 client.lastSentCopies = new Map();
