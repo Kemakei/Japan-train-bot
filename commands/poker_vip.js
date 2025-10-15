@@ -280,10 +280,11 @@ async function proceedToNextStage(gameState, client, combinedPath, interaction, 
   const file = new AttachmentBuilder(combinedPath);
 
   await interaction.editReply({
-    content: `🃏 ターン${gameState.turn + 1} 終了。現在のベット: ${gameState.playerBet} コイン`,
-    files: [file],
-    components: []
+  content: `🃏 ターン${gameState.turn + 1} 終了。現在のベット: ${gameState.playerBet} コイン`,
+  files: [file],
+  components: gameState.turn < 3 ? [row] : [] // 最終ターン以外はボタンを残す
   });
+
 
   gameState.turn++;
 
