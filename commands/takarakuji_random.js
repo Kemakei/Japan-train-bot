@@ -1,33 +1,8 @@
-import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
-import { getNextDrawId } from "../utils/draw.js";
-
-// 当選判定（賞金と等級を返す）
-function judgeTicket(ticketNumber, ticketLetter, drawNumber, drawLetter) {
-  if (ticketNumber === drawNumber && ticketLetter === drawLetter) return { prize: 1000000000, rank: 1 };
-  if (ticketNumber === drawNumber) return { prize: 500000000, rank: 2 };
-  if (ticketNumber.slice(1) === drawNumber.slice(1) && ticketLetter === drawLetter) return { prize: 100000000, rank: 3 };
-  if (ticketNumber.slice(1) === drawNumber.slice(1)) return { prize: 10000000, rank: 4 };
-  if (ticketNumber.slice(2) === drawNumber.slice(2) && ticketLetter === drawLetter) return { prize: 5000000, rank: 5 };
-  if (ticketNumber.slice(2) === drawNumber.slice(2)) return { prize: 3000000, rank: 6 };
-  if (ticketNumber.slice(3) === drawNumber.slice(3) && ticketLetter === drawLetter) return { prize: 100000, rank: 7 };
-  if (ticketNumber.slice(3) === drawNumber.slice(3)) return { prize: 100000, rank: 8 };
-  if (ticketLetter === drawLetter) return { prize: 10000, rank: 9 };
-  if (ticketNumber.slice(4) === drawNumber.slice(4)) return { prize: 5000, rank: 10 };
-  return { prize: 0, rank: null };
-}
-
-export const data = new SlashCommandBuilder()
-  .setName("takarakuji_random")
-  .setDescription("宝くじをランダムで購入")
-  .addIntegerOption(opt =>
-    opt.setName("count")
-       .setDescription("購入枚数（1〜10000）")
-       .setRequired(true)
-  );
-
 export async function execute(interaction, { client }) {
   const userId = interaction.user.id;
   const count = Math.min(interaction.options.getInteger("count"), 10000);
+
+  await interaction.deferReply();
 
   const drawNumber = client.takarakuji.number;
   const drawLetter = client.takarakuji.letter;
@@ -59,14 +34,13 @@ export async function execute(interaction, { client }) {
   const coins = await client.getCoins(userId);
 
   if (coins < totalCost) {
-    return interaction.reply({ content: `❌ コイン不足 (${coins}/${totalCost})`, flags: 64 });
+    return interaction.editReply({ content: `❌ コイン不足 (${coins}/${totalCost})` });
   }
 
   await client.updateCoins(userId, -totalCost);
 
-  // --- MongoDBへ保存（lotteryTickets コレクション） ---
-  // 16MB制限回避のため、各チケットを独立したドキュメントとして保存
-  const batchSize = 500;
+  // --- MongoDBへ保存（500件ずつ） ---
+  const batchSize = 1000;
   for (let i = 0; i < tickets.length; i += batchSize) {
     const batch = tickets.slice(i, i + batchSize);
     await client.lotteryTickets.insertMany(batch);
@@ -79,5 +53,5 @@ export async function execute(interaction, { client }) {
     .setColor("Gold")
     .setFooter({ text: `残り所持金: ${coins - totalCost}コイン` });
 
-  await interaction.reply({ embeds: [embed] });
+  await interaction.editReply({ embeds: [embed] });
 }
