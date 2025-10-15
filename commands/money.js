@@ -34,7 +34,7 @@ function formatCoins(amount) {
 export async function execute(interaction) {
   try {
     // --- 初回応答を保留（flags:64でエフェメラル相当） ---
-    await interaction.deferReply({ flags: 64 });
+    await interaction.deferReply();
 
     const client = interaction.client;
     const targetUser = interaction.options.getUser('user') || interaction.user;
@@ -47,12 +47,12 @@ export async function execute(interaction) {
     const stocks = userDataDoc.stocks || 0;
 
    // -------------------- 宝くじ保有枚数取得（未確認のみ） --------------------
-   const lotteryDoc = await client.lotteryCol.findOne({ userId }, { projection: { purchases: 1 } }) || {};
-   let lotteryCount = 0;
+    const lotteryDoc = await client.lotteryCol.findOne({ userId }, { projection: { purchases: 1 } }) || {};
+    let unclaimedCount = 0;
 
-   if (Array.isArray(lotteryDoc.purchases)) {
-   lotteryCount = lotteryDoc.purchases.filter(t => t.claimed === false).length;
-   }
+    if (Array.isArray(lotteryDoc.purchases)) {
+    unclaimedCount = lotteryDoc.purchases.filter(t => !t.claimed).length;
+    }
 
     // -------------------- ヘッジ契約確認 --------------------
     const hedgeDoc = await client.getHedge(userId);
@@ -103,7 +103,7 @@ export async function execute(interaction) {
       .setFooter({ text: userId === interaction.user.id ? 'あなたの資産情報' : `${targetUser.username} の情報を表示中` });
 
     // -------------------- Embed送信 --------------------
-    await interaction.editReply({ embeds: [embed], flags: 64 });
+    await interaction.editReply({ embeds: [embed] });
 
   } catch (err) {
     console.error(err);
