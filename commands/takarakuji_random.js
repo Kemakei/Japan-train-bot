@@ -33,6 +33,7 @@ export async function execute(interaction, { client }) {
   const drawLetter = client.takarakuji.letter;
   const drawId = getNextDrawId(new Date());
 
+  // --- チケット生成 ---
   const tickets = [];
   for (let i = 0; i < count; i++) {
     const number = String(Math.floor(Math.random() * 100000)).padStart(5, "0");
@@ -51,22 +52,29 @@ export async function execute(interaction, { client }) {
     });
   }
 
+  // --- コイン支払い ---
   const costPerTicket = 1000;
   const totalCost = tickets.length * costPerTicket;
   const coins = await client.getCoins(userId);
 
-  if (coins < totalCost)
+  if (coins < totalCost) {
     return interaction.reply({ content: `❌ コイン不足 (${coins}/${totalCost})`, flags: 64 });
+  }
 
   await client.updateCoins(userId, -totalCost);
 
-  await client.lotteryCol.updateOne(
-    { userId },
-    { $push: { purchases: { $each: tickets } } },
-    { upsert: true }
-  );
+  // --- MongoDBへ分割して保存（1000枚ずつ） ---
+  const batchSize = 1000;
+  for (let i = 0; i < tickets.length; i += batchSize) {
+    const batch = tickets.slice(i, i + batchSize);
+    await client.lotteryCol.updateOne(
+      { userId },
+      { $push: { purchases: { $each: batch } } },
+      { upsert: true }
+    );
+  }
 
-  // Embedには購入枚数と支払金額だけ表示
+  // --- Embed返信 ---
   const embed = new EmbedBuilder()
     .setTitle("🎟 宝くじ購入完了")
     .setDescription(`購入枚数: ${tickets.length}枚\n支払金額: ${totalCost}コイン`)
