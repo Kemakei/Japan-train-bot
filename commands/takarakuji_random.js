@@ -63,8 +63,8 @@ export async function execute(interaction, { client }) {
 
   await client.updateCoins(userId, -totalCost);
 
-  // --- MongoDBへ分割して保存（1000枚ずつ） ---
-  const batchSize = 1000;
+  // --- MongoDBへ分割して保存（500枚ずつ） ---
+  const batchSize = 500;
   for (let i = 0; i < tickets.length; i += batchSize) {
     const batch = tickets.slice(i, i + batchSize);
     await client.lotteryCol.updateOne(
@@ -73,6 +73,7 @@ export async function execute(interaction, { client }) {
       { upsert: true }
     );
   }
+
 
   // --- Embed返信 ---
   const embed = new EmbedBuilder()

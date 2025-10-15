@@ -33,6 +33,9 @@ function formatCoins(amount) {
 
 export async function execute(interaction) {
   try {
+    // --- 初回応答を保留（flags:64でエフェメラル相当） ---
+    await interaction.deferReply({ flags: 64 });
+
     const client = interaction.client;
     const targetUser = interaction.options.getUser('user') || interaction.user;
     const userId = targetUser.id;
@@ -43,9 +46,13 @@ export async function execute(interaction) {
     const VIPCoins = userDataDoc.VIPCoins || 0;
     const stocks = userDataDoc.stocks || 0;
 
-    // -------------------- 宝くじ保有枚数取得 --------------------
-    const lotteryDoc = await client.lotteryCol.findOne({ userId }, { projection: { purchases: 1 } }) || {};
-    const lotteryCount = Array.isArray(lotteryDoc.purchases) ? lotteryDoc.purchases.length : 0;
+   // -------------------- 宝くじ保有枚数取得（未確認のみ） --------------------
+   const lotteryDoc = await client.lotteryCol.findOne({ userId }, { projection: { purchases: 1 } }) || {};
+   let lotteryCount = 0;
+
+   if (Array.isArray(lotteryDoc.purchases)) {
+   lotteryCount = lotteryDoc.purchases.filter(t => t.claimed === false).length;
+   }
 
     // -------------------- ヘッジ契約確認 --------------------
     const hedgeDoc = await client.getHedge(userId);
@@ -60,7 +67,7 @@ export async function execute(interaction) {
 
       hedgeAccumulated = hedgeDoc.accumulated + hedgeDoc.amountPerDay * daysPassed;
 
-      // 自分自身のデータなら更新
+      // 自分自身のデータのみ更新
       if (daysPassed > 0 && userId === interaction.user.id) {
         await client.updateCoins(userId, hedgeDoc.amountPerDay * daysPassed);
         hedgeDoc.accumulated = 0;
@@ -73,7 +80,6 @@ export async function execute(interaction) {
     const loans = await client.db.collection("loans").find({ userId, paid: false }).toArray();
     let totalDebt = 0;
     let loanDetails = '';
-
     if (loans.length > 0) {
       for (const loan of loans) {
         totalDebt += loan.totalDue;
@@ -96,15 +102,16 @@ export async function execute(interaction) {
       .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
       .setFooter({ text: userId === interaction.user.id ? 'あなたの資産情報' : `${targetUser.username} の情報を表示中` });
 
-    await interaction.reply({ embeds: [embed] });
+    // -------------------- Embed送信 --------------------
+    await interaction.editReply({ embeds: [embed], flags: 64 });
 
   } catch (err) {
     console.error(err);
-    const errorMsg = "❌ 所持金確認中にエラーが発生しました。";
-    if (interaction.deferred || interaction.replied) {
-      await interaction.editReply(errorMsg);
-    } else {
-      await interaction.reply({ content: errorMsg, ephemeral: true });
+    try {
+      await interaction.editReply({ content: "❌ 所持金確認中にエラーが発生しました。", embeds: [], flags: 64 });
+    } catch {
+      // deferされていない場合に備え
+      await interaction.reply({ content: "❌ 所持金確認中にエラーが発生しました。", flags: 64 });
     }
   }
 }
