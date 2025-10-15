@@ -47,13 +47,8 @@ export async function execute(interaction) {
     const stocks = userDataDoc.stocks || 0;
 
    // -------------------- 宝くじ保有枚数取得（未確認のみ） --------------------
-    const lotteryDoc = await client.lotteryCol.findOne({ userId }, { projection: { purchases: 1 } }) || {};
-    let unclaimedCount = 0;
-
-    if (Array.isArray(lotteryDoc.purchases)) {
-    unclaimedCount = lotteryDoc.purchases.filter(t => !t.claimed).length;
-    }
-
+    const tickets = await client.lotteryTickets.find({ userId, claimed: false }).toArray();
+    const unclaimedCount = tickets.length;
     // -------------------- ヘッジ契約確認 --------------------
     const hedgeDoc = await client.getHedge(userId);
     let hedgeAccumulated = 0;
@@ -95,7 +90,7 @@ export async function execute(interaction) {
         `**💰 所持金:** ${formatCoins(coins)}\n` +
         `**🏅 金コイン:** ${formatCoins(VIPCoins)}\n` +
         `**📈 保有株数:** ${stocks || 0} 株\n` +
-        `**🎟️ 宝くじ保有枚数:** ${lotteryCount || 0} 枚\n` +
+        `**🎟️ 宝くじ保有枚数:** ${unclaimedCount || 0} 枚\n` +
         (hedgeAccumulated > 0 ? `**💼 保険金:** ${formatCoins(hedgeAccumulated)}\n` : '') +
         (totalDebt > 0 ? `**💸 借金:** ${formatCoins(totalDebt)}${loanDetails}` : '')
       )

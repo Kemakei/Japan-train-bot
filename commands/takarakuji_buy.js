@@ -72,10 +72,8 @@ export async function execute(interaction, { client }) {
 
   await client.updateCoins(userId, -totalCost);
 
-  await client.lotteryCol.updateOne(
-    { userId },
-    { $push: { purchases: { $each: tickets } } },
-    { upsert: true }
+  await client.lotteryTickets.insertMany(
+  tickets.map(t => ({ ...t, userId }))
   );
 
   // 購入チケット番号をリスト化

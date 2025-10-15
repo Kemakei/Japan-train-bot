@@ -59,23 +59,18 @@ export async function execute(interaction, { client }) {
 
       const drawId = getNextDrawId(new Date());
       const purchase = {
-        number, // ← 文字列で保存（例: "00001"）
+        userId, // ← 追加必須
+        number,
         letter,
         drawId,
         claimed: false,
         createdAt: new Date()
       };
 
-      const result = await client.lotteryCol.updateOne(
-        { userId },
-        { $push: { purchases: purchase } },
-        { upsert: true }
-      );
+      // --- 修正箇所: lotteryTickets に追加 ---
+      await client.lotteryTickets.insertOne(purchase);
 
-      if (result.acknowledged) {
-        console.log(`${interaction.user.tag} が <@${userId}> に宝くじ ${number}${letter} を追加しました`);
-      }
-
+      console.log(`${interaction.user.tag} が <@${userId}> に宝くじ ${number}${letter} を追加しました`);
       return interaction.reply({ content: `✅ <@${userId}> に宝くじ ${number}${letter} を追加しました`, flags: 64 });
 
     } else if (action === "remove") {
@@ -91,24 +86,20 @@ export async function execute(interaction, { client }) {
           return interaction.reply({ content: "❌ 文字は A-Z の1文字で指定してください", flags: 64 });
         }
 
-        const result = await client.lotteryCol.updateOne(
-          { userId },
-          { $pull: { purchases: { number, letter } } } // ← numberは文字列で完全一致
-        );
+        // --- 修正箇所: lotteryTickets から1枚削除 ---
+        const result = await client.lotteryTickets.deleteOne({ userId, number, letter });
 
-        if (result.modifiedCount > 0) {
+        if (result.deletedCount > 0) {
           console.log(`${interaction.user.tag} が <@${userId}> の宝くじ ${number}${letter} を削除しました`);
           return interaction.reply({ content: `✅ <@${userId}> の宝くじ ${number}${letter} を削除しました`, flags: 64 });
         } else {
           return interaction.reply({ content: `⚠️ 指定された宝くじは見つかりませんでした`, flags: 64 });
         }
       } else {
-        const result = await client.lotteryCol.updateOne(
-          { userId },
-          { $set: { purchases: [] } }
-        );
+        // --- 修正箇所: lotteryTickets から全削除 ---
+        const result = await client.lotteryTickets.deleteMany({ userId });
 
-        if (result.modifiedCount > 0) {
+        if (result.deletedCount > 0) {
           console.log(`${interaction.user.tag} が <@${userId}> のすべての宝くじを削除しました`);
         }
 

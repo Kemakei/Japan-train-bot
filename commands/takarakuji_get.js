@@ -7,12 +7,12 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   const userId = interaction.user.id;
-  const { lotteryCol, updateCoins, getCoins, db } = interaction.client;
+  const { lotteryTickets, updateCoins, getCoins, db } = interaction.client;
 
   await interaction.deferReply();
 
-  const purchasesDoc = await lotteryCol.findOne({ userId }, { projection: { purchases: 1 } });
-  const purchases = purchasesDoc?.purchases || [];
+  // --- 修正箇所: purchasesDoc 取得を lotteryTickets に変更 ---
+  const purchases = await lotteryTickets.find({ userId }).toArray();
 
   if (purchases.length === 0) {
     return interaction.followUp({
@@ -45,7 +45,8 @@ export async function execute(interaction) {
       continue;
     }
 
-    if (!p.checked && p.isWin) {
+    // --- 修正箇所: 当選チケットは個別に削除 ---
+    if (!p.claimed && p.isWin) {
       totalPrize += p.prize;
       winCount++;
 
@@ -54,7 +55,8 @@ export async function execute(interaction) {
           `🎟 ${p.number}${p.letter} → 🏆 ${p.rank}等 💰 ${p.prize.toLocaleString()}コイン獲得！`
         );
       }
-      // チェック済みとして削除対象にするので remainingPurchases には追加しない
+
+      await lotteryTickets.deleteOne({ _id: p._id });
       continue;
     }
 
@@ -65,20 +67,21 @@ export async function execute(interaction) {
     await updateCoins(userId, totalPrize);
   }
 
-  // DBの購入履歴を更新（チェック済みの当たりチケットは削除）
-  if (remainingPurchases.length > 0) {
-    await lotteryCol.updateOne(
-      { userId },
-      { $set: { purchases: remainingPurchases } },
-      { upsert: true }
-    );
-  } else {
-    // 購入履歴が空になったらユーザー自体を削除
-    await lotteryCol.deleteOne({ userId });
-  }
-
   const coins = await getCoins(userId);
   const embedList = [];
+
+  // 🟢 修正追加箇所: すべて確認済みなら「購入履歴なし」を表示
+  if (remainingPurchases.length === 0) {
+    return interaction.followUp({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("❌ 購入履歴なし")
+          .setDescription("すべての購入済み宝くじの結果を確認済みです。")
+          .setColor(0xff0000)
+      ],
+      flags: 64
+    });
+  }
 
   if (publicLines.length > 0) {
     const embed = new EmbedBuilder()

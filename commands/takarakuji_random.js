@@ -41,6 +41,7 @@ export async function execute(interaction, { client }) {
 
     const { prize, rank } = judgeTicket(number, letter, drawNumber, drawLetter);
     tickets.push({
+      userId,
       number,
       letter,
       drawId,
@@ -63,17 +64,13 @@ export async function execute(interaction, { client }) {
 
   await client.updateCoins(userId, -totalCost);
 
-  // --- MongoDBへ分割して保存（500枚ずつ） ---
+  // --- MongoDBへ保存（lotteryTickets コレクション） ---
+  // 16MB制限回避のため、各チケットを独立したドキュメントとして保存
   const batchSize = 500;
   for (let i = 0; i < tickets.length; i += batchSize) {
     const batch = tickets.slice(i, i + batchSize);
-    await client.lotteryCol.updateOne(
-      { userId },
-      { $push: { purchases: { $each: batch } } },
-      { upsert: true }
-    );
+    await client.lotteryTickets.insertMany(batch);
   }
-
 
   // --- Embed返信 ---
   const embed = new EmbedBuilder()
