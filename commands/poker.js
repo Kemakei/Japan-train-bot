@@ -277,11 +277,11 @@ async function botTurn(gameState, client, interaction, combinedPath, collector, 
   }
 
   await proceedToNextStage(gameState, client, combinedPath, interaction, collector, row);
-}
+ }
 
-// --- ターン進行 ---
-async function proceedToNextStage(gameState, client, combinedPath, interaction, collector, row) {
-  // reveal pattern をより明示的に（poker_vip に寄せた動作）
+  // --- ターン進行 ---
+  async function proceedToNextStage(gameState, client, combinedPath, interaction, collector, row) {
+
   const revealPattern = [3, 4, 5];
   const revealCount = revealPattern[Math.min(gameState.turn, revealPattern.length - 1)];
 
@@ -296,11 +296,14 @@ async function proceedToNextStage(gameState, client, combinedPath, interaction, 
 
   gameState.turn++;
 
-  // 3ターン目（turn >= 2）で勝敗確定
-  if (gameState.turn >= 2) {
+  // ✅ 3ターン目に入ったら勝敗自動判定
+  if (gameState.turn >= 3) {
     if (!collector.ended) collector.stop("completed");
+    await finalizeGame(gameState, client, combinedPath, interaction);
+    return;
   }
 }
+
 
 // --- Bot 強さ 0〜1 → 77〜200 に変換 ---
 function botStrength77to200(normStrength) {

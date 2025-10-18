@@ -278,11 +278,11 @@ async function botTurn(gameState, client, interaction, combinedPath, collector, 
   }
 
   await proceedToNextStage(gameState, client, combinedPath, interaction, collector, row);
-}
+ }
 
 
-// --- ターン進行 ---
-async function proceedToNextStage(gameState, client, combinedPath, interaction, collector, row) {
+  // --- ターン進行 ---
+  async function proceedToNextStage(gameState, client, combinedPath, interaction, collector, row) {
   const revealPattern = [3, 3, 3, 5];
   const revealCount = revealPattern[gameState.turn] || 5;
 
@@ -297,9 +297,11 @@ async function proceedToNextStage(gameState, client, combinedPath, interaction, 
 
   gameState.turn++;
 
-  // ✅ ターン3（4回目）で勝敗確定
+  // ✅ ターン3（4回目）で自動的に勝敗判定
   if (gameState.turn >= 3) {
     if (!collector.ended) collector.stop("completed");
+    await finalizeGame(gameState, client, combinedPath, interaction);
+    return;
   }
 }
 
