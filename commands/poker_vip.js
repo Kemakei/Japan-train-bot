@@ -286,61 +286,6 @@ async function botTurn(gameState, client, interaction, combinedPath) {
   });
 }
 
-// --- VIP 側の報酬ロジック（元のpoker_vipを維持） ---
-function botStrength77to200(normStrength) {
-  return Math.round(77 + normStrength * (200 - 77));
-}
-function calculatePlayerReward(baseBet, botStrength) {
-  const norm = (botStrength - 77) / (200 - 77);
-  return Math.round(baseBet * (2 + norm * (5 - 2)));
-}
-
-async function finalizeGame(gameState, client, combinedPath, interaction, forcedWinner = null) {
-  if (gameState.finalized) return;
-  gameState.finalized = true;
-
-  const userId = interaction.user.id;
-  let winner = forcedWinner;
-  const pScore = evaluateHandStrength(gameState.playerHand);
-  const bScore = evaluateHandStrength(gameState.botHand);
-
-  if (!winner) {
-    winner = pScore > bScore ? "player" : bScore > pScore ? "bot" : "draw";
-  }
-
-  const baseBet = Math.max(1, gameState.playerBet || 1);
-  const botStrength = botStrength77to200(evaluateHandStrength(gameState.botHand));
-  let msg = "";
-
-  if (winner === "player") {
-    const playerChange = calculatePlayerReward(baseBet, botStrength);
-    await client.updateCoins(userId, playerChange);
-    msg = `🎉 勝ち！ +${playerChange} 金コイン（Bot強さ×${botStrength}）`;
-  } else if (winner === "bot") {
-    const playerChange = -baseBet * 3;
-    await client.updateCoins(userId, playerChange);
-    const current = await client.getCoins(userId);
-    if (current < 0) await client.setCoins(userId, 0);
-    msg = `💀 負け！ -${-playerChange} 金コイン`;
-  } else {
-    const refund = Math.floor(baseBet / 2);
-    await client.updateCoins(userId, refund);
-    msg = `🤝 引き分け！ +${refund} 金コイン返却`;
-  }
-
-  await generateImage(gameState, 5, combinedPath);
-  const file = new AttachmentBuilder(combinedPath);
-  const currentCoins = await client.getCoins(userId);
-
-  await interaction.editReply({
-    content: `${msg}\n🂡 あなたの強さ: ${pScore}\n🤖 Bot手札: ${gameState.botHand.join(" ")}\n現在の金コイン: ${currentCoins}`,
-    files: [file],
-    components: []
-  });
-
-  setTimeout(() => { try { fs.unlinkSync(combinedPath); } catch {} }, 5000);
-}
-
 // --- 画像生成 ---
 async function generateImage(gameState, revealCount, combinedPath) {
   const isRevealAll = revealCount >= 5 || gameState.turn >= 3;
@@ -364,4 +309,72 @@ async function generateImage(gameState, revealCount, combinedPath) {
       else reject(new Error(`Python error (code ${code}): ${stderr}`));
     });
   });
+}
+
+// --- VIP 側の報酬ロジック（元のpoker_vipを維持） ---
+function botStrength77to200(normStrength) {
+  return Math.round(77 + normStrength * (200 - 77));
+}
+function calculatePlayerReward(baseBet, botStrength) {
+  const norm = (botStrength - 77) / (200 - 77);
+  return Math.round(baseBet * (2 + norm * (5 - 2)));
+}
+
+// --- 勝敗判定・報酬計算・画像表示 ---
+async function finalizeGame(gameState, client, combinedPath, interaction, forcedWinner = null) {
+  if (gameState.finalized) return;
+  gameState.finalized = true;
+
+  const userId = interaction.user.id;
+
+  // --- 役ランクだけで勝敗判定 ---
+  const pScore = evaluateHandStrength(gameState.playerHand);
+  const bScore = evaluateHandStrength(gameState.botHand);
+
+  let winner;
+  if (forcedWinner) {
+    winner = forcedWinner;
+  } else if (pScore > bScore) {
+    winner = "player";
+  } else if (bScore > pScore) {
+    winner = "bot";
+  } else {
+    winner = "draw"; // 役が同じなら引き分け
+  }
+
+  const baseBet = Math.max(1, gameState.playerBet || 1);
+  let msg = "";
+
+  if (winner === "player") {
+    // --- Bot手札の役ランクに応じて報酬を決定 ---
+    const botRank = bScore;           // 0〜9
+    const botStrength = botStrength77to200(botRank / 9); // 正規化して77〜200
+    const playerChange = calculatePlayerReward(baseBet, botStrength);
+    await client.updateCoins(userId, playerChange);
+    msg = `🎉 勝ち！ +${playerChange} 金コイン`;
+  } else if (winner === "bot") {
+    const playerChange = -baseBet * 3;
+    await client.updateCoins(userId, playerChange);
+    const current = await client.getCoins(userId);
+    if (current < 0) await client.setCoins(userId, 0);
+    msg = `💀 負け！ -${-playerChange} 金コイン`;
+  } else {
+    const refund = Math.floor(baseBet / 2);
+    await client.updateCoins(userId, refund);
+    msg = `🤝 引き分け！ +${refund} 金コイン返却`;
+  }
+
+  // --- 画像生成・表示 ---
+  await generateImage(gameState, 5, combinedPath);
+  const file = new AttachmentBuilder(combinedPath);
+  const currentCoins = await client.getCoins(userId);
+
+  await interaction.editReply({
+    content: `${msg}\n🂡 あなたの役ランク: ${pScore}\n🤖 Botの役ランク: ${bScore}\n現在の金コイン: ${currentCoins}`,
+    files: [file],
+    components: []
+  });
+
+  // 5秒後に画像ファイル削除
+  setTimeout(() => { try { fs.unlinkSync(combinedPath); } catch {} }, 5000);
 }

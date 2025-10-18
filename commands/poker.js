@@ -385,21 +385,20 @@ async function finalizeGame(gameState, client, combinedPath, interaction, forced
   setTimeout(() => { try { fs.unlinkSync(combinedPath); } catch {} }, 5000);
 }
 
-// --- 画像生成（robust） ---
+// --- 画像生成---
 async function generateImage(gameState, revealCount, combinedPath) {
   const isRevealAll = revealCount >= 5 || gameState.turn >= 3;
-  const args = [
-    pythonPath,
+  const scriptArgs = [
     JSON.stringify(gameState.playerHand),
     JSON.stringify(gameState.botHand),
     isRevealAll ? "1" : "0",
     combinedPath
   ];
 
-  console.log("[poker] generateImage args:", args.slice(1)); // デバッグ
+  console.log("[poker] generateImage args:", scriptArgs);
 
   return new Promise((resolve, reject) => {
-    const proc = spawn(pythonCmd, args);
+    const proc = spawn(pythonCmd, [pythonPath, ...scriptArgs]);
 
     let stderr = "";
     proc.stdout.on("data", d => console.log("[python stdout]", d.toString()));
