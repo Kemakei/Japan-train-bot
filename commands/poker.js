@@ -19,6 +19,29 @@ const __dirname = path.dirname(__filename);
 const pythonPath = path.resolve(__dirname, "../python/combine.py");
 const pythonCmd = process.platform === "win32" ? "py" : "python3";
 
+  // --- 役評価 (キッカーなし) ---
+  function evaluateHandStrength(hand) {
+    const rankValue = { "2":2,"3":3,"4":4,"5":5,"6":6,"7":7,"8":8,"9":9,"T":10,"J":11,"Q":12,"K":13,"A":14 };
+    const ranks = hand.map(c => c[0]);
+    const suits = hand.map(c => c[1]);
+    const values = ranks.map(r => rankValue[r]).sort((a,b)=>a-b);
+
+    const isFlush = suits.every(s => s === suits[0]);
+    const isStraight = values.every((v,i,a)=> i===0 || v === a[i-1]+1) || (values.toString() === "2,3,4,5,14");
+    const counts = Object.values(ranks.reduce((acc,r)=>{ acc[r]=(acc[r]||0)+1; return acc; },{})).sort((a,b)=>b-a);
+
+    if (isFlush && isStraight && values.includes(14) && values[0] === 10) return 9;
+    if (isFlush && isStraight) return 8;
+    if (counts[0] === 4) return 7;
+    if (counts[0] === 3 && counts[1] === 2) return 6;
+    if (isFlush) return 5;
+    if (isStraight) return 4;
+    if (counts[0] === 3) return 3;
+    if (counts[0] === 2 && counts[1] === 2) return 2;
+    if (counts[0] === 2) return 1;
+    return 0;
+  }
+
 // マルチゲーム対応：gameKey -> gameState
 const ongoingGames = new Map();
 
@@ -47,29 +70,6 @@ export async function execute(interaction) {
   // ゲーム開始
   await interaction.deferReply();
   await client.updateCoins(userId, -bet);
-
-  // --- 役評価 (キッカーなし) ---
-  function evaluateHandStrength(hand) {
-    const rankValue = { "2":2,"3":3,"4":4,"5":5,"6":6,"7":7,"8":8,"9":9,"T":10,"J":11,"Q":12,"K":13,"A":14 };
-    const ranks = hand.map(c => c[0]);
-    const suits = hand.map(c => c[1]);
-    const values = ranks.map(r => rankValue[r]).sort((a,b)=>a-b);
-
-    const isFlush = suits.every(s => s === suits[0]);
-    const isStraight = values.every((v,i,a)=> i===0 || v === a[i-1]+1) || (values.toString() === "2,3,4,5,14");
-    const counts = Object.values(ranks.reduce((acc,r)=>{ acc[r]=(acc[r]||0)+1; return acc; },{})).sort((a,b)=>b-a);
-
-    if (isFlush && isStraight && values.includes(14) && values[0] === 10) return 9;
-    if (isFlush && isStraight) return 8;
-    if (counts[0] === 4) return 7;
-    if (counts[0] === 3 && counts[1] === 2) return 6;
-    if (isFlush) return 5;
-    if (isStraight) return 4;
-    if (counts[0] === 3) return 3;
-    if (counts[0] === 2 && counts[1] === 2) return 2;
-    if (counts[0] === 2) return 1;
-    return 0;
-  }
 
   // --- Bot手札生成（poker.js方式） ---
   function drawBotHand(deck, bet) {
