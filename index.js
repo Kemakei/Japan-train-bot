@@ -277,10 +277,37 @@ async function updateTakarakujiNumber() {
     );
 
     console.log(`🎰 新しい宝くじ番号を生成: ${newNumber}${newLetter} (次回公開用, drawId: ${nextDrawId})`);
+
+    // --- 7日以上経過したチケットを自動削除 ---
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    await db.collection("lotteryTickets").deleteMany({
+      drawId: { $exists: true },
+      $expr: {
+        $lte: [
+          {
+            $dateFromString: {
+              dateString: {
+                $concat: [
+                  { $substr: ["$drawId", 0, 4] }, "-", 
+                  { $substr: ["$drawId", 4, 2] }, "-", 
+                  { $substr: ["$drawId", 6, 2] } 
+                ]
+              }
+            }
+          },
+          sevenDaysAgo
+        ]
+      }
+    });
+
+    console.log("🗑 7日以上経過した宝くじチケットを自動削除しました");
+
   } catch (err) {
-    console.error("DB保存失敗:", err);
+    console.error("DB保存または削除失敗:", err);
   }
 }
+
 
 // --- 次回「00」または「30」分に公開するスケジュール ---
 function scheduleTakarakujiUpdate() {
