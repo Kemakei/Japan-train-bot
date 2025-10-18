@@ -54,29 +54,38 @@ export async function execute(interaction) {
     return Math.min(max, Math.max(min, strength));
   }
 
-  // --- Bot手札生成 ---
-  function drawBotHand(deck, bet) {
-    const botStrength = calcBotStrength(bet);
-    const trials = Math.floor(10 + 100 * botStrength);
-    let bestHand = null;
-    let bestScore = -1;
+// --- Bot手札生成 ---
+function drawBotHand(deck, bet) {
+  const baseStrength = Math.pow(bet / 1, 1 / 3) / Math.pow(100000 / 1, 1 / 3) * 29 + 1; 
+  const trials = Math.floor(10 + 100 * Math.min(1, baseStrength / 30)); 
 
-    for (let i = 0; i < trials; i++) {
-      const tempDeck = [...deck];
-      const hand = tempDeck.splice(0, 5);
-      const score = evaluateHandStrength(hand) * botStrength;
-      if (score > bestScore) {
-        bestScore = score;
-        bestHand = hand;
-      }
+  const biasFactor = Math.min(1, Math.log10(bet + 1) / 5);
+  const biasRanks = ["T", "J", "Q", "K", "A"];
+  const biasedDeck = deck.slice().sort((a, b) => {
+    const ra = biasRanks.includes(a[0]) ? -biasFactor : 0;
+    const rb = biasRanks.includes(b[0]) ? -biasFactor : 0;
+    return ra - rb + (Math.random() - 0.5) * 0.1;
+  });
+
+  let bestHand = null;
+  let bestScore = -1;
+
+  for (let i = 0; i < trials; i++) {
+    const tempDeck = [...biasedDeck];
+    const hand = tempDeck.splice(0, 5);
+    const score = evaluateHandStrength(hand) * baseStrength;
+    if (score > bestScore) {
+      bestScore = score;
+      bestHand = hand;
     }
+  }
 
-    for (const card of bestHand) {
-      const idx = deck.indexOf(card);
-      if (idx !== -1) deck.splice(idx, 1);
-    }
+  for (const card of bestHand) {
+    const idx = deck.indexOf(card);
+    if (idx !== -1) deck.splice(idx, 1);
+  }
 
-    return bestHand;
+  return bestHand;
   }
 
   // --- デッキ作成 ---
@@ -215,7 +224,7 @@ export async function execute(interaction) {
 
         // botターンは最後のターンでは呼ばない
         if (gameState.turn < 3 && !gameState.finalized) {
-          await botTurn(gameState, client, interaction, combinedPath, collector, endGameCleanup);
+          await botTurn(gameState, client, interaction, combinedPath, collector, endGameCleanup, row);
         }
         return;
       }
@@ -246,33 +255,34 @@ export async function execute(interaction) {
 }
 
 // --- Botターン ---
-async function botTurn(gameState, client, interaction, combinedPath, collector, endGameCleanup) {
+async function botTurn(gameState, client, interaction, combinedPath, collector, endGameCleanup, row) {
   if (gameState.finalized) return;
 
   const botStrength = evaluateHandStrength(gameState.botHand);
   const raiseProb = 0.2 + 0.7 * botStrength;
   const decision = Math.random() < raiseProb ? "raise" : "call";
 
-  function calcRaiseAmount(currentBet, strength){
-    if(currentBet === 1) return 1 + Math.floor(Math.random() * 2);
+  function calcRaiseAmount(currentBet, strength) {
+    if (currentBet === 1) return 1 + Math.floor(Math.random() * 2);
     const minRaise = Math.max(1, Math.floor(currentBet * 0.05 * (1 + strength)));
     const maxRaise = Math.max(minRaise + 1, Math.floor(currentBet * 0.15 * (1 + strength) * 1.5));
     return Math.floor(minRaise + Math.random() * (maxRaise - minRaise + 1));
   }
 
-  if(decision === "raise") {
+  if (decision === "raise") {
     const raiseAmount = calcRaiseAmount(gameState.requiredBet, botStrength);
     gameState.requiredBet += raiseAmount;
-    await interaction.followUp({content:`🤖 はレイズしました！ (+${raiseAmount} 金コイン)`});
+    await interaction.followUp({ content: `🤖 はレイズしました！ (+${raiseAmount} 金コイン)` });
   } else {
-    await interaction.followUp({content:`🤖 はコールしました。`});
+    await interaction.followUp({ content: `🤖 はコールしました。` });
   }
 
-  await proceedToNextStage(gameState, client, combinedPath, interaction, collector);
+  await proceedToNextStage(gameState, client, combinedPath, interaction, collector, row);
 }
 
+
 // --- ターン進行 ---
-async function proceedToNextStage(gameState, client, combinedPath, interaction, collector) {
+async function proceedToNextStage(gameState, client, combinedPath, interaction, collector, row) {
   const revealPattern = [3, 3, 3, 5];
   const revealCount = revealPattern[gameState.turn] || 5;
 
@@ -280,18 +290,19 @@ async function proceedToNextStage(gameState, client, combinedPath, interaction, 
   const file = new AttachmentBuilder(combinedPath);
 
   await interaction.editReply({
-  content: `🃏 ターン${gameState.turn + 1} 終了。現在のベット: ${gameState.playerBet} コイン`,
-  files: [file],
-  components: gameState.turn < 3 ? [row] : [] // 最終ターン以外はボタンを残す
+    content: `🃏 ターン${gameState.turn + 1} 終了。現在のベット: ${gameState.playerBet} 金コイン`,
+    files: [file],
+    components: gameState.turn < 3 ? [row] : [] // 最終ターンではボタンを消す
   });
-
 
   gameState.turn++;
 
-  if (gameState.turn >= 4) {
+  // ✅ ターン3（4回目）で勝敗確定
+  if (gameState.turn >= 3) {
     if (!collector.ended) collector.stop("completed");
   }
 }
+
 
 // --- 手札強さ評価 ---
 function evaluateHandStrength(hand) {
