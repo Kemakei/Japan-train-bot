@@ -206,34 +206,36 @@ function drawBotHand(deck, bet) {
 
       // コール
       if (action === "call") {
-        const callAmount = gameState.requiredBet - gameState.playerBet;
-        if (callAmount > 0) {
-          if (callAmount > userCoins) return btnInt.reply({ content: "❌ コインが足りません！", flags: 64 });
-          await client.updateCoins(userId, -callAmount);
-          gameState.playerBet += callAmount;
-        }
-
-        await btnInt.update({ content: "✅ コールしました！", components: [row], files: [new AttachmentBuilder(combinedPath)] });
-
-        await generateImage(gameState, 3, combinedPath);
-        await interaction.editReply({
-          content: `🎲 あなたの手札です。現在のベット: ${gameState.playerBet} コイン`,
-          files: [new AttachmentBuilder(combinedPath)],
-          components: [row]
-        });
-
-        // bot ターン（ただし最終ターンでは呼ばない）
-        if (gameState.turn < 3 && !gameState.finalized) {
-          await botTurn(gameState, client, interaction, combinedPath, collector, endGameCleanup, row);
-        }
-        return;
+      const callAmount = gameState.requiredBet - gameState.playerBet;
+      if (callAmount > 0) {
+      if (callAmount > userCoins) return btnInt.reply({ content: "❌ コインが足りません！", flags: 64 });
+      await client.updateCoins(userId, -callAmount);
+      gameState.playerBet += callAmount;
       }
+
+      await btnInt.update({ content: "✅ コールしました！", components: [row], files: [new AttachmentBuilder(combinedPath)] });
+
+      await generateImage(gameState, 3, combinedPath);
+      await interaction.editReply({
+      content: `🎲 あなたの手札です。現在のベット: ${gameState.playerBet} コイン`,
+      files: [new AttachmentBuilder(combinedPath)],
+      components: [row]
+    });
+
+    // ✅ 3ターン目到達または条件成立で collector 停止 → end ハンドラに任せる
+    if (gameState.turn >= 2) {
+    if (!collector.ended) collector.stop("completed");
+    return;
+    }
+    gameState.turn++;
+    await botTurn(gameState, client, interaction, combinedPath, collector, endGameCleanup, row);
+   }
 
     } catch (err) {
       console.error(err);
       ongoingGames.delete(gameKey);
       try { if (!btnInt.replied) await btnInt.reply({ content: "❌ エラーが発生しました", flags: 64 }); } catch {}
-    }
+     }
   });
 
   collector.on("end", async (_, reason) => {
@@ -293,15 +295,6 @@ async function botTurn(gameState, client, interaction, combinedPath, collector, 
     files: [file],
     components: gameState.turn < 2 ? [row] : []
   });
-
-  gameState.turn++;
-
-  // ✅ 3ターン目に入ったら勝敗自動判定
-  if (gameState.turn >= 2) {
-    if (!collector.ended) collector.stop("completed");
-    await finalizeGame(gameState, client, combinedPath, interaction);
-    return;
-  }
 }
 
 
