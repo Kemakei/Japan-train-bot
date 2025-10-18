@@ -370,7 +370,7 @@ async function finalizeGame(gameState, client, combinedPath, interaction, forced
   const currentCoins = await client.getCoins(userId);
 
   await interaction.editReply({
-    content: `${msg}\n🂡 あなたの役ランク: ${pScore}\n🤖 Botの役ランク: ${bScore}\n現在の金コイン: ${currentCoins}`,
+    content: `${msg}\n🤖 Botの役ランク: ${bScore}\n現在の金コイン: ${currentCoins}`,
     files: [file],
     components: []
   });
