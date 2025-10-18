@@ -386,13 +386,16 @@ async function finalizeGame(gameState, client, combinedPath, interaction, forced
 }
 
 // --- 画像生成---
+// --- 画像生成（修正版）---
 async function generateImage(gameState, revealCount, combinedPath) {
   const isRevealAll = revealCount >= 5 || gameState.turn >= 3;
+
+  // カードを1枚ずつ引数として展開
   const scriptArgs = [
-    JSON.stringify(gameState.playerHand),
-    JSON.stringify(gameState.botHand),
-    isRevealAll ? "1" : "0",
-    combinedPath
+    ...gameState.playerHand,  // プレイヤー5枚
+    ...gameState.botHand,     // ボット5枚
+    isRevealAll ? "1" : "0", // reveal
+    combinedPath              // 出力パス
   ];
 
   console.log("[poker] generateImage args:", scriptArgs);
