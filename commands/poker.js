@@ -297,12 +297,13 @@ async function botTurn(gameState, client, interaction, combinedPath, collector, 
   gameState.turn++;
 
   // ✅ 3ターン目に入ったら勝敗自動判定
-  if (gameState.turn >= 3) {
+  if (gameState.turn >= 2) {
     if (!collector.ended) collector.stop("completed");
     await finalizeGame(gameState, client, combinedPath, interaction);
     return;
   }
 }
+
 
 
 // --- Bot 強さ 0〜1 → 77〜200 に変換 ---
