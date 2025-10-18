@@ -398,6 +398,9 @@ async function generateImage(gameState, revealCount, outputPath) {
       outputPath
     ];
     const process = spawn(pythonCmd, args);
-    process.on("close", (code) => (code === 0 ? resolve() : reject()));
+    process.on("close", (code) => {
+    if (code === 0) resolve();
+    else reject(new Error(`Python exited with code ${code}`));
+   });
   });
 }
