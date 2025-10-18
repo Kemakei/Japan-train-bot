@@ -11,35 +11,24 @@ export async function execute(interaction) {
 
   await interaction.deferReply();
 
-  // --- 購入履歴取得 ---
-  const purchases = await lotteryTickets.find({ userId }).toArray();
+  // --- 公開済み抽選IDだけ取得 ---
+  const publishedDrawIds = new Set(
+    (await db.collection("drawResults").find({}, { projection: { drawId: 1 } }).toArray())
+      .map(r => r.drawId)
+  );
 
-  if (purchases.length === 0) {
-    return interaction.followUp({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("❌ 購入履歴なし")
-          .setDescription("現在、あなたの購入履歴はありません。")
-          .setColor(0xff0000)
-      ],
-      flags: 64
-    });
-  }
+  // --- 購入履歴をストリームで取得 ---
+  const cursor = lotteryTickets.find({ userId }).batchSize(5000);
 
-  const now = new Date();
-  const latestDrawId = getLatestDrawId(now);
-
-  // --- 公開済みの抽選回を取得 ---
-  const drawResultsArr = await db.collection("drawResults").find().toArray();
-  const publishedDrawIds = new Set(drawResultsArr.map(r => r.drawId));
-
+  let hasPurchase = false; // 👈 これで「購入履歴なし」検出
   let totalPrize = 0;
   let winCount = 0;
   const publicLines = [];
   const remainingPurchases = [];
+  let deleteOps = [];
 
-  // --- 各チケットをチェック ---
-  for (const p of purchases) {
+  for await (const p of cursor) {
+    hasPurchase = true; // 👈 1件でもあれば true
     const isUnpublished = !p.drawId || !publishedDrawIds.has(p.drawId);
 
     if (isUnpublished) {
@@ -56,35 +45,59 @@ export async function execute(interaction) {
           `🎟 ${p.number}${p.letter} → 🏆 ${p.rank}等 💰 ${p.prize.toLocaleString()}コイン獲得！`
         );
       }
-      await lotteryTickets.deleteOne({ _id: p._id });
-      continue;
+      deleteOps.push({ deleteOne: { filter: { _id: p._id } } });
+    } else if (!p.isWin) {
+      deleteOps.push({ deleteOne: { filter: { _id: p._id } } });
+    } else {
+      remainingPurchases.push(p);
     }
-    if (!p.isWin) {
-      await lotteryTickets.deleteOne({ _id: p._id });
-      continue;
+
+    // 🔹 2万件ごとに一括削除
+    if (deleteOps.length >= 20000) {
+      await lotteryTickets.bulkWrite(deleteOps);
+      deleteOps = [];
     }
-    remainingPurchases.push(p);
   }
+
+  // --- 「購入履歴なし」の場合ここでリターン ---
+  if (!hasPurchase) {
+    return interaction.followUp({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("❌ 購入履歴なし")
+          .setDescription("現在、あなたの購入履歴はありません。")
+          .setColor(0xff0000)
+      ],
+      flags: 64
+    });
+  }
+
+  // --- 残りの削除処理 ---
+  if (deleteOps.length > 0) {
+    await lotteryTickets.bulkWrite(deleteOps);
+  }
+
+  // --- 当選コインを加算 ---
   if (totalPrize > 0) {
     await updateCoins(userId, totalPrize);
   }
+
   const coins = await getCoins(userId);
   const embedList = [];
 
   // --- 結果メッセージ生成 ---
   if (publicLines.length > 0) {
-    const embed = new EmbedBuilder()
-      .setTitle("🎉 当選結果")
-      .setDescription(publicLines.join("\n"))
-      .setColor(0xffd700)
-      .setFooter({
-        text: `🎟 当選チケット: ${winCount} | 💰 合計当選金額: ${totalPrize.toLocaleString()}コイン | 所持金: ${coins.toLocaleString()}コイン`
-      });
-
-    embedList.push(embed);
+    embedList.push(
+      new EmbedBuilder()
+        .setTitle("🎉 当選結果")
+        .setDescription(publicLines.join("\n"))
+        .setColor(0xffd700)
+        .setFooter({
+          text: `🎟 当選チケット: ${winCount} | 💰 合計当選金額: ${totalPrize.toLocaleString()}コイン | 所持金: ${coins.toLocaleString()}コイン`
+        })
+    );
   }
 
-  // 未公開チケットが存在する場合
   const unpublishedCount = remainingPurchases.filter(
     p => !p.drawId || !publishedDrawIds.has(p.drawId)
   ).length;
@@ -98,7 +111,6 @@ export async function execute(interaction) {
     );
   }
 
-  // 当選なし・未公開なし（全部外れで削除済み）
   if (publicLines.length === 0 && unpublishedCount === 0) {
     embedList.push(
       new EmbedBuilder()
@@ -111,8 +123,5 @@ export async function execute(interaction) {
     );
   }
 
-  // --- メッセージ送信 ---
-  for (const embed of embedList) {
-    await interaction.followUp({ embeds: [embed] });
-  }
+  await Promise.all(embedList.map(embed => interaction.followUp({ embeds: [embed] })));
 }
