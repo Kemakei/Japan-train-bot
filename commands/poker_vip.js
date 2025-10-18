@@ -341,19 +341,27 @@ async function finalizeGame(gameState, client, combinedPath, interaction, forced
   setTimeout(() => { try { fs.unlinkSync(combinedPath); } catch {} }, 5000);
 }
 
-// --- 画像生成（shared） ---
+// --- 画像生成 ---
 async function generateImage(gameState, revealCount, combinedPath) {
-  const isRevealAll = revealCount >= 5;
-  // ここは combine.py の期待引数に合わせて変更してください（現在は手札配列を各カード引数で渡す仕様）
-  const args = [pythonPath, ...gameState.playerHand, ...gameState.botHand, isRevealAll ? "1" : "0", combinedPath];
+  const isRevealAll = revealCount >= 5 || gameState.turn >= 3;
+
+  const args = [
+    ...gameState.playerHand,
+    ...gameState.botHand,
+    isRevealAll ? "1" : "0",
+    combinedPath
+  ];
 
   return new Promise((resolve, reject) => {
-    console.log("[poker_vip] generateImage args:", args.slice(0,6));
-    const proc = spawn(pythonCmd, args);
-    let err = "";
-    proc.stdout.on("data", d => console.log("[python stdout]", d.toString()));
-    proc.stderr.on("data", d => { err += d.toString(); console.error("[python stderr]", d.toString()); });
-    proc.on("error", e => { console.error("[poker_vip] spawn error:", e); reject(e); });
-    proc.on("close", code => { if (code === 0) resolve(); else reject(new Error(err || `Python exited ${code}`)); });
+    const proc = spawn(pythonCmd, [pythonPath, ...args]);
+
+    let stderr = "";
+    proc.stderr.on("data", d => stderr += d.toString());
+    proc.stdout.on("data", d => console.log(d.toString())); // デバッグ用ログ
+
+    proc.on("close", code => {
+      if (code === 0) resolve();
+      else reject(new Error(`Python error (code ${code}): ${stderr}`));
+    });
   });
 }

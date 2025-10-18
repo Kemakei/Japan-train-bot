@@ -387,22 +387,32 @@ async function finalizeGame(gameState, client, combinedPath, interaction, forced
 
 // --- 画像生成（robust） ---
 async function generateImage(gameState, revealCount, combinedPath) {
-  const isRevealAll = revealCount >= 5;
-  const args = [pythonPath, JSON.stringify(gameState.playerHand), JSON.stringify(gameState.botHand), isRevealAll ? "1" : "0", combinedPath];
+  const isRevealAll = revealCount >= 5 || gameState.turn >= 3;
+  const args = [
+    pythonPath,
+    JSON.stringify(gameState.playerHand),
+    JSON.stringify(gameState.botHand),
+    isRevealAll ? "1" : "0",
+    combinedPath
+  ];
+
+  console.log("[poker] generateImage args:", args.slice(1)); // デバッグ
+
   return new Promise((resolve, reject) => {
-    console.log("[poker] generateImage: ", args.slice(0,4));
     const proc = spawn(pythonCmd, args);
+
     let stderr = "";
     proc.stdout.on("data", d => console.log("[python stdout]", d.toString()));
     proc.stderr.on("data", d => { stderr += d.toString(); console.error("[python stderr]", d.toString()); });
+
     proc.on("error", err => {
       console.error("[poker] spawn error:", err);
       reject(err);
     });
+
     proc.on("close", code => {
-      console.log(`[poker] python exited ${code}`);
       if (code === 0) resolve();
-      else reject(new Error(stderr || `Python exited with ${code}`));
+      else reject(new Error(stderr || `Python exited with code ${code}`));
     });
   });
 }
