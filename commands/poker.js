@@ -104,33 +104,44 @@ export async function execute(interaction) {
 
   // --- Bot手札生成（poker.js方式） ---
   function drawBotHand(deck, bet) {
-    const maxBet = 100_000;
-    const strengthMultiplier = 1 + (Math.min(bet, maxBet) / maxBet) * (30 - 1);
-    const trials = Math.floor(10 + 100 * Math.min(1, strengthMultiplier / 30));
-    const biasFactor = Math.min(1, Math.log10(bet + 1) / 5);
+    const minBet = 1000;
+    const maxBet = 10_000_000_000_000; // 10兆
+    const strengthMultiplier = Math.min(100, 1 + 99 * (bet - minBet) / (maxBet - minBet));
+
+    // 強さに応じて試行回数とバイアスを調整
+    const trials = Math.floor(5 + strengthMultiplier * 2); // 強さ1→7回, 強さ100→205回
+    const biasFactor = Math.min(1.0, 0.01 * strengthMultiplier); // 強さ100で最大1.0
     const biasRanks = ["T","J","Q","K","A"];
 
+    // 高ランクカードを優先してデッキを並び替え
     const biasedDeck = deck.slice().sort((a,b)=>{
       const ra = biasRanks.includes(a[0]) ? -biasFactor : 0;
       const rb = biasRanks.includes(b[0]) ? -biasFactor : 0;
-      return ra - rb + (Math.random()-0.5)*0.1;
+      return ra - rb + (Math.random()-0.5)*0.2;
     });
 
+    // 複数候補から最強を選ぶ
     let bestHand = null;
     let bestScore = -Infinity;
-    for (let i=0;i<trials;i++){
+    for (let i = 0; i < trials; i++) {
       const temp = [...biasedDeck];
       const hand = temp.splice(0,5);
-      const score = evaluateHandStrength(hand) + Math.random()*0.1;
-      if (score > bestScore){ bestScore = score; bestHand = hand; }
+      const score = evaluateHandStrength(hand) + Math.random() * 0.05;
+      if (score > bestScore) {
+        bestScore = score;
+        bestHand = hand;
+      }
     }
-    // deck から除去
-    for (const c of bestHand){
+
+    // 使用したカードをデッキから除外
+    for (const c of bestHand) {
       const idx = deck.indexOf(c);
       if (idx !== -1) deck.splice(idx,1);
     }
+
     return bestHand;
   }
+
 
   // --- デッキ生成（カード公開進行は poker_vip と統一: 3,3,5） ---
   const suits = ["S","H","D","C"];
