@@ -12,17 +12,17 @@ export const data = new SlashCommandBuilder()
 // -------------------- 数字フォーマット関数 --------------------
 function formatCoins(amount) {
   let result = '';
-  if (amount >= 1_0000_0000_0000) { 
+  if (amount >= 1_0000_0000_0000) {
     const cho = Math.floor(amount / 1_0000_0000_0000);
     amount %= 1_0000_0000_0000;
     result += `${cho}兆`;
   }
-  if (amount >= 1_0000_0000) { 
+  if (amount >= 1_0000_0000) {
     const oku = Math.floor(amount / 1_0000_0000);
     amount %= 1_0000_0000;
     result += `${oku}億`;
   }
-  if (amount >= 1_0000) { 
+  if (amount >= 1_0000) {
     const man = Math.floor(amount / 1_0000);
     amount %= 1_0000;
     result += `${man}万`;
@@ -33,7 +33,6 @@ function formatCoins(amount) {
 
 export async function execute(interaction) {
   try {
-    // --- 初回応答を保留（flags:64でエフェメラル相当） ---
     await interaction.deferReply();
 
     const client = interaction.client;
@@ -46,9 +45,10 @@ export async function execute(interaction) {
     const VIPCoins = userDataDoc.VIPCoins || 0;
     const stocks = userDataDoc.stocks || 0;
 
-   // -------------------- 宝くじ保有枚数取得（未確認のみ） --------------------
-    const tickets = await client.lotteryTickets.find({ userId, claimed: false }).toArray();
-    const unclaimedCount = tickets.length;
+    // -------------------- 宝くじ保有枚数取得（全件取得に変更） --------------------
+    const tickets = await client.lotteryTickets.find({ userId }).toArray();
+    const totalTickets = tickets.length;
+
     // -------------------- ヘッジ契約確認 --------------------
     const hedgeDoc = await client.getHedge(userId);
     let hedgeAccumulated = 0;
@@ -90,14 +90,14 @@ export async function execute(interaction) {
         `**💰 所持金:** ${formatCoins(coins)}\n` +
         `**🏅 金コイン:** ${formatCoins(VIPCoins)}\n` +
         `**📈 保有株数:** ${stocks || 0} 株\n` +
-        `**🎟️ 宝くじ保有枚数:** ${unclaimedCount || 0} 枚\n` +
+        `**🎟️ 宝くじ保有枚数:** ${totalTickets || 0} 枚\n` +
         (hedgeAccumulated > 0 ? `**💼 保険金:** ${formatCoins(hedgeAccumulated)}\n` : '') +
         (totalDebt > 0 ? `**💸 借金:** ${formatCoins(totalDebt)}${loanDetails}` : '')
       )
-      .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
+      // --- 自分のアイコンも含め常に表示するように明示 ---
+      .setThumbnail(targetUser.displayAvatarURL({ extension: 'png', size: 256 }))
       .setFooter({ text: userId === interaction.user.id ? 'あなたの資産情報' : `${targetUser.username} の情報を表示中` });
 
-    // -------------------- Embed送信 --------------------
     await interaction.editReply({ embeds: [embed] });
 
   } catch (err) {
@@ -105,7 +105,6 @@ export async function execute(interaction) {
     try {
       await interaction.editReply({ content: "❌ 所持金確認中にエラーが発生しました。", embeds: [], flags: 64 });
     } catch {
-      // deferされていない場合に備え
       await interaction.reply({ content: "❌ 所持金確認中にエラーが発生しました。", flags: 64 });
     }
   }
