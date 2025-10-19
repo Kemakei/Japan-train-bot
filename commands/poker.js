@@ -42,6 +42,38 @@ const pythonCmd = process.platform === "win32" ? "py" : "python3";
     return 0;
   }
 
+  function getDetailedHandScore(hand) {
+  const rankValue = { "2":2,"3":3,"4":4,"5":5,"6":6,"7":7,"8":8,"9":9,"T":10,"J":11,"Q":12,"K":13,"A":14 };
+  const ranks = hand.map(c => c[0]);
+  const values = ranks.map(r => rankValue[r]).sort((a,b)=>b-a);
+  const counts = {};
+  for (const r of ranks) counts[r] = (counts[r]||0)+1;
+
+  // グループごとに [count, value] の配列を作り、降順にソート
+  const groups = Object.entries(counts)
+    .map(([r,c]) => [c, rankValue[r]])
+    .sort((a,b)=> b[0]-a[0] || b[1]-a[1]);
+
+  const handRank = evaluateHandStrength(hand);
+  const tieBreaker = groups.flatMap(g => [g[0], g[1]]); // flatten for comparison
+  return { rank: handRank, scoreArr: tieBreaker };
+  }
+
+  function compareHandsDetailed(playerHand, botHand) {
+    const p = getDetailedHandScore(playerHand);
+    const b = getDetailedHandScore(botHand);
+
+    if (p.rank !== b.rank) return p.rank > b.rank ? 1 : -1;
+
+    // ランクが同じならグループ値で比較（ペアの高さなど）
+    for (let i=0; i<Math.max(p.scoreArr.length, b.scoreArr.length); i++) {
+      const pa = p.scoreArr[i] || 0;
+      const ba = b.scoreArr[i] || 0;
+      if (pa !== ba) return pa > ba ? 1 : -1;
+    }
+    return 0; // 完全に同じ
+  }
+
 // マルチゲーム対応：gameKey -> gameState
 const ongoingGames = new Map();
 
@@ -56,7 +88,6 @@ export async function execute(interaction) {
   const gameKey = `${channelId}-${userId}`;
 
   if (ongoingGames.has(gameKey)) {
-    console.log(`[poker] ${gameKey} に既存ゲームあり`);
     return interaction.reply({ content: "❌ このチャンネルであなたの進行中ゲームがあります！", ephemeral: true });
   }
 
@@ -179,7 +210,6 @@ export async function execute(interaction) {
           files: [new AttachmentBuilder(combinedPath)],
           components: [row]
         });
-        console.log(`[poker] ${gameKey} ベット追加: ${add}, 合計 ${gameState.playerBet}`);
         return;
       }
 
@@ -208,7 +238,6 @@ export async function execute(interaction) {
         });
 
         await submitted.reply({ content: `💰 ${betValue} コインを追加しました（合計ベット: ${gameState.playerBet}）`, ephemeral: true });
-        console.log(`[poker] ${gameKey} カスタムベット ${betValue}`);
         return;
       }
 
@@ -229,7 +258,6 @@ export async function execute(interaction) {
         }
 
         await btnInt.update({ content: "✅ コールしました！", components: [row], files: [new AttachmentBuilder(combinedPath)] });
-        console.log(`[poker] ${gameKey} プレイヤーがコール: callAmount=${gameState.playerBet}`);
 
         // プレイヤー行動のあと Bot が行動（botTurn は段階的に次ターンへ進める）
         await botTurn(gameState, client, interaction, combinedPath, row);
@@ -249,17 +277,17 @@ export async function execute(interaction) {
   });
 
   collector.on("end", async (_, reason) => {
-    console.log(`[poker] ${gameKey} collector end: ${reason}`);
     ongoingGames.delete(gameKey);
+
     if (reason === "completed") {
       await finalizeGame(gameState, client, combinedPath, interaction);
     } else if (reason === "time") {
-      // タイムアウトなら賭け戻し
-      await client.updateCoins(userId, gameState.playerBet);
-      await interaction.editReply({ content: `⌛ タイムアウト。ベットを返却しました。`, components: [] });
-      try { fs.unlinkSync(combinedPath); } catch {}
+      if (!gameState.finalized) {
+      await finalizeGame(gameState, client, combinedPath, interaction);
+    }
     }
   });
+
 }
 
 // --- Bot の行動（高度なロジック、poker.js方式） ---
@@ -269,7 +297,6 @@ async function botTurn(gameState, client, interaction, combinedPath, row) {
   // Bot の強さスコア化: 役のランク + loose randomness
   const handRank = evaluateHandStrength(gameState.botHand);
   const botScore = handRank + Math.random() * 0.5; // 思考強度（デバッグ用）
-  console.log(`[poker] Bot思考: rank=${handRank}, score=${botScore.toFixed(2)}, turn=${gameState.turn}`);
 
   // レイズ確率は手札ランクに依存（より細かく）
   const raiseProb = 0.1 + 0.25 * (handRank / 9) + 0.15 * Math.random();
@@ -278,12 +305,11 @@ async function botTurn(gameState, client, interaction, combinedPath, row) {
 
   let decision = "call";
   if (rnd < raiseProb) decision = "raise";
-  else if (rnd < raiseProb + (1 - raiseProb) * (1 - callProb)) decision = "fold"; // small chance fold
+  else if (rnd < raiseProb + (1 - raiseProb) * (1 - callProb)) decision = "call"; 
 
   // レイズ額計算（より自然に）
   function calcRaiseAmount(requiredBet, strength) {
-    // base relative to requiredBet and botScore
-    const base = Math.max(1, Math.floor(requiredBet * (0.05 + 0.15 * (strength/10))));
+    const base = Math.max(1000, Math.floor(requiredBet * (0.3 + 0.5 * (strength/10))));
     const added = Math.floor(Math.random() * Math.max(1, base));
     return base + added;
   }
@@ -291,16 +317,9 @@ async function botTurn(gameState, client, interaction, combinedPath, row) {
   if (decision === "raise") {
     const raiseAmount = calcRaiseAmount(gameState.requiredBet, botScore);
     gameState.requiredBet += raiseAmount;
-    console.log(`[poker] Bot レイズ: +${raiseAmount} (new required ${gameState.requiredBet})`);
     await interaction.followUp({ content: `🤖 はレイズしました！ (+${raiseAmount} コイン)` });
-  } else if (decision === "fold") {
-    console.log("[poker] Bot はフォールドしました（稀）");
-    await interaction.followUp({ content: `🤖 はフォールドしました。あなたの勝ちです！` });
-    await finalizeGame(gameState, client, combinedPath, interaction, "player");
-    return;
   } else {
     await interaction.followUp({ content: `🤖 はコールしました。` });
-    console.log("[poker] Bot コール");
   }
 
   // 次のターンへ移行（公開カード: poker_vip と統一 => reveal pattern: 3,4,5）
@@ -316,9 +335,6 @@ async function botTurn(gameState, client, interaction, combinedPath, row) {
     components: gameState.turn < 3 ? [row] : []
   });
 
-  // デバッグログ
-  console.log(`[poker] ${gameState.gameKey} ターン${gameState.turn} 更新, requiredBet=${gameState.requiredBet}`);
-  // If reached final stage (turn >= 3), finalize next time collector stopped or called
   if (gameState.turn >= 3) {
     // show final image will be done on finalizeGame
   }
@@ -335,26 +351,34 @@ async function finalizeGame(gameState, client, combinedPath, interaction, forced
 
   let winner = forcedWinner;
   if (!winner) {
-    if (playerRank > botRank) winner = "player";
-    else if (playerRank < botRank) winner = "bot";
+    const cmp = compareHandsDetailed(gameState.playerHand, gameState.botHand);
+    if (cmp > 0) winner = "player";
+    else if (cmp < 0) winner = "bot";
     else winner = "draw";
   }
 
-  // 元の poker.js の金額計算（保守）
+
+  // --- 金額計算 ---
   const bet = Math.max(0, Number(gameState.playerBet || 0));
   const botNorm = botRank / 9;
   const botStrength77 = 77 + Math.round(botNorm * 123);
 
   let finalAmount = 0;
+
   if (bet <= 1_000_000) {
     const multiplier = 1 + bet / 1_000_000;
     finalAmount = Math.floor(bet * multiplier);
   } else {
-    const tiny = 1e-12;
-    const denom = Math.max(tiny, bet * 0.0001);
-    const partA = (1_000_000 / denom) * 1_000_000;
-    const partB = bet * 0.01 * botStrength77;
-    finalAmount = Math.floor(partA + partB);
+    const botNorm = (botStrength77 - 77) / 123;
+    const minMultiplier = 1.2 + 0.8 * botNorm; // 弱Bot:1.2倍〜強Bot:2.0倍
+    const maxMultiplier = 2.0 + 8.0 * botNorm; // 弱Bot:2倍〜強Bot:10倍
+    const scaleBoost = Math.min(1 + Math.log10(bet / 1_000_000) * 0.5, 2.0);
+    const minGain = bet * minMultiplier;
+    const maxGain = bet * maxMultiplier * scaleBoost;
+    const dynamicGain = minGain + (maxGain - minGain) * botNorm;
+    const variance = 0.15;
+    const randomFactor = 1 + (Math.random() - 0.5) * variance * 2;
+    finalAmount = Math.floor(dynamicGain * randomFactor);
   }
 
   const lossMultiplier = 3;
@@ -385,7 +409,6 @@ async function finalizeGame(gameState, client, combinedPath, interaction, forced
   setTimeout(() => { try { fs.unlinkSync(combinedPath); } catch {} }, 5000);
 }
 
-// --- 画像生成---
 // --- 画像生成（修正版）---
 async function generateImage(gameState, revealCount, combinedPath) {
   const isRevealAll = revealCount >= 5 || gameState.turn >= 3;
@@ -397,8 +420,6 @@ async function generateImage(gameState, revealCount, combinedPath) {
     isRevealAll ? "1" : "0", // reveal
     combinedPath              // 出力パス
   ];
-
-  console.log("[poker] generateImage args:", scriptArgs);
 
   return new Promise((resolve, reject) => {
     const proc = spawn(pythonCmd, [pythonPath, ...scriptArgs]);

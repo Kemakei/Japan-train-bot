@@ -21,26 +21,76 @@ const pythonCmd = process.platform === "win32" ? "py" : "python3";
 
 const ongoingGames = new Map();
 
-  // --- 役評価（キッカーなし） ---
-  function evaluateHandStrength(hand) {
-    const rankValue = { "2":2,"3":3,"4":4,"5":5,"6":6,"7":7,"8":8,"9":9,"T":10,"J":11,"Q":12,"K":13,"A":14 };
-    const ranks = hand.map(c => c[0]);
-    const suits = hand.map(c => c[1]);
-    const values = ranks.map(r => rankValue[r]).sort((a,b)=>a-b);
-    const isFlush = suits.every(s => s === suits[0]);
-    const isStraight = values.every((v,i,a)=> i===0 || v === a[i-1]+1) || (values.toString()==="2,3,4,5,14");
-    const counts = Object.values(ranks.reduce((acc,r)=>{ acc[r]=(acc[r]||0)+1; return acc; },{})).sort((a,b)=>b-a);
-    if (isFlush && isStraight && values.includes(14) && values[0] === 10) return 9;
-    if (isFlush && isStraight) return 8;
-    if (counts[0] === 4) return 7;
-    if (counts[0] === 3 && counts[1] === 2) return 6;
-    if (isFlush) return 5;
-    if (isStraight) return 4;
-    if (counts[0] === 3) return 3;
-    if (counts[0] === 2 && counts[1] === 2) return 2;
-    if (counts[0] === 2) return 1;
-    return 0;
-  }
+// --- 役評価（ペア強さ込み・キッカーなし） ---
+function evaluateHandDetail(hand) {
+  const rankValue = { "2":2,"3":3,"4":4,"5":5,"6":6,"7":7,"8":8,"9":9,"T":10,"J":11,"Q":12,"K":13,"A":14 };
+  const ranks = hand.map(c => c[0]);
+  const suits = hand.map(c => c[1]);
+  const values = ranks.map(r => rankValue[r]).sort((a,b)=>b-a);
+  const isFlush = suits.every(s => s === suits[0]);
+  const isStraight = values.every((v,i,a)=> i===0 || v === a[i-1]-1) || (values.toString()==="14,5,4,3,2");
+
+  // ランク頻度
+  const counts = {};
+  for (const r of ranks) counts[r] = (counts[r] || 0) + 1;
+  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1] || rankValue[b[0]]-rankValue[a[0]]);
+  const freq = sorted.map(([r,c]) => c);
+  const mainRanks = sorted.map(([r]) => rankValue[r]);
+
+  let rankType = 0;
+  if (isFlush && isStraight && values[0]===14 && values[1]===13) rankType = 9; // Royal
+  else if (isFlush && isStraight) rankType = 8;
+  else if (freq[0]===4) rankType = 7;
+  else if (freq[0]===3 && freq[1]===2) rankType = 6;
+  else if (isFlush) rankType = 5;
+  else if (isStraight) rankType = 4;
+  else if (freq[0]===3) rankType = 3;
+  else if (freq[0]===2 && freq[1]===2) rankType = 2;
+  else if (freq[0]===2) rankType = 1;
+
+  // 役を決める主な値（例：ワンペアならペアの数値）
+  let mainValue = 0;
+  if (freq[0] >= 2) mainValue = mainRanks[0];
+  else if (isStraight) mainValue = values[0];
+  else mainValue = values[0]; // ハイカードなど
+
+  return { rank: rankType, mainValue };
+}
+
+// --- 勝敗比較（役ランク > 役内強さ） ---
+function compareHandsSimple(h1, h2) {
+  if (h1.rank !== h2.rank) return Math.sign(h1.rank - h2.rank);
+  if (h1.mainValue !== h2.mainValue) return Math.sign(h1.mainValue - h2.mainValue);
+  return 0; // 完全同値
+}
+
+function getHandName(detail) {
+  const names = [
+    "ハイカード",
+    "ワンペア",
+    "ツーペア",
+    "スリーカード",
+    "ストレート",
+    "フラッシュ",
+    "フルハウス",
+    "フォーカード",
+    "ストレートフラッシュ",
+    "ロイヤルフラッシュ"
+  ];
+  const rankName = names[detail.rank] || "不明";
+  const rankSymbol = toRankSymbol(detail.mainValue);
+  if (detail.rank === 1) return `${rankName} (${rankSymbol}のペア)`;
+  if (detail.rank === 2) return `${rankName} (${rankSymbol}を含む)`;
+  if (detail.rank === 3) return `${rankName} (${rankSymbol}×3)`;
+  if (detail.rank === 7) return `${rankName} (${rankSymbol}×4)`;
+  if (detail.rank === 4 || detail.rank === 8) return `${rankName} (${rankSymbol}ハイ)`;
+  return rankName;
+}
+
+function toRankSymbol(v) {
+  const map = {11:"J",12:"Q",13:"K",14:"A"};
+  return map[v] || v.toString();
+}
 
 export const data = new SlashCommandBuilder()
   .setName("poker_vip")
@@ -53,7 +103,6 @@ export async function execute(interaction) {
   const gameKey = `${channelId}-${userId}`;
 
   if (ongoingGames.has(gameKey)) {
-    console.log(`[poker_vip] ${gameKey} already playing`);
     return interaction.reply({ content: "❌ このチャンネルで進行中のゲームがあります！", ephemeral: true });
   }
 
@@ -168,7 +217,6 @@ export async function execute(interaction) {
         gameState.requiredBet = Math.max(gameState.requiredBet, gameState.playerBet);
         await client.updateCoins(userId, -add);
         await btnInt.update({ content:`🎲 あなたの手札です。現在のベット: ${gameState.playerBet} 金コイン`, files:[new AttachmentBuilder(combinedPath)], components:[row] });
-        console.log(`[poker_vip] ${gameKey} player bet +${add} -> ${gameState.playerBet}`);
         return;
       }
 
@@ -198,9 +246,6 @@ export async function execute(interaction) {
           await client.updateCoins(userId, -callAmount);
         }
 
-        // フロー: プレイヤー→Bot→プレイヤー→Bot→プレイヤー→勝敗（3,3,5）。ただし3ターン目はBot応答なし。
-        // 現在の turn が 0 or 1 -> Bot の応答（raise/call）を行い、次の stage に移る。
-        // もし turn === 2 (最後の自分の行動) ならショーダウン。
         if (gameState.turn >= 2) {
           // 最終ターン（プレイヤーの行動のみ）→ ショーダウン
           await btnInt.update({ content: "🔍 ショーダウン！ 判定しています...", components: [] });
@@ -222,7 +267,6 @@ export async function execute(interaction) {
   });
 
   collector.on("end", async (_, reason) => {
-    console.log(`[poker_vip] ${gameKey} collector end: ${reason}`);
     ongoingGames.delete(gameKey);
     if (reason === "time") {
       await client.updateCoins(userId, gameState.playerBet);
@@ -238,7 +282,6 @@ async function botTurn(gameState, client, interaction, combinedPath) {
   // Bot 思考強度スコア化（役ランクベース + ランダム）
   const rank = evaluateHandStrength(gameState.botHand);
   const score = rank + Math.random() * 0.6;
-  console.log(`[poker_vip] Bot score=${score.toFixed(2)} rank=${rank} turn=${gameState.turn}`);
 
   // レイズ判定（より強いほどレイズしやすい）
   const raiseProb = 0.15 + 0.5 * (rank / 9);
@@ -257,7 +300,6 @@ async function botTurn(gameState, client, interaction, combinedPath) {
   if (decision === "raise") {
     const raiseAmount = calcRaise(gameState.requiredBet, score);
     gameState.requiredBet += raiseAmount;
-    console.log(`[poker_vip] Bot raise +${raiseAmount} -> required=${gameState.requiredBet}`);
     await interaction.followUp({ content: `🤖 はレイズしました！ (+${raiseAmount} 金コイン)` });
   } else {
     await interaction.followUp({ content: "🤖 はコールしました。" });
@@ -326,42 +368,35 @@ async function finalizeGame(gameState, client, combinedPath, interaction, forced
   gameState.finalized = true;
 
   const userId = interaction.user.id;
-
-  // --- 役ランクだけで勝敗判定 ---
-  const pScore = evaluateHandStrength(gameState.playerHand);
-  const bScore = evaluateHandStrength(gameState.botHand);
+  const playerDetail = evaluateHandDetail(gameState.playerHand);
+  const botDetail = evaluateHandDetail(gameState.botHand);
 
   let winner;
   if (forcedWinner) {
     winner = forcedWinner;
-  } else if (pScore > bScore) {
-    winner = "player";
-  } else if (bScore > pScore) {
-    winner = "bot";
   } else {
-    winner = "draw"; // 役が同じなら引き分け
+    const cmp = compareHandsSimple(playerDetail, botDetail);
+    winner = cmp > 0 ? "player" : cmp < 0 ? "bot" : "draw";
   }
 
   const baseBet = Math.max(1, gameState.playerBet || 1);
   let msg = "";
 
   if (winner === "player") {
-    // --- Bot手札の役ランクに応じて報酬を決定 ---
-    const botRank = bScore;           // 0〜9
-    const botStrength = botStrength77to200(botRank / 9); // 正規化して77〜200
+    const botStrength = botStrength77to200(botDetail.rank / 9);
     const playerChange = calculatePlayerReward(baseBet, botStrength);
     await client.updateCoins(userId, playerChange);
-    msg = `🎉 勝ち！ +${playerChange} 金コイン`;
+    msg = `🎉 **あなたの勝ち！** +${playerChange} 金コイン`;
   } else if (winner === "bot") {
-    const playerChange = -baseBet * 3;
-    await client.updateCoins(userId, playerChange);
+    const loss = -baseBet * 3;
+    await client.updateCoins(userId, loss);
     const current = await client.getCoins(userId);
     if (current < 0) await client.setCoins(userId, 0);
-    msg = `💀 負け！ -${-playerChange} 金コイン`;
+    msg = `💀 **負け！** ${-loss} 金コイン失いました`;
   } else {
     const refund = Math.floor(baseBet / 2);
     await client.updateCoins(userId, refund);
-    msg = `🤝 引き分け！ +${refund} 金コイン返却`;
+    msg = `🤝 **引き分け！** +${refund} 金コイン返却`;
   }
 
   // --- 画像生成・表示 ---
@@ -370,11 +405,13 @@ async function finalizeGame(gameState, client, combinedPath, interaction, forced
   const currentCoins = await client.getCoins(userId);
 
   await interaction.editReply({
-    content: `${msg}\n🤖 Botの役ランク: ${bScore}\n現在の金コイン: ${currentCoins}`,
+    content: `${msg}\n🃏 あなたの役: **${getHandName(playerDetail)}**\n🤖 Botの役: **${getHandName(botDetail)}**\n💰 現在の金コイン: ${currentCoins}`,
     files: [file],
     components: []
   });
 
   // 5秒後に画像ファイル削除
-  setTimeout(() => { try { fs.unlinkSync(combinedPath); } catch {} }, 5000);
+  setTimeout(() => { 
+    try { fs.unlinkSync(combinedPath); } catch {} 
+  }, 5000);
 }
