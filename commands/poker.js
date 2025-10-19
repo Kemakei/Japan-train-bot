@@ -257,14 +257,14 @@ export async function execute(interaction) {
           gameState.playerBet += callAmount;
         }
 
-        await btnInt.update({ content: "✅ コールしました！", components: [row], files: [new AttachmentBuilder(combinedPath)] });
-
-        // プレイヤー行動のあと Bot が行動（botTurn は段階的に次ターンへ進める）
-        await botTurn(gameState, client, interaction, combinedPath, row);
-
-        // ターン数が2（0..2）を越えたらショーダウンへ（botTurn 内で増やす）
-        if (gameState.turn > 2) {
-          if (!collector.ended) collector.stop("completed");
+        
+      if (gameState.turn >= 2) {
+          await btnInt.update({ content: "🔍 ショーダウン！ 判定しています...", components: [] });
+          await stopAndFinalize("completed"); 
+          return;
+        } else {
+          await btnInt.update({ content: "✅ コールしました！", files:[new AttachmentBuilder(combinedPath)], components: [row] });
+          await botTurn(gameState, client, interaction, combinedPath, row);
           return;
         }
       }
@@ -295,7 +295,6 @@ async function botTurn(gameState, client, interaction, combinedPath, row) {
   if (gameState.finalized) return;
 
   if (gameState.turn >= 2) {
-    await interaction.followUp({ content: "⚖️ ショーダウン！判定しています、、" });
     await finalizeGame(gameState, client, combinedPath, interaction);
     return;
   }
