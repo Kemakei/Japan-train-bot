@@ -20,7 +20,7 @@ export async function execute(interaction) {
   // --- 購入履歴をストリームで取得 ---
   const cursor = lotteryTickets.find({ userId }).batchSize(5000);
 
-  let hasPurchase = false; // 👈 これで「購入履歴なし」検出
+  let hasPurchase = false; 
   let totalPrize = 0;
   let winCount = 0;
   const publicLines = [];
@@ -28,7 +28,7 @@ export async function execute(interaction) {
   let deleteOps = [];
 
   for await (const p of cursor) {
-    hasPurchase = true; // 👈 1件でもあれば true
+    hasPurchase = true;
     const isUnpublished = !p.drawId || !publishedDrawIds.has(p.drawId);
 
     if (isUnpublished) {
@@ -40,11 +40,14 @@ export async function execute(interaction) {
       totalPrize += p.prize;
       winCount++;
 
-      if (publicLines.length < 167) {
-        publicLines.push(
-          `🎟 ${p.number}${p.letter} → 🏆 ${p.rank}等 💰 ${p.prize.toLocaleString()}コイン獲得！`
-        );
+      const line = `🎟 ${p.number}${p.letter} → 🏆 ${p.rank}等 💰 ${p.prize.toLocaleString()}コイン獲得！`;
+
+      if (publicLines.length < 100) {
+        publicLines.push(line);
+      } else if (publicLines.length === 100) {
+        publicLines.push("他省略");
       }
+
       deleteOps.push({ deleteOne: { filter: { _id: p._id } } });
     } else if (!p.isWin) {
       deleteOps.push({ deleteOne: { filter: { _id: p._id } } });
@@ -87,15 +90,29 @@ export async function execute(interaction) {
 
   // --- 結果メッセージ生成 ---
   if (publicLines.length > 0) {
-    embedList.push(
-      new EmbedBuilder()
-        .setTitle("🎉 当選結果")
-        .setDescription(publicLines.join("\n"))
-        .setColor(0xffd700)
-        .setFooter({
+    // 最大2Embedに分割（50行ずつ）
+    const chunkSize = 50;
+    const chunks = [];
+
+    for (let i = 0; i < publicLines.length; i += chunkSize) {
+      chunks.push(publicLines.slice(i, i + chunkSize).join("\n"));
+    }
+
+    chunks.slice(0, 2).forEach((desc, i) => {
+      const embed = new EmbedBuilder()
+        .setTitle(i === 0 ? "🎉 当選結果" : "🎉 当選結果")
+        .setDescription(desc)
+        .setColor(0xffd700);
+
+      // 最後のEmbedにだけフッターを付ける
+      if (i === chunks.length - 1 || i === 1) {
+        embed.setFooter({
           text: `🎟 当選チケット: ${winCount} | 💰 合計当選金額: ${totalPrize.toLocaleString()}コイン | 所持金: ${coins.toLocaleString()}コイン`
-        })
-    );
+        });
+      }
+
+      embedList.push(embed);
+    });
   }
 
   const unpublishedCount = remainingPurchases.filter(
