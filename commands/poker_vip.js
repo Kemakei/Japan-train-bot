@@ -122,25 +122,37 @@ export async function execute(interaction) {
     const biasFactor = Math.min(1, Math.log10(bet + 1) / 5);
     const biasRanks = ["T","J","Q","K","A"];
     const biasedDeck = deck.slice().sort((a,b)=>{
-      const ra = biasRanks.includes(a[0]) ? -biasFactor : 0;
-      const rb = biasRanks.includes(b[0]) ? -biasFactor : 0;
-      return ra - rb + (Math.random()-0.5)*0.1;
-    });
+    const ra = biasRanks.includes(a[0]) ? -biasFactor : 0;
+    const rb = biasRanks.includes(b[0]) ? -biasFactor : 0;
+    return ra - rb + (Math.random()-0.5)*0.1;
+  });
 
-    let bestHand = null;
-    let bestScore = -Infinity;
-    for (let i=0;i<trials;i++){
-      const t = [...biasedDeck];
-      const hand = t.splice(0,5);
-      const score = evaluateHandStrength(hand) * strengthMultiplier;
-      if (score > bestScore){ bestScore = score; bestHand = hand; }
+  let bestHand = null;
+  let bestScore = -Infinity;
+  for (let i = 0; i < trials; i++) {
+    const t = [...biasedDeck];
+    const hand = t.splice(0, 5);
+
+    // 👇 evaluateHandStrength の結果をスコア化
+    const detail = evaluateHandStrength(hand);
+    const score = (detail.rank * 15 + detail.mainValue / 15) * strengthMultiplier;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestHand = hand;
     }
-    for (const c of bestHand){
-      const idx = deck.indexOf(c);
-      if (idx !== -1) deck.splice(idx,1);
-    }
+  }
+
+  // 👇 念のため安全ガード（null防止）
+  if (!bestHand) bestHand = biasedDeck.splice(0, 5);
+
+  for (const c of bestHand) {
+    const idx = deck.indexOf(c);
+    if (idx !== -1) deck.splice(idx, 1);
+  }
     return bestHand;
   }
+
 
   // デッキ作成（公開進行は poker_vip の仕様: 3,3,5）
   const suits = ["S","H","D","C"];
