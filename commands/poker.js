@@ -290,26 +290,29 @@ export async function execute(interaction) {
 
 }
 
-// --- Bot の行動（高度なロジック、poker.js方式） ---
+// --- 修正版 botTurn ---
 async function botTurn(gameState, client, interaction, combinedPath, row) {
   if (gameState.finalized) return;
 
-  // Bot の強さスコア化: 役のランク + loose randomness
-  const handRank = evaluateHandStrength(gameState.botHand);
-  const botScore = handRank + Math.random() * 0.5; // 思考強度（デバッグ用）
+  if (gameState.turn >= 2) {
+    await interaction.followUp({ content: "⚖️ ショーダウン！判定しています、、" });
+    await finalizeGame(gameState, client, combinedPath, interaction);
+    return;
+  }
 
-  // レイズ確率は手札ランクに依存（より細かく）
+  const handRank = evaluateHandStrength(gameState.botHand);
+  const botScore = handRank + Math.random() * 0.5; 
+
   const raiseProb = 0.1 + 0.25 * (handRank / 9) + 0.15 * Math.random();
   const callProb = 0.5 + 0.2 * (handRank / 9);
   const rnd = Math.random();
 
   let decision = "call";
   if (rnd < raiseProb) decision = "raise";
-  else if (rnd < raiseProb + (1 - raiseProb) * (1 - callProb)) decision = "call"; 
+  else if (rnd < raiseProb + (1 - raiseProb) * (1 - callProb)) decision = "call";
 
-  // レイズ額計算（より自然に）
   function calcRaiseAmount(requiredBet, strength) {
-    const base = Math.max(1000, Math.floor(requiredBet * (0.3 + 0.5 * (strength/10))));
+    const base = Math.max(1000, Math.floor(requiredBet * (0.3 + 0.5 * (strength / 10))));
     const added = Math.floor(Math.random() * Math.max(1, base));
     return base + added;
   }
@@ -322,21 +325,21 @@ async function botTurn(gameState, client, interaction, combinedPath, row) {
     await interaction.followUp({ content: `🤖 はコールしました。` });
   }
 
-  // 次のターンへ移行（公開カード: poker_vip と統一 => reveal pattern: 3,4,5）
-  const revealPattern = [3,4,5];
+  const revealPattern = [3, 4, 5];
   const revealCount = revealPattern[Math.min(gameState.turn, revealPattern.length - 1)];
-  // increment turn AFTER showing stage: current turn indicates how many stages have been completed so far
   gameState.turn++;
+
   await generateImage(gameState, revealCount, combinedPath);
   const file = new AttachmentBuilder(combinedPath);
   await interaction.editReply({
     content: `🃏 ターン${gameState.turn} 終了。現在のベット: ${gameState.playerBet} コイン`,
     files: [file],
-    components: gameState.turn < 3 ? [row] : []
+    components: gameState.turn < 3 ? [row] : [],
   });
 
   if (gameState.turn >= 3) {
-    // show final image will be done on finalizeGame
+    await interaction.followUp({ content: "⚖️ ショーダウン！判定しています、、" });
+    await finalizeGame(gameState, client, combinedPath, interaction);
   }
 }
 

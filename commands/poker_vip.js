@@ -22,7 +22,7 @@ const pythonCmd = process.platform === "win32" ? "py" : "python3";
 const ongoingGames = new Map();
 
 // --- 役評価（ペア強さ込み・キッカーなし） ---
-function evaluateHandDetail(hand) {
+function evaluateHandStrength(hand) {
   const rankValue = { "2":2,"3":3,"4":4,"5":5,"6":6,"7":7,"8":8,"9":9,"T":10,"J":11,"Q":12,"K":13,"A":14 };
   const ranks = hand.map(c => c[0]);
   const suits = hand.map(c => c[1]);
@@ -368,8 +368,8 @@ async function finalizeGame(gameState, client, combinedPath, interaction, forced
   gameState.finalized = true;
 
   const userId = interaction.user.id;
-  const playerDetail = evaluateHandDetail(gameState.playerHand);
-  const botDetail = evaluateHandDetail(gameState.botHand);
+  const playerDetail = evaluateHandStrength(gameState.playerHand);
+  const botDetail = evaluateHandStrength(gameState.botHand);
 
   let winner;
   if (forcedWinner) {
