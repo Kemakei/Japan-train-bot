@@ -377,6 +377,15 @@ client.once(Events.ClientReady, async () => {
 
   console.log("🎰 宝くじ自動更新スケジュールが開始されました。");
   console.log("✅ 借金日次更新スケジュールが開始されました。");
+
+  // スラッシュコマンド登録
+  const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
+  try {
+    await rest.put(Routes.applicationCommands(client.user.id), { body: commandsJSON });
+    console.log('✅ スラッシュコマンドを登録しました');
+  } catch (err) {
+    console.error('❌ コマンド登録失敗:', err);
+  }
 });
 
 // ------------------ 🔁 ./commands/*.js を安全に自動読み込み --------------------
@@ -406,19 +415,6 @@ for (const file of commandFiles) {
 }
 
 // ----------------------------------------------------------------------
-client.once(Events.ClientReady, async () => {
-  console.log(`🤖 Logged in as ${client.user.tag}`);
-
-  const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
-
-  try {
-    await rest.put(Routes.applicationCommands(client.user.id), { body: commandsJSON });
-    console.log('✅ スラッシュコマンドを登録しました');
-  } catch (err) {
-    console.error('❌ コマンド登録失敗:', err);
-  }
-});
-
 client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand() && !interaction.isMessageContextMenuCommand()) return;
 
