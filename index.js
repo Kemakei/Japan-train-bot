@@ -44,8 +44,14 @@ const __dirname = path.dirname(__filename);
 
 // -------------------- MongoDB 接続 --------------------
 const mongoClient = new MongoClient(process.env.MONGO_URI);
-await mongoClient.connect();
-const db = mongoClient.db("discordBot");
+let db;
+try {
+  await mongoClient.connect();
+  db = mongoClient.db("discordBot");
+  console.log("✅ MongoDB 接続成功");
+} catch (err) {
+  console.error("❌ MongoDB 接続失敗:", err);
+}
 const coinsCol = db.collection("coins"); // coins + stocks + trade_history
 const hedgeCol = db.collection("hedges");
 
@@ -493,4 +499,6 @@ client.on(Events.MessageCreate, async message => {
   }
 });
 
-client.login(process.env.DISCORD_BOT_TOKEN);
+client.login(process.env.DISCORD_BOT_TOKEN)
+  .then(() => console.log("🟢 Discord login called"))
+  .catch(err => console.error("❌ Discord login failed:", err));
