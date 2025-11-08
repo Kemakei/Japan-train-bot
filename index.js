@@ -405,7 +405,7 @@ for (const file of commandFiles) {
   }
 }
 
-// ------------------------------------------------------------------------
+// ----------------------------------------------------------------------
 client.once(Events.ClientReady, async () => {
   console.log(`🤖 Logged in as ${client.user.tag}`);
 
