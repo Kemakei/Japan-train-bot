@@ -374,6 +374,7 @@ async function sanitizeDatabase() {
 
 // -------------------- ready イベント統合 --------------------
 client.once(Events.ClientReady, async () => {
+  console.log(`🤖 Logged in as ${client.user.tag}`);
   console.log(`✅ ログイン完了: ${client.user.tag}`);
 
   await sanitizeDatabase();
@@ -500,5 +501,8 @@ client.on(Events.MessageCreate, async message => {
 });
 
 client.login(process.env.DISCORD_BOT_TOKEN)
-  .then(() => console.log("🟢 Discord login called"))
+  .then(() => {
+    console.log("🟢 Discord login called");
+    console.log('Gateway status:', client.ws.status);
+  })
   .catch(err => console.error("❌ Discord login failed:", err));
