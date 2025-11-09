@@ -72,6 +72,7 @@ client.db = db;
 client.monitoredMessages = new Map();
 client.lastSentCopies = new Map();
 client.autoRoleMap = new Map();
+client.reminders = new Map();
 client.commands = new Collection();
 client.lotteryTickets = client.db.collection("lotteryTickets");
 
