@@ -1,27 +1,39 @@
-import { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } from 'discord.js';
+import {
+  SlashCommandBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ComponentType
+} from 'discord.js';
 import { DateTime } from 'luxon';
-
-export const reminders = new Map();
 
 export const data = new SlashCommandBuilder()
   .setName('reminder')
   .setDescription('指定時間後または日時にリマインドします')
   .addStringOption(option =>
-    option.setName('time')
+    option
+      .setName('time')
       .setDescription('分後（例: 5）または日時 MM/DD HH:mm（例: 12/31 14:30）')
-      .setRequired(true))
+      .setRequired(true)
+  )
   .addStringOption(option =>
-    option.setName('message')
+    option
+      .setName('message')
       .setDescription('リマインドメッセージ')
-      .setRequired(false))
+      .setRequired(false)
+  )
   .addStringOption(option =>
-    option.setName('timezone')
+    option
+      .setName('timezone')
       .setDescription('タイムゾーン（例: UTC, +7, -8。未指定でUTC）')
-      .setRequired(false))
+      .setRequired(false)
+  )
   .addBooleanOption(option =>
-    option.setName('snooze')
+    option
+      .setName('snooze')
       .setDescription('スヌーズを有効にするか（true/false）')
-      .setRequired(false));
+      .setRequired(false)
+  );
 
 export async function execute(interaction, { client }) {
   const timeInput = interaction.options.getString('time');
@@ -30,6 +42,8 @@ export async function execute(interaction, { client }) {
   const snooze = interaction.options.getBoolean('snooze') || false;
   const userMention = `<@${interaction.user.id}>`;
   const reminderId = Date.now();
+
+  if (!client.reminders) client.reminders = new Map();
 
   // タイムゾーン処理
   let tz = 'UTC';
@@ -40,25 +54,25 @@ export async function execute(interaction, { client }) {
   }
 
   let delayMs;
-
-  // 分後か日時か判定
   if (/^\d+$/.test(timeInput)) {
     delayMs = parseInt(timeInput) * 60 * 1000;
   } else {
     const match = timeInput.match(/^(\d{1,2})\/(\d{1,2}) (\d{1,2}):(\d{2})$/);
     if (!match) {
-      return interaction.reply({ content: '❌ 時間形式が無効です。数字（分後）か MM/DD HH:mm を指定してください。', flags: 64 });
+      return interaction.reply({
+        content: '❌ 時間形式が無効です。数字（分後）か MM/DD HH:mm を指定してください。',
+        flags: 64
+      });
     }
 
     const [, month, day, hour, minute] = match.map(Number);
-    let now = DateTime.now().setZone(tz);
+    const now = DateTime.now().setZone(tz);
     let dt = DateTime.fromObject({ year: now.year, month, day, hour, minute }, { zone: tz });
-
     if (dt.toMillis() <= Date.now()) dt = dt.plus({ years: 1 });
-
     delayMs = dt.toMillis() - Date.now();
   }
 
+  // 🔁 リマインド送信関数
   const sendReminder = async () => {
     const content = messageText
       ? `${userMention} リマインド: ${messageText}`
@@ -71,36 +85,54 @@ export async function execute(interaction, { client }) {
         .setStyle(ButtonStyle.Danger)
     );
 
-    const msg = await interaction.channel.send({ content, components: [row] });
+    const msg = await interaction.channel.send({ content, components: snooze ? [row] : [] });
 
+    // 🔒 スヌーズボタン監視（メッセージごとに新しいcollectorを付与）
     if (snooze) {
-      // ボタン操作を監視してスヌーズ停止
       const collector = msg.createMessageComponentCollector({
         componentType: ComponentType.Button,
-        time: 24 * 60 * 60 * 1000 // 24時間まで待機
+        time: 7 * 24 * 60 * 60 * 1000 // 最大7日間有効
       });
 
-      collector.on('collect', i => {
-        if (i.customId === `stop_snooze_${reminderId}`) {
-          clearTimeout(client.reminders.get(reminderId));
-          client.reminders.delete(reminderId);
-          i.update({ content: '⏹ スヌーズを停止しました', components: [] });
+      collector.on('collect', async i => {
+        if (i.customId !== `stop_snooze_${reminderId}`) return;
+
+        // Discordの応答期限を回避
+        await i.deferUpdate();
+
+        // タイマー停止
+        const active = client.reminders.get(reminderId);
+        if (active) clearTimeout(active);
+        client.reminders.delete(reminderId);
+
+        // ボタン削除
+        try {
+          await msg.edit({ content: '⏹ スヌーズを停止しました', components: [] });
+        } catch (err) {
+          console.error('❌ メッセージ更新失敗:', err);
         }
+
+        collector.stop('stopped_by_user');
       });
+    }
 
-      // スヌーズ: 同じ間隔で繰り返す
-      const timeout = setTimeout(function snoozeNotify() {
-        interaction.channel.send({ content, components: [row] });
-        client.reminders.set(reminderId, setTimeout(snoozeNotify, delayMs));
-      }, delayMs);
-
-      client.reminders.set(reminderId, timeout);
+    // 🔁 スヌーズを再スケジュール
+    if (snooze && client.reminders.has(reminderId)) {
+      const nextTimeout = setTimeout(sendReminder, delayMs);
+      client.reminders.set(reminderId, nextTimeout);
     }
   };
 
-  // 最初の通知
-  const initialTimeout = setTimeout(sendReminder, delayMs);
+  // ⏰ 最初のリマインダーをセット
+  const initialTimeout = setTimeout(async () => {
+    await sendReminder();
+    if (!snooze) client.reminders.delete(reminderId);
+  }, delayMs);
+
   client.reminders.set(reminderId, initialTimeout);
 
-  await interaction.reply({ content: `⏰ リマインダーをセットしました（タイムゾーン: ${tz}, スヌーズ: ${snooze}）`, flags: 64 });
+  await interaction.reply({
+    content: `⏰ リマインダーをセットしました（タイムゾーン: ${tz}, スヌーズ: ${snooze}）`,
+    flags: 64
+  });
 }
