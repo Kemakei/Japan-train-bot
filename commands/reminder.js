@@ -74,17 +74,25 @@ export async function execute(interaction, { client }) {
     delayMs = dt.toMillis() - Date.now();
   }
 
-  // 日時指定ではスヌーズを自動で無効化（警告は出す）
   const snooze = isDatetime ? false : snoozeRequested;
   const warningMsg = isDatetime && snoozeRequested
     ? '\n⚠️ 日時指定ではスヌーズは無効になります。'
     : '';
 
-  // 🔁 リマインド送信関数
+  let lastMessage = null;
+
   const sendReminder = async () => {
     const content = messageText
-      ? `${userMention} ${messageText}`
+      ? `${userMention}  ${messageText}`
       : `${userMention} リマインド時間になりました！`;
+
+    // 🔹 新しいメッセージ送信前に古いボタンを削除
+    if (lastMessage) {
+      try {
+        await lastMessage.edit({ components: [] });
+      } catch {
+      }
+    }
 
     const row = snooze
       ? new ActionRowBuilder().addComponents(
@@ -96,12 +104,13 @@ export async function execute(interaction, { client }) {
       : null;
 
     const msg = await interaction.channel.send({ content, components: snooze ? [row] : [] });
+    lastMessage = msg; // 📌 最新メッセージを記録
 
     // 🔒 スヌーズボタン監視
     if (snooze) {
       const collector = msg.createMessageComponentCollector({
         componentType: ComponentType.Button,
-        time: 7 * 24 * 60 * 60 * 1000 // 最大7日間有効
+        time: 7 * 24 * 60 * 60 * 1000 // 最大7日間
       });
 
       collector.on('collect', async i => {
@@ -117,7 +126,7 @@ export async function execute(interaction, { client }) {
       });
     }
 
-    // 🔁 スヌーズ再スケジュール（日時指定は除外）
+    // 🔁 スヌーズ再スケジュール
     if (!isDatetime && snooze && client.reminders.has(reminderId)) {
       const nextTimeout = setTimeout(sendReminder, delayMs);
       client.reminders.set(reminderId, nextTimeout);
