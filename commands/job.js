@@ -22,9 +22,6 @@ const licenseNeeded = {
   "医師": "医師免許"
 };
 
-// 転職後のクールダウン時間
-const JOB_COOLDOWN = 5 * 60 * 1000; 
-
 // ランダム才能スコア生成
 function randomTalent() {
   return +(Math.random() * (1.5 - 0.6) + 0.6).toFixed(2);
@@ -47,14 +44,15 @@ export async function handleAutocomplete(interaction) {
 
   const focusedValue = interaction.options.getFocused();
 
+  // 「職名：〇コイン」と表示、内部は職名
   const filtered = jobs
     .filter(j => j.name.includes(focusedValue))
     .slice(0, 10);
 
   await interaction.respond(
     filtered.map(j => ({
-      name: `${j.name}: ${j.cost}コイン`, 
-      value: j.name                     
+      name: `${j.name}：${j.cost}コイン`, // 表示
+      value: j.name                     // 内部値
     }))
   );
 }
@@ -63,14 +61,6 @@ export async function handleAutocomplete(interaction) {
 export async function execute(interaction) {
   const userId = interaction.user.id;
   const userJob = await interaction.client.getJobData(userId);
-
-  const now = Date.now();
-  if (userJob.lastJobChange && now - userJob.lastJobChange < JOB_COOLDOWN) {
-    const rem = JOB_COOLDOWN - (now - userJob.lastJobChange);
-    const m = Math.floor(rem / 60000);
-    const s = Math.floor((rem % 60000) / 1000);
-    return interaction.reply({ content: `⏳ 転職には **${m}分${s}秒** 待つ必要があります。`, ephemeral: true });
-  }
 
   const inputJob = interaction.options.getString('職業');
   const targetJob = jobs.find(j => j.name === inputJob);
@@ -112,7 +102,7 @@ export async function execute(interaction) {
       talent,
       skill: 0,
       workCount: 0,
-      lastJobChange: now
+      lastJobChange: Date.now()
     });
     message = `✅ **${targetJob.name}** に転職しました！\n才能スコア: **${talent}**`;
   }
