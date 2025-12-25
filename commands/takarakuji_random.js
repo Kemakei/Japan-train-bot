@@ -57,7 +57,7 @@ export async function execute(interaction, { client }) {
     }
 
     // --- コイン支払い ---
-    const costPerTicket = 1000;
+    const costPerTicket = 500;
     const totalCost = tickets.length * costPerTicket;
     const coins = await client.getCoins(userId);
 

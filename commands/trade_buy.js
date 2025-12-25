@@ -41,7 +41,7 @@ export async function execute(interaction, { client }) {
   // --- 現在株価取得 ---
   const stockPrice = await client.getStockPrice();
   const totalCost = stockPrice * count;
-  const fee = Math.floor(totalCost * 0.2) + 100;
+  const fee = Math.floor(totalCost * 0.1) + 100;
   const totalPayment = totalCost + fee;
 
   // --- 所持コイン確認 ---

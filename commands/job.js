@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
+import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 
 const jobs = [
   { name: '無職', cost: 0, base: 0 },
@@ -21,54 +21,45 @@ const licenseNeeded = {
 };
 
 function randomTalent() {
-  return Math.random() * (1.5 - 0.6) + 0.6.toFixed(1);
+  return +(Math.random() * (1.5 - 0.6) + 0.6).toFixed(2);
 }
 
 export const data = new SlashCommandBuilder()
   .setName('job')
-  .setDescription('転職');
+  .setDescription('転職')
+  .addStringOption(option => 
+    option.setName('職業')
+          .setDescription('希望の職業を入力してください')
+          .setRequired(true)
+  );
 
 export async function execute(interaction) {
   const userId = interaction.user.id;
   const userJob = await interaction.client.getJobData(userId);
 
-  // 選択肢作成
-  const options = jobs.map(j => ({ label: j.name, value: j.name }));
-  const row = new ActionRowBuilder().addComponents(
-    new StringSelectMenuBuilder()
-      .setCustomId('job_select')
-      .setPlaceholder('職業を選択してください（未選択で確認）')
-      .addOptions(options)
-  );
+  // 入力された職業
+  const inputJob = interaction.options.getString('職業');
+  const targetJob = jobs.find(j => j.name === inputJob);
 
-  if (!interaction.isSelectMenu()) {
-    return interaction.reply({ 
-      content: `現在の職業: **${userJob.job}**\n熟練度: **${userJob.skill || 0}**\n才能スコア: **${userJob.talent || '未設定'}**`, 
-      components: [row], flags: 64 
-    });
+  if (!targetJob) {
+    return interaction.reply({ content: `❌ **${inputJob}** は無効な職業です。`, ephemeral: true });
   }
 
-  const selectedJob = interaction.values[0];
-  if (selectedJob === userJob.job) {
-    return interaction.update({ content: `⚠️ 既に **${userJob.job}** に就いています。`, components: [] });
+  if (inputJob === userJob.job) {
+    return interaction.reply({ content: `⚠️ 既に **${userJob.job}** に就いています。`, ephemeral: true });
   }
-
-  const targetJob = jobs.find(j => j.name === selectedJob);
 
   // ライセンスチェック
-  if (licenseNeeded[selectedJob]) {
-    const has = await interaction.client.hasLicense(userId, selectedJob);
+  if (licenseNeeded[inputJob]) {
+    const has = await interaction.client.hasLicense(userId, inputJob);
     if (!has) {
-      return interaction.update({
-        content: `❌ ${selectedJob}に転職するには **${licenseNeeded[selectedJob]}** が必要です。`,
-        components: []
-      });
+      return interaction.reply({ content: `❌ ${inputJob}に転職するには **${licenseNeeded[inputJob]}** が必要です。`, ephemeral: true });
     }
   }
 
   const coins = await interaction.client.getCoins(userId);
   if (coins < targetJob.cost) {
-    return interaction.update({ content: `❌ ${targetJob.cost}コイン必要です。所持: ${coins}`, components: [] });
+    return interaction.reply({ content: `❌ ${targetJob.cost}コイン必要です。所持: ${coins}`, ephemeral: true });
   }
 
   // 才能スコア確定
@@ -86,5 +77,5 @@ export async function execute(interaction) {
     message = `✅ **${targetJob.name}** に転職しました！\n才能スコア: **${talent.toFixed(2)}**`;
   }
 
-  await interaction.update({ content: message, components: [] });
+  await interaction.reply({ content: message, ephemeral: true });
 }
