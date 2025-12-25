@@ -41,7 +41,7 @@ export async function execute(interaction) {
     const rem = cooldown - (now - lastWork);
     const m = Math.floor(rem / 60000);
     const s = Math.floor((rem % 60000) / 1000);
-    return interaction.reply({ content: `⏳ 次に働けるまで **${m}分${s}秒**`, flags: 64 });
+    return interaction.reply({ content: `⏳ 次に働けるまで **${m}分${s}秒**です。`, flags: 64 });
   }
 
   await interaction.deferReply();
@@ -72,6 +72,6 @@ export async function execute(interaction) {
 
   const coins = await interaction.client.getCoins(userId);
   await interaction.editReply({
-    embeds: [new EmbedBuilder().setColor('Green').setDescription(`💰 **${earned}コイン**を獲得！\n所持金: **${coins}コイン**\n熟練度: **${skill}**`)]
+    embeds: [new EmbedBuilder().setColor('Green').setDescription(`💰 **${earned}コイン**を獲得！\n所持金: **${coins}コイン**`)]
   });
 }

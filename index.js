@@ -484,9 +484,9 @@ client.on(Events.InteractionCreate, async interaction => {
   } catch (error) {
     console.error(error);
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", ephemeral: true });
+      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", flags: 64 });
     } else {
-      await interaction.editReply({ content: "❌ コマンド実行中にエラーが発生しました", ephemeral: true });
+      await interaction.editReply({ content: "❌ コマンド実行中にエラーが発生しました", flags: 64 });
     }
   }
 });
