@@ -10,7 +10,7 @@ export async function execute(interaction) {
     const client = interaction.client;
     const hedge = await client.getHedge(userId);
 
-    if (!hedge) return interaction.reply({ content: "❌ 契約中の保険金がありません", ephemeral: true });
+    if (!hedge) return interaction.reply({ content: "❌ 契約中の保険金がありません", flags: 64 });
 
     // --- データ破損チェック ---
     if (
@@ -19,7 +19,7 @@ export async function execute(interaction) {
       typeof hedge.lastDate !== 'string'
     ) {
       await client.clearHedge(userId);
-      return interaction.reply({ content: "❌ 契約データが壊れています。再契約してください。", ephemeral: true });
+      return interaction.reply({ content: "❌ 契約データが壊れています。再契約してください。", flags: 64 });
     }
 
     // --- JST基準で日数計算 ---
@@ -33,7 +33,7 @@ export async function execute(interaction) {
     const msPerDay = 24 * 60 * 60 * 1000;
     let daysPassed = Math.floor((todayDate - lastDate) / msPerDay);
 
-    if (daysPassed <= 0) return interaction.reply({ content: "❌ まだ保険金はたまっていません", ephemeral: true });
+    if (daysPassed <= 0) return interaction.reply({ content: "❌ まだ保険金はたまっていません", flags: 64 });
 
     // --- コイン残高・累積計算 ---
     let coins = await client.getCoins(userId);
@@ -71,7 +71,7 @@ export async function execute(interaction) {
         accumulated: totalAccumulated,
         lastDate: todayStr,
       });
-      return interaction.reply({ content: `❌ 保険金の3倍のコインが必要です。現在 ${coins} コインでは受け取れません`, ephemeral: true });
+      return interaction.reply({ content: `❌ 保険金の3倍のコインが必要です。現在 ${coins} コインでは受け取れません`, flags: 64 });
     }
 
     // --- 受け取り可能ならコイン加算＆契約終了 ---
@@ -85,6 +85,6 @@ export async function execute(interaction) {
 
   } catch (err) {
     console.error(err);
-    await interaction.reply({ content: "❌ 受け取り処理中にエラーが発生しました", ephemeral: true });
+    await interaction.reply({ content: "❌ 受け取り処理中にエラーが発生しました", flags: 64 });
   }
 }

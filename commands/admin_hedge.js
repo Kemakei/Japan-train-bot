@@ -35,7 +35,7 @@ export async function execute(interaction, { client }) {
     const password = interaction.options.getString("password");
 
     if (password !== ADMIN_PASSWORD) {
-      return interaction.reply({ content: "❌ パスワードが違います", ephemeral: true });
+      return interaction.reply({ content: "❌ パスワードが違います", flags: 64 });
     }
 
     const amountPerDay = interaction.options.getInteger("amount_per_day");
@@ -46,7 +46,7 @@ export async function execute(interaction, { client }) {
     // ------------------- 契約削除 -------------------
     if (clear) {
       await client.hedgeCol.deleteOne({ userId });
-      return interaction.reply({ content: `✅ ${user.tag} の契約を削除しました`, ephemeral: true });
+      return interaction.reply({ content: `✅ ${user.tag} の契約を削除しました`, flags: 64 });
     }
 
     // ------------------- 契約作成/編集 -------------------
@@ -63,7 +63,7 @@ export async function execute(interaction, { client }) {
 
       return interaction.reply({
         content: `✅ ${user.tag} の契約を更新しました\n1日あたり: ${hedge.amountPerDay} コイン`,
-        ephemeral: true,
+        flags: 64,
       });
     }
 
@@ -71,7 +71,7 @@ export async function execute(interaction, { client }) {
     if (add !== null || subtr !== null) {
       const hedgeDoc = await client.hedgeCol.findOne({ userId });
       if (!hedgeDoc) {
-        return interaction.reply({ content: `❌ ${user.tag} は契約中ではありません`, ephemeral: true });
+        return interaction.reply({ content: `❌ ${user.tag} は契約中ではありません`, flags: 64 });
       }
 
       const hedge = hedgeDoc;
@@ -86,15 +86,15 @@ export async function execute(interaction, { client }) {
 
       return interaction.reply({
         content: `✅ ${user.tag} の保険金を更新しました\n現在: ${hedge.accumulated} コイン`,
-        ephemeral: true,
+        flags: 64,
       });
     }
 
     // ------------------- 何も指定されなかった場合 -------------------
-    return interaction.reply({ content: "❌ 操作が指定されていません", ephemeral: true });
+    return interaction.reply({ content: "❌ 操作が指定されていません", flags: 64 });
 
   } catch (err) {
     console.error(`[${interaction.user.tag}] エラー発生:`, err);
-    return interaction.reply({ content: `❌ エラーが発生しました:\n${err.message}`, ephemeral: true });
+    return interaction.reply({ content: `❌ エラーが発生しました:\n${err.message}`, flags: 64 });
   }
 }

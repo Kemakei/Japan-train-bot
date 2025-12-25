@@ -33,11 +33,11 @@ export async function execute(interaction) {
   try {
     amount = BigInt(amountStr);
   } catch {
-    return interaction.reply({ content: "❌ 無効な数字です。整数を入力してください。", ephemeral: true });
+    return interaction.reply({ content: "❌ 無効な数字です。整数を入力してください。", flags: 64 });
   }
 
   if (amount <= 0n) {
-    return interaction.reply({ content: "❌ 1以上の数値を指定してください。", ephemeral: true });
+    return interaction.reply({ content: "❌ 1以上の数値を指定してください。", flags: 64 });
   }
 
   // ユーザーの所持データ取得
@@ -52,7 +52,7 @@ export async function execute(interaction) {
     if (userCoins < coinsNeeded) {
       return interaction.reply({
         content: `❌ 所持コインが足りません！\n必要: ${coinsNeeded.toLocaleString()} コイン\n所持: ${userCoins.toLocaleString()} コイン`,
-        ephemeral: true
+        flags: 64
       });
     }
 
@@ -71,7 +71,7 @@ export async function execute(interaction) {
     if (userVIP < amount) {
       return interaction.reply({
         content: `❌ 金コインが足りません！\n必要: ${amount.toLocaleString()} 金コイン\n所持: ${userVIP.toLocaleString()} 金コイン`,
-        ephemeral: true
+        flags: 64
       });
     }
 
@@ -87,6 +87,6 @@ export async function execute(interaction) {
     });
 
   } else {
-    return interaction.reply({ content: "❌ 無効な変換方向です。", ephemeral: true });
+    return interaction.reply({ content: "❌ 無効な変換方向です。", flags: 64 });
   }
 }

@@ -35,7 +35,7 @@ export async function execute(interaction, { client }) {
     const password = interaction.options.getString("password");
     const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
     if (password !== ADMIN_PASSWORD) {
-      return interaction.reply({ content: "❌ パスワードが間違っています", ephemeral: true });
+      return interaction.reply({ content: "❌ パスワードが間違っています", flags: 64 });
     }
 
     const userInput = interaction.options.getString("userid");
@@ -48,13 +48,13 @@ export async function execute(interaction, { client }) {
 
     if (action === "add") {
       if (!number || !letter) {
-        return interaction.reply({ content: "❌ 追加する場合は番号と文字を指定してください", ephemeral: true });
+        return interaction.reply({ content: "❌ 追加する場合は番号と文字を指定してください", flags: 64 });
       }
       if (!/^\d{5}$/.test(number)) {
-        return interaction.reply({ content: "❌ 番号は5桁の数字で指定してください", ephemeral: true });
+        return interaction.reply({ content: "❌ 番号は5桁の数字で指定してください", flags: 64 });
       }
       if (!/^[A-Z]$/.test(letter)) {
-        return interaction.reply({ content: "❌ 文字は A-Z の1文字で指定してください", ephemeral: true });
+        return interaction.reply({ content: "❌ 文字は A-Z の1文字で指定してください", flags: 64 });
       }
 
       const drawId = getNextDrawId(new Date());
@@ -71,19 +71,19 @@ export async function execute(interaction, { client }) {
       await client.lotteryTickets.insertOne(purchase);
 
       console.log(`${interaction.user.tag} が <@${userId}> に宝くじ ${number}${letter} を追加しました`);
-      return interaction.reply({ content: `✅ <@${userId}> に宝くじ ${number}${letter} を追加しました`, ephemeral: true });
+      return interaction.reply({ content: `✅ <@${userId}> に宝くじ ${number}${letter} を追加しました`, flags: 64 });
 
     } else if (action === "remove") {
       if ((number || letter) && !(number && letter)) {
-        return interaction.reply({ content: "❌ 削除する場合は番号と文字を両方指定してください", ephemeral: true });
+        return interaction.reply({ content: "❌ 削除する場合は番号と文字を両方指定してください", flags: 64 });
       }
 
       if (number && letter) {
         if (!/^\d{5}$/.test(number)) {
-          return interaction.reply({ content: "❌ 番号は5桁の数字で指定してください", ephemeral: true });
+          return interaction.reply({ content: "❌ 番号は5桁の数字で指定してください", flags: 64 });
         }
         if (!/^[A-Z]$/.test(letter)) {
-          return interaction.reply({ content: "❌ 文字は A-Z の1文字で指定してください", ephemeral: true });
+          return interaction.reply({ content: "❌ 文字は A-Z の1文字で指定してください", flags: 64 });
         }
 
         // --- 修正箇所: lotteryTickets から1枚削除 ---
@@ -91,9 +91,9 @@ export async function execute(interaction, { client }) {
 
         if (result.deletedCount > 0) {
           console.log(`${interaction.user.tag} が <@${userId}> の宝くじ ${number}${letter} を削除しました`);
-          return interaction.reply({ content: `✅ <@${userId}> の宝くじ ${number}${letter} を削除しました`, ephemeral: true });
+          return interaction.reply({ content: `✅ <@${userId}> の宝くじ ${number}${letter} を削除しました`, flags: 64 });
         } else {
-          return interaction.reply({ content: `⚠️ 指定された宝くじは見つかりませんでした`, ephemeral: true });
+          return interaction.reply({ content: `⚠️ 指定された宝くじは見つかりませんでした`, flags: 64 });
         }
       } else {
         // --- 修正箇所: lotteryTickets から全削除 ---
@@ -103,14 +103,14 @@ export async function execute(interaction, { client }) {
           console.log(`${interaction.user.tag} が <@${userId}> のすべての宝くじを削除しました`);
         }
 
-        return interaction.reply({ content: `✅ <@${userId}> のすべての宝くじを削除しました`, ephemeral: true });
+        return interaction.reply({ content: `✅ <@${userId}> のすべての宝くじを削除しました`, flags: 64 });
       }
     } else {
-      return interaction.reply({ content: "❌ 不正なアクションです", ephemeral: true });
+      return interaction.reply({ content: "❌ 不正なアクションです", flags: 64 });
     }
 
   } catch (err) {
     console.error("admin_takarakuji エラー:", err);
-    return interaction.reply({ content: "❌ エラーが発生しました", ephemeral: true });
+    return interaction.reply({ content: "❌ エラーが発生しました", flags: 64 });
   }
 }

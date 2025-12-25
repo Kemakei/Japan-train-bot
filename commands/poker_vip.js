@@ -103,13 +103,13 @@ export async function execute(interaction) {
   const gameKey = `${channelId}-${userId}`;
 
   if (ongoingGames.has(gameKey)) {
-    return interaction.reply({ content: "❌ このチャンネルで進行中のゲームがあります！", ephemeral: true });
+    return interaction.reply({ content: "❌ このチャンネルで進行中のゲームがあります！", flags: 64 });
   }
 
   // VIP の bet (元の VIP は 1)
   const bet = 1;
   const initialCoins = await client.getCoins(userId);
-  if (initialCoins < bet) return interaction.reply({ content: "❌ 金コインが足りません！", ephemeral: true });
+  if (initialCoins < bet) return interaction.reply({ content: "❌ 金コインが足りません！", flags: 64 });
 
   await interaction.deferReply();
   await client.updateCoins(userId, -bet);
@@ -224,7 +224,7 @@ export async function execute(interaction) {
 
       if (action?.startsWith("bet") && action !== "customBet") {
         const add = action === "bet1" ? 1 : 10;
-        if (add > userCoins) return btnInt.reply({ content: "❌ 金コインが足りません！", ephemeral: true });
+        if (add > userCoins) return btnInt.reply({ content: "❌ 金コインが足りません！", flags: 64 });
         gameState.playerBet += add;
         gameState.requiredBet = Math.max(gameState.requiredBet, gameState.playerBet);
         await client.updateCoins(userId, -add);
@@ -240,12 +240,12 @@ export async function execute(interaction) {
         const submitted = await btnInt.awaitModalSubmit({ time: 30000 }).catch(()=>null);
         if(!submitted) return;
         const betValue = Number(submitted.fields.getTextInputValue("betAmount"));
-        if (isNaN(betValue) || betValue <= 0) return submitted.reply({ content: "❌ 無効な金額です", ephemeral: true });
-        if (betValue > userCoins) return submitted.reply({ content: "❌ 金コインが足りません！", ephemeral: true });
+        if (isNaN(betValue) || betValue <= 0) return submitted.reply({ content: "❌ 無効な金額です", flags: 64 });
+        if (betValue > userCoins) return submitted.reply({ content: "❌ 金コインが足りません！", flags: 64 });
         gameState.playerBet += betValue;
         gameState.requiredBet = Math.max(gameState.requiredBet, gameState.playerBet);
         await client.updateCoins(userId, -betValue);
-        await submitted.reply({ content: `💰 ${betValue} 金コインを追加しました（合計ベット: ${gameState.playerBet}）`, ephemeral: true });
+        await submitted.reply({ content: `💰 ${betValue} 金コインを追加しました（合計ベット: ${gameState.playerBet}）`, flags: 64 });
         await interaction.editReply({ content:`🎲 あなたの手札です。現在のベット: ${gameState.playerBet} 金コイン`, files:[new AttachmentBuilder(combinedPath)], components:[row] });
         return;
       }
@@ -253,7 +253,7 @@ export async function execute(interaction) {
       if (action === "call") {
         const callAmount = gameState.requiredBet - gameState.playerBet;
         if (callAmount > 0) {
-          if (callAmount > userCoins) return btnInt.reply({ content: "❌ 金コインが足りません！", ephemeral: true });
+          if (callAmount > userCoins) return btnInt.reply({ content: "❌ 金コインが足りません！", flags: 64 });
           gameState.playerBet += callAmount;
           await client.updateCoins(userId, -callAmount);
         }
@@ -274,7 +274,7 @@ export async function execute(interaction) {
     } catch (err) {
       console.error("[poker_vip] error:", err);
       ongoingGames.delete(gameKey);
-      try { if (!btnInt.replied) await btnInt.reply({ content: "❌ エラーが発生しました", ephemeral: true }); } catch {}
+      try { if (!btnInt.replied) await btnInt.reply({ content: "❌ エラーが発生しました", flags: 64 }); } catch {}
     }
   });
 

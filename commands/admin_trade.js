@@ -17,7 +17,7 @@ export async function execute(interaction) {
   const password = interaction.options.getString("password");
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
   if (password !== ADMIN_PASSWORD) {
-    return interaction.reply({ content: "❌ パスワードが違います", ephemeral: true });
+    return interaction.reply({ content: "❌ パスワードが違います", flags: 64 });
   }
 
   const user = interaction.options.getUser("target");
@@ -43,10 +43,10 @@ export async function execute(interaction) {
     );
 
     console.log(`${interaction.user.tag} が ${user.tag} の株数を ${current} に更新しました`);
-    return interaction.reply({ content: `✅ ${user.tag} の株数を ${current} に更新しました`, ephemeral: true });
+    return interaction.reply({ content: `✅ ${user.tag} の株数を ${current} に更新しました`, flags: 64 });
 
   } catch (err) {
     console.error("❌ admin_trade エラー:", err);
-    return interaction.reply({ content: "❌ 株数更新中にエラーが発生しました", ephemeral: true });
+    return interaction.reply({ content: "❌ 株数更新中にエラーが発生しました", flags: 64 });
   }
 }

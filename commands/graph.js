@@ -89,7 +89,7 @@ export async function execute(interaction, { client }) {
       console.error("❌ Pythonエラー:", errorOutput);
       return interaction.editReply({
         content: "❌ グラフ生成失敗",
-        ephemeral: true,
+        flags: 64,
       });
     }
 
@@ -100,7 +100,7 @@ export async function execute(interaction, { client }) {
       console.error("❌ JSON解析失敗:", e, output);
       return interaction.editReply({
         content: "❌ グラフ情報の解析に失敗しました",
-        ephemeral: true,
+        flags: 64,
       });
     }
 
@@ -108,7 +108,7 @@ export async function execute(interaction, { client }) {
     if (!fs.existsSync(imagePath)) {
       return interaction.editReply({
         content: "❌ 画像ファイルが見つかりません",
-        ephemeral: true,
+        flags: 64,
       });
     }
 

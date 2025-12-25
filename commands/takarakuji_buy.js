@@ -32,10 +32,10 @@ export async function execute(interaction, { client }) {
   let ticketInputs = input.split(":").map(s => s.trim()).filter(Boolean);
 
   if (ticketInputs.length === 0)
-    return interaction.reply({ content: "❌ チケット番号を1枚以上入力してください", ephemeral: true });
+    return interaction.reply({ content: "❌ チケット番号を1枚以上入力してください", flags: 64 });
 
   if (ticketInputs.length > 10)
-    return interaction.reply({ content: "❌ 最大10枚まで購入可能です", ephemeral: true });
+    return interaction.reply({ content: "❌ 最大10枚まで購入可能です", flags: 64 });
 
   const drawNumber = client.takarakuji.number;
   const drawLetter = client.takarakuji.letter;
@@ -45,7 +45,7 @@ export async function execute(interaction, { client }) {
 
   for (const ticket of ticketInputs) {
     if (!/^\d{5}[A-Z]$/i.test(ticket))
-      return interaction.reply({ content: `❌ 無効なチケット番号: ${ticket}（形式: 5桁の数字+アルファベット）`, ephemeral: true });
+      return interaction.reply({ content: `❌ 無効なチケット番号: ${ticket}（形式: 5桁の数字+アルファベット）`, flags: 64 });
 
     const number = ticket.slice(0, 5);
     const letter = ticket.slice(5).toUpperCase();
@@ -68,7 +68,7 @@ export async function execute(interaction, { client }) {
   const coins = await client.getCoins(userId);
 
   if (coins < totalCost)
-    return interaction.reply({ content: `❌ コイン不足 (${coins}/${totalCost})`, ephemeral: true });
+    return interaction.reply({ content: `❌ コイン不足 (${coins}/${totalCost})`, flags: 64 });
 
   await client.updateCoins(userId, -totalCost);
 

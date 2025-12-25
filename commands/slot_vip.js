@@ -50,13 +50,13 @@ export async function execute(interaction, { client }) {
   const bet = interaction.options.getInteger('bet');
   const userId = interaction.user.id;
 
-  if (bet < 1) return interaction.reply({ content: "❌ 最低ベットは1金コインです！", ephemeral: true });
+  if (bet < 1) return interaction.reply({ content: "❌ 最低ベットは1金コインです！", flags: 64 });
 
   const coinsCol = client.coinsCol;
   const userDoc = await coinsCol.findOne({ userId });
   const vipPoints = userDoc?.VIPCoins || 0;
 
-  if (bet > vipPoints) return interaction.reply({ content: "❌ 金コインが足りません！", ephemeral: true });
+  if (bet > vipPoints) return interaction.reply({ content: "❌ 金コインが足りません！", flags: 64 });
 
   await interaction.deferReply();
 

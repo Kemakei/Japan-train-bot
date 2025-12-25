@@ -30,12 +30,12 @@ export async function execute(interaction) {
 
     // --- 先にチェックして即終了（ephemeral） ---
     if (bet < 100) {
-      return await interaction.reply({ content: "❌ 最低掛け金は100です！", ephemeral: true });
+      return await interaction.reply({ content: "❌ 最低掛け金は100です！", flags: 64 });
     }
 
     if (coins < bet * 1.5) {
       const maxBet = Math.floor(bet * 1.5);
-      return await interaction.reply({ content: `❌ 最大 **${maxBet}** コインまで賭けられます！`, ephemeral: true });
+      return await interaction.reply({ content: `❌ 最大 **${maxBet}** コインまで賭けられます！`, flags: 64 });
     }
 
     // 正常時のみ deferReply（公開メッセージ）
@@ -66,7 +66,7 @@ export async function execute(interaction) {
   } catch (err) {
     console.error(err);
     if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました。", ephemeral: true });
+      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました。", flags: 64 });
     } else {
       await interaction.editReply({ content: "❌ コマンド実行中にエラーが発生しました。" });
     }

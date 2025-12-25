@@ -24,17 +24,17 @@ export async function execute(interaction) {
     // --- ユーザーID抽出（メンション or ID） ---
     const targetId = targetInput.replace(/[<@!>]/g, "").trim();
     if (!/^\d+$/.test(targetId)) {
-      return await interaction.reply({ content: "❌ 無効なユーザー指定です。", ephemeral: true });
+      return await interaction.reply({ content: "❌ 無効なユーザー指定です。", flags: 64 });
     }
 
     // --- 自分に送れない ---
     if (targetId === senderId) {
-      return await interaction.reply({ content: "❌ 自分にコインを送ることはできません！", ephemeral: true });
+      return await interaction.reply({ content: "❌ 自分にコインを送ることはできません！", flags: 64 });
     }
 
     // --- 金額チェック ---
     if (amount <= 0) {
-      return await interaction.reply({ content: "❌ 送るコインは1以上で指定してください。", ephemeral: true });
+      return await interaction.reply({ content: "❌ 送るコインは1以上で指定してください。", flags: 64 });
     }
 
     // --- 送信者の所持金チェック ---
@@ -42,14 +42,14 @@ export async function execute(interaction) {
     if (senderCoins < amount) {
       return await interaction.reply({
         content: `❌ コインが足りません！（所持: ${senderCoins}, 必要: ${amount}）`,
-        ephemeral: true
+        flags: 64
       });
     }
 
     // --- 送信先ユーザー確認 ---
     const targetUser = await client.users.fetch(targetId).catch(() => null);
     if (!targetUser) {
-      return await interaction.reply({ content: "❌ 指定したユーザーが見つかりません。", ephemeral: true });
+      return await interaction.reply({ content: "❌ 指定したユーザーが見つかりません。", flags: 64 });
     }
 
     // --- コイン移動 ---
@@ -71,7 +71,7 @@ export async function execute(interaction) {
   } catch (err) {
     console.error("Gift command error:", err);
     if (!interaction.replied) {
-      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました。", ephemeral: true });
+      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました。", flags: 64 });
     } else {
       await interaction.editReply({ content: "❌ コマンド実行中にエラーが発生しました。" });
     }

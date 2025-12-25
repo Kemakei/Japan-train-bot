@@ -30,7 +30,7 @@ export async function execute(interaction) {
   if (!userJob) userJob = { job: '無職', talent: 1, skill: 0, workCount: 0 };
 
   if (userJob.job === '無職') {
-    return interaction.reply({ content: '❌/jobで職についてください', ephemeral: true });
+    return interaction.reply({ content: '❌/jobで職についてください', flags: 64 });
   }
 
   if (!interaction.client.workCooldowns) interaction.client.workCooldowns = {};
@@ -41,7 +41,7 @@ export async function execute(interaction) {
     const rem = cooldown - (now - lastWork);
     const m = Math.floor(rem / 60000);
     const s = Math.floor((rem % 60000) / 1000);
-    return interaction.reply({ content: `⏳ 次に働けるまで **${m}分${s}秒**`, ephemeral: true });
+    return interaction.reply({ content: `⏳ 次に働けるまで **${m}分${s}秒**`, flags: 64 });
   }
 
   await interaction.deferReply();

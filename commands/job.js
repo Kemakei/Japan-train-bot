@@ -44,7 +44,7 @@ export async function execute(interaction) {
   if (!interaction.isSelectMenu()) {
     return interaction.reply({ 
       content: `現在の職業: **${userJob.job}**\n熟練度: **${userJob.skill || 0}**\n才能スコア: **${userJob.talent || '未設定'}**`, 
-      components: [row], ephemeral: true 
+      components: [row], flags: 64 
     });
   }
 

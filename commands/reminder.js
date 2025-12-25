@@ -62,7 +62,7 @@ export async function execute(interaction, { client }) {
     if (!match) {
       return interaction.reply({
         content: '❌ 時間形式が無効です。数字（分後）か MM/DD HH:mm を指定してください。',
-        ephemeral: true
+        flags: 64
       });
     }
 
@@ -145,6 +145,6 @@ export async function execute(interaction, { client }) {
 
   await interaction.reply({
     content: `⏰ リマインダーをセットしました（タイムゾーン: ${tz}, スヌーズ: ${snoozeRequested}）${warningMsg}`,
-    ephemeral: true
+    flags: 64
   });
 }

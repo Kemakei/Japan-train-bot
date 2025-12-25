@@ -103,9 +103,9 @@ export async function execute(interaction) {
   } catch (err) {
     console.error(err);
     try {
-      await interaction.editReply({ content: "❌ 所持金確認中にエラーが発生しました。", embeds: [], ephemeral: true });
+      await interaction.editReply({ content: "❌ 所持金確認中にエラーが発生しました。", embeds: [], flags: 64 });
     } catch {
-      await interaction.reply({ content: "❌ 所持金確認中にエラーが発生しました。", ephemeral: true });
+      await interaction.reply({ content: "❌ 所持金確認中にエラーが発生しました。", flags: 64 });
     }
   }
 }

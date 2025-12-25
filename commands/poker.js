@@ -88,14 +88,14 @@ export async function execute(interaction) {
   const gameKey = `${channelId}-${userId}`;
 
   if (ongoingGames.has(gameKey)) {
-    return interaction.reply({ content: "❌ このチャンネルであなたの進行中ゲームがあります！", ephemeral: true });
+    return interaction.reply({ content: "❌ このチャンネルであなたの進行中ゲームがあります！", flags: 64 });
   }
 
   // 初期ベット（元のpoker.jsは1000を使っていた）
   const bet = 1000;
   const initialCoins = await client.getCoins(userId);
   if (initialCoins < bet) {
-    return interaction.reply({ content: "❌ コインが足りません！", ephemeral: true });
+    return interaction.reply({ content: "❌ コインが足りません！", flags: 64 });
   }
 
   // ゲーム開始
@@ -202,7 +202,7 @@ export async function execute(interaction) {
 
   collector.on("collect", async (btnInt) => {
     try {
-      if (gameState.finalized) return btnInt.reply({ content: "このゲームは既に終了しています。", ephemeral: true });
+      if (gameState.finalized) return btnInt.reply({ content: "このゲームは既に終了しています。", flags: 64 });
 
       const [, action] = btnInt.customId.split(":");
       const userCoins = await client.getCoins(userId);
@@ -210,7 +210,7 @@ export async function execute(interaction) {
       // 固定ベット
       if (action && action.startsWith("bet") && action !== "customBet") {
         const add = action === "bet1000" ? 1000 : 10000;
-        if (add > userCoins) return btnInt.reply({ content: "❌ コインが足りません！", ephemeral: true });
+        if (add > userCoins) return btnInt.reply({ content: "❌ コインが足りません！", flags: 64 });
 
         gameState.playerBet += add;
         gameState.requiredBet = Math.max(gameState.requiredBet, gameState.playerBet);
@@ -235,8 +235,8 @@ export async function execute(interaction) {
         if (!submitted) return;
 
         const betValue = Number(submitted.fields.getTextInputValue("betAmount"));
-        if (isNaN(betValue) || betValue <= 0) return submitted.reply({ content: "❌ 無効な金額です", ephemeral: true });
-        if (betValue > userCoins) return submitted.reply({ content: "❌ コインが足りません！", ephemeral: true });
+        if (isNaN(betValue) || betValue <= 0) return submitted.reply({ content: "❌ 無効な金額です", flags: 64 });
+        if (betValue > userCoins) return submitted.reply({ content: "❌ コインが足りません！", flags: 64 });
 
         gameState.playerBet += betValue;
         gameState.requiredBet = Math.max(gameState.requiredBet, gameState.playerBet);
@@ -248,7 +248,7 @@ export async function execute(interaction) {
           components: [row]
         });
 
-        await submitted.reply({ content: `💰 ${betValue} コインを追加しました（合計ベット: ${gameState.playerBet}）`, ephemeral: true });
+        await submitted.reply({ content: `💰 ${betValue} コインを追加しました（合計ベット: ${gameState.playerBet}）`, flags: 64 });
         return;
       }
 
@@ -263,7 +263,7 @@ export async function execute(interaction) {
       if (action === "call") {
         const callAmount = gameState.requiredBet - gameState.playerBet;
         if (callAmount > 0) {
-          if (callAmount > userCoins) return btnInt.reply({ content: "❌ コインが足りません！", ephemeral: true });
+          if (callAmount > userCoins) return btnInt.reply({ content: "❌ コインが足りません！", flags: 64 });
           await client.updateCoins(userId, -callAmount);
           gameState.playerBet += callAmount;
         }
@@ -283,7 +283,7 @@ export async function execute(interaction) {
     } catch (err) {
       console.error("[poker] 例外:", err);
       ongoingGames.delete(gameKey);
-      try { if (!btnInt.replied) await btnInt.reply({ content: "❌ エラーが発生しました", ephemeral: true }); } catch {}
+      try { if (!btnInt.replied) await btnInt.reply({ content: "❌ エラーが発生しました", flags: 64 }); } catch {}
     }
   });
 

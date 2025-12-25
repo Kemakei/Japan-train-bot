@@ -9,9 +9,9 @@ const licensesFile = path.join(__dirname, '../licenses.json');
 
 const licenseList = [
   { name: '教員免許状', time: 30 * 60 * 1000, cost: 1000 },
-  { name: '技能証明', time: 2 * 60 * 60 * 1000, cost: 30000 },
+  { name: '技能証明', time: 1 * 60 * 60 * 1000, cost: 10000 },
   { name: '航空身体検査証明', time: 2 * 60 * 60 * 1000, cost: 30000 },
-  { name: 'ITパスポート', time: 1 * 60 * 60 * 1000, cost: 10000 },
+  { name: 'ITパスポート', time: 3 * 60 * 60 * 1000, cost: 40000 },
   { name: '医師免許', time: 6 * 60 * 60 * 1000, cost: 100000 },
 ];
 
@@ -42,28 +42,63 @@ export async function execute(interaction) {
     const target = interaction.options.getString('取得');
 
     if (!userLicenses[userId]) userLicenses[userId] = { obtained: [], pending: null };
-
     const userData = userLicenses[userId];
 
+    // 取得確認（targetなし）の場合
     if (!target) {
-      const pending = userData.pending ? `取得申請中: ${userData.pending.name}` : 'なし';
-      const embed = new EmbedBuilder()
-        .setColor('Blue')
-        .setDescription(`✅ 取得済みライセンス: ${userData.obtained.join(', ') || 'なし'}\n⏳ ${pending}`);
-      return await interaction.reply({ embeds: [embed] });
+      const now = Date.now();
+
+      if (userData.pending) {
+        if (now >= userData.pending.finish) {
+          // pending完了 → 成功/失敗判定
+          const finishedLicense = userData.pending.name;
+          let message;
+
+          if (Math.random() < 0.05) {
+            // 5%で失敗
+            message = `❌ ${finishedLicense} の取得に失敗しました。`;
+          } else {
+            // 成功
+            userData.obtained.push(finishedLicense);
+            message = `✅ ${finishedLicense} を取得しました！`;
+          }
+
+          userData.pending = null;
+          saveJSON(licensesFile, userLicenses);
+
+          const embed = new EmbedBuilder()
+            .setColor('Blue')
+            .setDescription(`✅ 取得済みライセンス: ${userData.obtained.join(', ') || 'なし'}\n${message}`);
+          return await interaction.reply({ embeds: [embed] });
+        } else {
+          // まだ取得中
+          const embed = new EmbedBuilder()
+            .setColor('Blue')
+            .setDescription(`✅ 取得済みライセンス: ${userData.obtained.join(', ') || 'なし'}\n⏳ 取得申請中: ${userData.pending.name}`);
+          return await interaction.reply({ embeds: [embed] });
+        }
+      } else {
+        // pendingなし
+        const embed = new EmbedBuilder()
+          .setColor('Blue')
+          .setDescription(`✅ 取得済みライセンス: ${userData.obtained.join(', ') || 'なし'}\n⏳ 取得申請中: なし`);
+        return await interaction.reply({ embeds: [embed] });
+      }
     }
 
+    // ライセンス取得申請処理
     if (userData.pending) {
-      return await interaction.reply({ content: `❌ 既にライセンス取得申請中: ${userData.pending.name}`, ephemeral: true });
+      return await interaction.reply({ content: `❌ 既にライセンス取得申請中: ${userData.pending.name}`, flags: 64 });
     }
 
     const license = licenseList.find(l => l.name === target);
-    if (!license) return await interaction.reply({ content: '❌そのライセンスは存在しません', ephemeral: true });
-    if (userData.obtained.includes(target)) return await interaction.reply({ content: `✅ 既に取得済みです: ${target}`, ephemeral: true });
+    if (!license) return await interaction.reply({ content: '❌ そのライセンスは存在しません', flags: 64 });
+    if (userData.obtained.includes(target)) return await interaction.reply({ content: `✅ 既に取得済みです: ${target}`, flags: 64 });
 
     const coins = await interaction.client.getCoins(userId);
-    if (coins < license.cost) return await interaction.reply({ content: `❌ コインが足りません: ${license.cost}`, ephemeral: true });
+    if (coins < license.cost) return await interaction.reply({ content: `❌ コインが足りません: ${license.cost}`, flags: 64 });
 
+    // コインを消費して申請開始
     await interaction.client.updateCoins(userId, -license.cost);
     const finishTime = Date.now() + license.time;
     userData.pending = { name: license.name, finish: finishTime };
@@ -73,6 +108,6 @@ export async function execute(interaction) {
 
   } catch (err) {
     console.error(err);
-    if (!interaction.replied && !interaction.deferred) await interaction.reply({ content: "❌エラーが発生しました", ephemeral: true });
+    if (!interaction.replied && !interaction.deferred) await interaction.reply({ content: "❌ エラーが発生しました", flags: 64 });
   }
 }

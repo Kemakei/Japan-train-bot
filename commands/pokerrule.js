@@ -63,7 +63,7 @@ export async function execute(interaction) {
     if (!interaction.replied) {
       await interaction.reply({
         content: "❌ ルール表示中にエラーが発生しました",
-        ephemeral: true
+        flags: 64
       });
     } else {
       await interaction.editReply({
