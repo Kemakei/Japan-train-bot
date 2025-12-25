@@ -83,32 +83,38 @@ export async function execute(interaction) {
     }
     
     // -------------------- 職業・ライセンス取得 --------------------
-
-    // 職業
     const jobDoc = await client.db.collection("jobs").findOne({ userId });
     const jobName = jobDoc?.job || '無職';
+    const skill = jobDoc?.skill ?? 0;
+    let talent;
+    if (jobDoc?.talent == null || jobDoc.talent === 0) {
+      talent = '0';
+    } else {
+      talent = jobDoc.talent.toFixed(1);
+    }
 
-    // ライセンス
     const licenseDoc = await client.db.collection("licenses").findOne({ userId });
     const obtainedLicenses = licenseDoc?.obtained || [];
-    
+
     // -------------------- Embed作成 --------------------
-    const embed = new EmbedBuilder()
+      const embed = new EmbedBuilder()
       .setColor(userId === interaction.user.id ? 'Green' : 'Blue')
       .setTitle(`${targetUser.tag} の所持金`)
       .setDescription(
-      `**所持金:** ${formatCoins(coins)}\n` +
-      `**金コイン:** ${formatCoins(VIPCoins)}\n` +
-      `**保有株数:** ${stocks || 0} 株\n` +
-      `**宝くじ保有枚数:** ${totalTickets || 0} 枚\n` +
-      `**職業:** ${jobName}\n` +
-      `**取得ライセンス:** ${obtainedLicenses.length > 0 ? obtainedLicenses.join('、') : 'なし'}\n` +
-  (hedgeAccumulated > 0 ? `**💼 保険金:** ${formatCoins(hedgeAccumulated)}\n` : '') +
-  (totalDebt > 0 ? `**💸 借金:** ${formatCoins(totalDebt)}${loanDetails}` : '')
-)
-      // --- 自分のアイコンも含め常に表示するように明示 ---
+        `**所持金:** ${formatCoins(coins)}\n` +
+        `**金コイン:** ${formatCoins(VIPCoins)}\n` +
+        `**保有株数:** ${stocks || 0} 株\n` +
+        `**宝くじ保有枚数:** ${totalTickets || 0} 枚\n` +
+        `**職業:** ${jobName}\n` +
+        `**熟練度:** ${skill}\n` +
+        `**才能:** ${talent}\n` +
+        `**取得ライセンス:** ${obtainedLicenses.length > 0 ? obtainedLicenses.join('、') : 'なし'}\n` +
+        (hedgeAccumulated > 0 ? `**保険金:** ${formatCoins(hedgeAccumulated)}\n` : '') +
+        (totalDebt > 0 ? `**借金:** ${formatCoins(totalDebt)}${loanDetails}` : '')
+      )
       .setThumbnail(targetUser.displayAvatarURL({ extension: 'png', size: 256 }))
       .setFooter({ text: userId === interaction.user.id ? 'あなたの資産情報' : `${targetUser.username} の情報を表示中` });
+
 
     await interaction.editReply({ embeds: [embed] });
 
