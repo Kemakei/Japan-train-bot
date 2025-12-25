@@ -31,6 +31,7 @@ export const data = new SlashCommandBuilder()
     option.setName('職業')
           .setDescription('希望の職業を入力してください')
           .setRequired(true)
+          .setAutocomplete(true)
   );
 
 export async function execute(interaction) {
