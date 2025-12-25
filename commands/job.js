@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 
 const jobs = [
   { name: '無職', cost: 0, base: 0 },
@@ -13,6 +13,8 @@ const jobs = [
   { name: '医師', cost: 300000, base: 50000 },
 ];
 
+const jobNames = jobs.map(j => j.name);
+
 const licenseNeeded = {
   "教師": "教員免許状",
   "パイロット": "技能証明と航空身体検査証明",
@@ -21,9 +23,10 @@ const licenseNeeded = {
 };
 
 function randomTalent() {
-  return +(Math.random() * (1.5 - 0.6) + 0.6).toFixed(2);
+  return +(Math.random() * (1.5 - 0.6) + 0.6).toFixed(1);
 }
 
+// コマンド定義
 export const data = new SlashCommandBuilder()
   .setName('job')
   .setDescription('転職')
@@ -34,11 +37,25 @@ export const data = new SlashCommandBuilder()
           .setAutocomplete(true)
   );
 
+// オートコンプリート処理
+export async function handleAutocomplete(interaction) {
+  if (!interaction.isAutocomplete()) return;
+
+  const focusedValue = interaction.options.getFocused();
+  const filtered = jobNames
+    .filter(j => j.includes(focusedValue))
+    .slice(0, 10); 
+
+  await interaction.respond(
+    filtered.map(j => ({ name: j, value: j }))
+  );
+}
+
+// コマンド実行処理
 export async function execute(interaction) {
   const userId = interaction.user.id;
   const userJob = await interaction.client.getJobData(userId);
 
-  // 入力された職業
   const inputJob = interaction.options.getString('職業');
   const targetJob = jobs.find(j => j.name === inputJob);
 
@@ -75,7 +92,7 @@ export async function execute(interaction) {
   } else {
     await interaction.client.updateCoins(userId, -targetJob.cost);
     await interaction.client.setJobData(userId, { job: targetJob.name, talent, skill: 0, workCount: 0, lastJobChange: Date.now() });
-    message = `✅ **${targetJob.name}** に転職しました！\n才能スコア: **${talent.toFixed(2)}**`;
+    message = `✅ **${targetJob.name}** に転職しました！\n才能スコア: **${talent}**`;
   }
 
   await interaction.reply({ content: message, ephemeral: true });
