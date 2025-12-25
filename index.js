@@ -466,23 +466,30 @@ for (const file of commandFiles) {
 
 // ----------------------------------------------------------------------
 client.on(Events.InteractionCreate, async interaction => {
-  if (!interaction.isChatInputCommand() && !interaction.isMessageContextMenuCommand()) return;
-
-  const command = client.commands.get(interaction.commandName);
-  if (!command) return;
-
   try {
+    // オートコンプリート処理
+    if (interaction.isAutocomplete()) {
+      const command = client.commands.get(interaction.commandName);
+      if (!command || !command.handleAutocomplete) return;
+      await command.handleAutocomplete(interaction);
+      return;
+    }
+
+    // チャット入力コマンド
+    if (!interaction.isChatInputCommand() && !interaction.isMessageContextMenuCommand()) return;
+    const command = client.commands.get(interaction.commandName);
+    if (!command) return;
+
     await command.execute(interaction, { client, playlistId, youtubeApiKey });
   } catch (error) {
-    console.error(`❌ コマンド実行中にエラーが発生しました:`, error);
+    console.error(error);
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", flags: 64 });
+      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", ephemeral: true });
     } else {
-      await interaction.editReply({ content: "❌ コマンド実行中にエラーが発生しました", flags: 64 });
+      await interaction.editReply({ content: "❌ コマンド実行中にエラーが発生しました", ephemeral: true });
     }
   }
 });
-
 // -------------------- 自動ロール付与 --------------------
 client.on(Events.GuildMemberAdd, async member => {
   const roleId = client.autoRoleMap.get(member.guild.id);
