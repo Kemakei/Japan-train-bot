@@ -81,19 +81,31 @@ export async function execute(interaction) {
         loanDetails += `\n- 借入: ${formatCoins(loan.principal)} | 利息込: ${formatCoins(loan.totalDue)} | 期限: <t:${Math.floor(loan.dueTime / 1000)}:D>`;
       }
     }
+    
+    // -------------------- 職業・ライセンス取得 --------------------
 
+    // 職業
+    const jobDoc = await client.db.collection("jobs").findOne({ userId });
+    const jobName = jobDoc?.job || '無職';
+
+    // ライセンス
+    const licenseDoc = await client.db.collection("licenses").findOne({ userId });
+    const obtainedLicenses = licenseDoc?.obtained || [];
+    
     // -------------------- Embed作成 --------------------
     const embed = new EmbedBuilder()
       .setColor(userId === interaction.user.id ? 'Green' : 'Blue')
       .setTitle(`${targetUser.tag} の所持金`)
       .setDescription(
-        `**💰 所持金:** ${formatCoins(coins)}\n` +
-        `**🏅 金コイン:** ${formatCoins(VIPCoins)}\n` +
-        `**📈 保有株数:** ${stocks || 0} 株\n` +
-        `**🎟️ 宝くじ保有枚数:** ${totalTickets || 0} 枚\n` +
-        (hedgeAccumulated > 0 ? `**💼 保険金:** ${formatCoins(hedgeAccumulated)}\n` : '') +
-        (totalDebt > 0 ? `**💸 借金:** ${formatCoins(totalDebt)}${loanDetails}` : '')
-      )
+      `**所持金:** ${formatCoins(coins)}\n` +
+      `**金コイン:** ${formatCoins(VIPCoins)}\n` +
+      `**保有株数:** ${stocks || 0} 株\n` +
+      `**宝くじ保有枚数:** ${totalTickets || 0} 枚\n` +
+      `**職業:** ${jobName}\n` +
+      `**取得ライセンス:** ${obtainedLicenses.length > 0 ? obtainedLicenses.join('、') : 'なし'}\n` +
+  (hedgeAccumulated > 0 ? `**💼 保険金:** ${formatCoins(hedgeAccumulated)}\n` : '') +
+  (totalDebt > 0 ? `**💸 借金:** ${formatCoins(totalDebt)}${loanDetails}` : '')
+)
       // --- 自分のアイコンも含め常に表示するように明示 ---
       .setThumbnail(targetUser.displayAvatarURL({ extension: 'png', size: 256 }))
       .setFooter({ text: userId === interaction.user.id ? 'あなたの資産情報' : `${targetUser.username} の情報を表示中` });

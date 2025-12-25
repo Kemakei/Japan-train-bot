@@ -8,6 +8,22 @@ const licenseList = [
   { name: '医師免許', time: 6 * 60 * 60 * 1000, cost: 100000 },
 ];
 
+// 残り時間整形（時間・分・秒）
+function formatRemaining(ms) {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(totalSec / 3600);
+  const minutes = Math.floor((totalSec % 3600) / 60);
+  const seconds = totalSec % 60;
+
+  if (hours > 0) {
+    return `${hours}時間${minutes}分${seconds}秒`;
+  }
+  if (minutes > 0) {
+    return `${minutes}分${seconds}秒`;
+  }
+  return `${seconds}秒`;
+}
+
 export const data = new SlashCommandBuilder()
   .setName('license')
   .setDescription('ライセンスを取得または確認')
@@ -45,7 +61,7 @@ export async function execute(interaction) {
     // ==============================
     if (!target) {
 
-      // ---- pending 完了チェック ----
+      // ---- 完了チェック ----
       if (userData.pending && now >= userData.pending.finish) {
         const licenseName = userData.pending.name;
         let resultMessage;
@@ -61,7 +77,6 @@ export async function execute(interaction) {
           );
         }
 
-        // pending をクリア
         await col.updateOne(
           { userId },
           { $set: { pending: null } }
@@ -74,20 +89,38 @@ export async function execute(interaction) {
             new EmbedBuilder()
               .setColor('Blue')
               .setDescription(
-                `✅ 取得済みライセンス: ${updated.obtained.join(', ') || 'なし'}\n${resultMessage}`
+                `✅ 取得済みライセンス: ${updated.obtained.join(', ') || 'なし'}\n` +
+                resultMessage
               )
           ]
         });
       }
 
-      // ---- 通常の確認表示 ----
+      // ---- 取得中表示（残り時間） ----
+      if (userData.pending) {
+        const remaining = userData.pending.finish - now;
+
+        return interaction.reply({
+          embeds: [
+            new EmbedBuilder()
+              .setColor('Blue')
+              .setDescription(
+                `✅ 取得済みライセンス: ${userData.obtained.join(', ') || 'なし'}\n` +
+                `⏳ 取得申請中: ${userData.pending.name}\n` +
+                `⏱ 残り時間: ${formatRemaining(remaining)}`
+              )
+          ]
+        });
+      }
+
+      // ---- pendingなし ----
       return interaction.reply({
         embeds: [
           new EmbedBuilder()
             .setColor('Blue')
             .setDescription(
               `✅ 取得済みライセンス: ${userData.obtained.join(', ') || 'なし'}\n` +
-              `⏳ 取得申請中: ${userData.pending?.name || 'なし'}`
+              `⏳ 取得申請中: なし`
             )
         ]
       });
@@ -139,7 +172,7 @@ export async function execute(interaction) {
     await interaction.reply({
       content:
         `⏳ ${license.name} の取得申請を開始しました。\n` +
-        `完了予定: ${new Date(finishTime).toLocaleString()}`
+        `⏱ 残り時間: ${formatRemaining(license.time)}`
     });
 
   } catch (err) {
