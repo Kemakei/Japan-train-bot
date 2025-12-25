@@ -22,12 +22,12 @@ const licenseNeeded = {
   "医師": "医師免許"
 };
 
-// 転職後のクールダウン時間
-const JOB_COOLDOWN = 5 * 60 * 1000; 
+// 転職後のクールダウン時間（ミリ秒）
+const JOB_COOLDOWN = 5 * 60 * 1000; // 5分
 
 // ランダム才能スコア生成
 function randomTalent() {
-  return +(Math.random() * (1.5 - 0.6) + 0.6).toFixed(2);
+  return +(Math.random() * (1.5 - 0.6) + 0.6).toFixed(1);
 }
 
 // スラッシュコマンド定義
@@ -53,8 +53,8 @@ export async function handleAutocomplete(interaction) {
 
   await interaction.respond(
     filtered.map(j => ({
-      name: `${j.name}：${j.cost}コイン`, 
-      value: j.name                     
+      name: `${j.name}：${j.cost}コイン`, // 表示用
+      value: j.name                     // 内部値
     }))
   );
 }
@@ -69,31 +69,31 @@ export async function execute(interaction) {
     const rem = JOB_COOLDOWN - (now - userJob.lastJobChange);
     const m = Math.floor(rem / 60000);
     const s = Math.floor((rem % 60000) / 1000);
-    return interaction.reply({ content: `⏳ 転職には **${m}分${s}秒** 待つ必要があります。`, ephemeral: true });
+    return interaction.reply({ content: `⏳ 転職はまだ **${m}分${s}秒** 待つ必要があります。`, flags: 64 });
   }
 
   const inputJob = interaction.options.getString('職業');
   const targetJob = jobs.find(j => j.name === inputJob);
 
   if (!targetJob) {
-    return interaction.reply({ content: `❌ **${inputJob}** は無効な職業です。`, ephemeral: true });
+    return interaction.reply({ content: `❌ **${inputJob}** は無効な職業です。`, flags: 64 });
   }
 
   if (inputJob === userJob.job) {
-    return interaction.reply({ content: `⚠️ 既に **${userJob.job}** に就いています。`, ephemeral: true });
+    return interaction.reply({ content: `⚠️ 既に **${userJob.job}** に就いています。`, flags: 64 });
   }
 
   // ライセンスチェック
   if (licenseNeeded[inputJob]) {
     const has = await interaction.client.hasLicense(userId, inputJob);
     if (!has) {
-      return interaction.reply({ content: `❌ ${inputJob}に転職するには **${licenseNeeded[inputJob]}** が必要です。`, ephemeral: true });
+      return interaction.reply({ content: `❌ ${inputJob}に転職するには **${licenseNeeded[inputJob]}** が必要です。`, flags: 64 });
     }
   }
 
   const coins = await interaction.client.getCoins(userId);
   if (coins < targetJob.cost) {
-    return interaction.reply({ content: `❌ ${targetJob.cost}コイン必要です。所持: ${coins}`, ephemeral: true });
+    return interaction.reply({ content: `❌ ${targetJob.cost}コイン必要です。所持: ${coins}`, flags: 64 });
   }
 
   // 才能スコア確定
@@ -117,5 +117,5 @@ export async function execute(interaction) {
     message = `✅ **${targetJob.name}** に転職しました！\n才能スコア: **${talent}**`;
   }
 
-  await interaction.reply({ content: message, ephemeral: true });
+  await interaction.reply({ content: message, flags: 64 });
 }
