@@ -28,7 +28,7 @@ export async function execute(interaction) {
   }
 
   if (words.length === 0) {
-    await interaction.reply({ content: '❌ 1つ以上の単語を入力してください。', flags: 64 });
+    await interaction.reply({ content: '❌ 1つ以上の単語を入力してください。', ephemeral: true });
     return;
   }
 
@@ -42,7 +42,7 @@ export async function execute(interaction) {
   });
 
   if (toDelete.size === 0) {
-    await interaction.reply({ content: '⚠️ 指定された単語を含むメッセージは見つかりませんでした。', flags: 64 });
+    await interaction.reply({ content: '⚠️ 指定された単語を含むメッセージは見つかりませんでした。', ephemeral: true });
     return;
   }
 
@@ -51,9 +51,9 @@ export async function execute(interaction) {
     for (const msg of toDelete.values()) {
       await msg.delete();
     }
-    await interaction.reply({ content: `✅ ${toDelete.size} 件のメッセージを削除しました。`, flags: 64 });
+    await interaction.reply({ content: `✅ ${toDelete.size} 件のメッセージを削除しました。`, ephemeral: true });
   } catch (error) {
     console.error('メッセージ削除エラー:', error);
-    await interaction.reply({ content: '❌ メッセージ削除中にエラーが発生しました。', flags: 64 });
+    await interaction.reply({ content: '❌ メッセージ削除中にエラーが発生しました。', ephemeral: true });
   }
 }

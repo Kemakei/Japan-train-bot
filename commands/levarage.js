@@ -27,7 +27,7 @@ export async function execute(interaction) {
       if (existingLoans.length > 0) {
         return interaction.reply({
           content: "❌ 返済していない借金が残っています。先に返済してください。",
-          flags: 64
+          ephemeral: true
         });
       }
 
@@ -35,9 +35,9 @@ export async function execute(interaction) {
 
       // 借入額のバリデーション
       if (amount <= 0)
-        return interaction.reply({ content: "❌ 正の金額を指定してください。", flags: 64 });
+        return interaction.reply({ content: "❌ 正の金額を指定してください。", ephemeral: true });
       if (amount > 1_000_000)
-        return interaction.reply({ content: "⚠️ 最大借入金額は 1,000,000 コインです。", flags: 64 });
+        return interaction.reply({ content: "⚠️ 最大借入金額は 1,000,000 コインです。", ephemeral: true });
 
       const now = Date.now();
       const due = now + 7 * 24 * 60 * 60 * 1000; // 7日後
@@ -71,7 +71,7 @@ export async function execute(interaction) {
 
       const loans = await client.db.collection("loans").find({ userId, paid: false }).toArray();
       if (loans.length === 0)
-        return interaction.reply({ content: "✅ 返済すべき借金はありません。", flags: 64 });
+        return interaction.reply({ content: "✅ 返済すべき借金はありません。", ephemeral: true });
 
       let coins = await client.getCoins(userId);
       let totalRepaid = 0;
@@ -173,7 +173,7 @@ export async function execute(interaction) {
     console.error(err);
     await interaction.reply({
       content: "❌ 処理中にエラーが発生しました。",
-      flags: 64
+      ephemeral: true
     });
   }
 }

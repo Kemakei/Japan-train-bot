@@ -8,7 +8,7 @@ export async function execute(interaction) {
   const client = interaction.client;
   const channel = interaction.channel;
   if (!channel) {
-    await interaction.reply({ content: '⚠️ チャンネル情報が取得できません。', flags: 64 });
+    await interaction.reply({ content: '⚠️ チャンネル情報が取得できません。', ephemeral: true });
     return;
   }
 
@@ -29,9 +29,9 @@ export async function execute(interaction) {
       client.monitoredMessages.delete(channelId);
       client.lastSentCopies.delete(channelId);
 
-      await interaction.reply({ content: '✅ 固定を解除しました。', flags: 64 });
+      await interaction.reply({ content: '✅ 固定を解除しました。', ephemeral: true });
     } else {
-      await interaction.reply({ content: '⚠️ このメッセージは現在固定されていません。', flags: 64 });
+      await interaction.reply({ content: '⚠️ このメッセージは現在固定されていません。', ephemeral: true });
     }
     return;
   }
@@ -48,5 +48,5 @@ export async function execute(interaction) {
     client.lastSentCopies.delete(channelId);
   }
 
-  await interaction.reply({ content: '📌 このメッセージを常に下に表示するようにしました。', flags: 64 });
+  await interaction.reply({ content: '📌 このメッセージを常に下に表示するようにしました。', ephemeral: true });
 }

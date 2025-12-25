@@ -71,7 +71,7 @@ export async function execute(interaction) {
           .setDescription("現在、あなたの購入履歴はありません。")
           .setColor(0xff0000)
       ],
-      flags: 64
+      ephemeral: true
     });
   }
 

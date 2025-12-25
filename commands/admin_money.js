@@ -21,7 +21,7 @@ export async function execute(interaction) {
   try {
     // defer（ephemeral）
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ flags: 64 });
+      await interaction.deferReply({ ephemeral: true });
     }
 
     // --- パスワード取得・比較 ---
@@ -56,7 +56,7 @@ export async function execute(interaction) {
   } catch (err) {
     console.error(`❌ admin_money エラー:`, err);
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", flags: 64 });
+      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", ephemeral: true });
     } else {
       await interaction.editReply("❌ コマンド実行中にエラーが発生しました");
     }

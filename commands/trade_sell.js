@@ -11,7 +11,7 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction, { client }) {
   const count = interaction.options.getInteger("count");
-  if (count <= 0) return interaction.reply({ content: "❌ 売却数は1以上にしてください", flags: 64 });
+  if (count <= 0) return interaction.reply({ content: "❌ 売却数は1以上にしてください", ephemeral: true });
 
   const userId = interaction.user.id;
 
@@ -20,7 +20,7 @@ export async function execute(interaction, { client }) {
   const userStock = userDoc.stocks || 0;
 
   if (userStock < count) {
-    return interaction.reply({ content: `❌ 売却できる株が不足しています\n現在の保有株数: ${userStock} 株`, flags: 64 });
+    return interaction.reply({ content: `❌ 売却できる株が不足しています\n現在の保有株数: ${userStock} 株`, ephemeral: true });
   }
 
   // 現在の株価を取得

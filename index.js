@@ -114,7 +114,7 @@ client.updateStocks = async (userId, delta) => {
   );
 };
 
-// -------------------- 新規: VIPCoins --------------------
+// -------------------- 金コイン --------------------
 client.getVIPCoins = async (userId) => {
   const doc = await client.getUserData(userId);
   return doc.VIPCoins || 0;
@@ -201,6 +201,48 @@ setInterval(() => {
   client.updateStockPrice(delta);
   client.getStockPrice().then(price => console.log(`株価自動変動: ${delta}, 現在株価: ${price}`));
 }, 10 * 60 * 1000);
+
+// -------------------- 職業・才能スコア保存 --------------------
+client.getJobData = async (userId) => {
+  const doc = await client.db.collection("jobs").findOne({ userId });
+  return doc || { userId, job: "無職", talent: 0, lastJobChange: 0 };
+};
+
+client.setJobData = async (userId, data) => {
+  await client.db.collection("jobs").updateOne(
+    { userId },
+    { $set: data },
+    { upsert: true }
+  );
+};
+
+client.updateJobData = async (userId, delta) => {
+  // delta: { job, talent, lastJobChange }
+  await client.db.collection("jobs").updateOne(
+    { userId },
+    { $set: delta },
+    { upsert: true }
+  );
+};
+
+// -------------------- ライセンス保存 --------------------
+client.getLicenses = async (userId) => {
+  const doc = await client.db.collection("licenses").findOne({ userId });
+  return doc?.licenses || {}; 
+};
+
+client.setLicense = async (userId, jobName) => {
+  await client.db.collection("licenses").updateOne(
+    { userId },
+    { $set: { [`licenses.${jobName}`]: true } },
+    { upsert: true }
+  );
+};
+
+client.hasLicense = async (userId, jobName) => {
+  const licenses = await client.getLicenses(userId);
+  return !!licenses[jobName];
+};
 
 // -------------------- ヘッジ契約管理（MongoDB版） --------------------
 client.getHedge = async (userId) => {
@@ -434,9 +476,9 @@ client.on(Events.InteractionCreate, async interaction => {
   } catch (error) {
     console.error(`❌ コマンド実行中にエラーが発生しました:`, error);
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", flags: 64 });
+      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", ephemeral: true });
     } else {
-      await interaction.editReply({ content: "❌ コマンド実行中にエラーが発生しました", flags: 64 });
+      await interaction.editReply({ content: "❌ コマンド実行中にエラーが発生しました", ephemeral: true });
     }
   }
 });

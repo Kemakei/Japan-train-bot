@@ -14,7 +14,7 @@ export async function execute(interaction, { client }) {
   const result = await drawResultsCol.findOne({ drawId });
 
   if (!result) {
-    return interaction.reply({ content: '❌ まだ抽選結果は公開されていません。', flags: 64 });
+    return interaction.reply({ content: '❌ まだ抽選結果は公開されていません。', ephemeral: true });
   }
 
   const { number, letter } = result;

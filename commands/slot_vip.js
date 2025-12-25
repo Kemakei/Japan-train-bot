@@ -50,13 +50,13 @@ export async function execute(interaction, { client }) {
   const bet = interaction.options.getInteger('bet');
   const userId = interaction.user.id;
 
-  if (bet < 1) return interaction.reply({ content: "❌ 最低ベットは1金コインです！", flags: 64 });
+  if (bet < 1) return interaction.reply({ content: "❌ 最低ベットは1金コインです！", ephemeral: true });
 
   const coinsCol = client.coinsCol;
   const userDoc = await coinsCol.findOne({ userId });
   const vipPoints = userDoc?.VIPCoins || 0;
 
-  if (bet > vipPoints) return interaction.reply({ content: "❌ 金コインが足りません！", flags: 64 });
+  if (bet > vipPoints) return interaction.reply({ content: "❌ 金コインが足りません！", ephemeral: true });
 
   await interaction.deferReply();
 
@@ -83,7 +83,7 @@ export async function execute(interaction, { client }) {
   } else {
     const multiplier = Math.floor(Math.random() * 2) + 2; // 2 or 3
     change = -bet * multiplier;
-    outcome = `💔 ハズレ… ${-change} 金コイン失いました。`;
+    outcome = `ハズレ… ${-change} 金コイン失いました。`;
   }
 
   let newPoints = vipPoints + change;

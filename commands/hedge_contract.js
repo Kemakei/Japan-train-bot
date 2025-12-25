@@ -27,21 +27,21 @@ export async function execute(interaction) {
 
     // --- 契約チェック ---
     const contract = contracts.find(c => c.daily === amount);
-    if (!contract) return interaction.reply({ content: "❌ 無効な契約額です", flags: 64 });
+    if (!contract) return interaction.reply({ content: "❌ 無効な契約額です", ephemeral: true });
 
     const userHedge = await client.getHedge(userId);
-    if (userHedge) return interaction.reply({ content: "❌ 既に契約中です", flags: 64 });
+    if (userHedge) return interaction.reply({ content: "❌ 既に契約中です", ephemeral: true });
 
     // --- 所持コインチェック（手数料先に確認） ---
     let coins = await client.getCoins(userId);
     if (coins < contract.fee)
-      return interaction.reply({ content: `❌ 手数料 ${contract.fee} コインが足りません`, flags: 64 });
+      return interaction.reply({ content: `❌ 手数料 ${contract.fee} コインが足りません`, ephemeral: true });
 
     await client.updateCoins(userId, -contract.fee);
     coins -= contract.fee;
 
     if (coins < contract.daily * 3)
-      return interaction.reply({ content: `❌ 契約には最低 ${contract.daily * 3} コイン必要です`, flags: 64 });
+      return interaction.reply({ content: `❌ 契約には最低 ${contract.daily * 3} コイン必要です`, ephemeral: true });
 
     // --- JST基準の日付 ---
     const now = new Date();
@@ -63,6 +63,6 @@ export async function execute(interaction) {
 
   } catch (err) {
     console.error(err);
-    await interaction.reply({ content: "❌ 契約処理中にエラーが発生しました", flags: 64 });
+    await interaction.reply({ content: "❌ 契約処理中にエラーが発生しました", ephemeral: true });
   }
 }

@@ -30,7 +30,7 @@ function formatCoins(amount) {
 
 export async function execute(interaction, { client }) {
   const guild = interaction.guild;
-  if (!guild) return await interaction.reply({ content: '❌ ギルド情報が取得できません', flags: 64 });
+  if (!guild) return await interaction.reply({ content: '❌ ギルド情報が取得できません', ephemeral: true });
 
   try {
     // 処理中応答

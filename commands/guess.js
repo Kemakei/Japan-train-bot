@@ -30,12 +30,12 @@ export async function execute(interaction) {
 
     // --- 先にチェックして即終了（ephemeral） ---
     if (bet < 100) {
-      return await interaction.reply({ content: "❌ 最低掛け金は100です！", flags: 64 });
+      return await interaction.reply({ content: "❌ 最低掛け金は100です！", ephemeral: true });
     }
 
     if (coins < bet * 1.5) {
       const maxBet = Math.floor(bet * 1.5);
-      return await interaction.reply({ content: `❌ 最大 **${maxBet}** コインまで賭けられます！`, flags: 64 });
+      return await interaction.reply({ content: `❌ 最大 **${maxBet}** コインまで賭けられます！`, ephemeral: true });
     }
 
     // 正常時のみ deferReply（公開メッセージ）
@@ -44,7 +44,7 @@ export async function execute(interaction) {
     const answer = Math.floor(Math.random() * 3) + 1;
 
     const embed = new EmbedBuilder()
-      .setTitle("🎲 数字予想ゲーム")
+      .setTitle("数字予想ゲーム")
       .addFields(
         { name: "選んだ数字", value: `${guess}`, inline: true },
         { name: "正解", value: `${answer}`, inline: true }
@@ -59,14 +59,14 @@ export async function execute(interaction) {
       const loss = Math.ceil(bet * 1.5);
       await client.updateCoins(userId, -loss);
       coins = await client.getCoins(userId);
-      embed.setDescription(`💔 外れ… **${loss}コイン** 失いました\n現在のコイン: ${coins}`).setColor("#FF0000");
+      embed.setDescription(`外れ… **${loss}コイン** 失いました\n現在のコイン: ${coins}`).setColor("#FF0000");
     }
 
     await interaction.editReply({ embeds: [embed] });
   } catch (err) {
     console.error(err);
     if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました。", flags: 64 });
+      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました。", ephemeral: true });
     } else {
       await interaction.editReply({ content: "❌ コマンド実行中にエラーが発生しました。" });
     }

@@ -18,10 +18,10 @@ export async function execute(interaction, { client }) {
 
   // --- 株数上限チェック ---
   if (count <= 0)
-    return interaction.reply({ content: "❌ 購入数は1以上にしてください", flags: 64 });
+    return interaction.reply({ content: "❌ 購入数は1以上にしてください", ephemeral: true });
 
   if (count > 500)
-    return interaction.reply({ content: "❌ 一度に購入できるのは最大500株までです", flags: 64 });
+    return interaction.reply({ content: "❌ 一度に購入できるのは最大500株までです", ephemeral: true });
 
   // --- クールダウンチェック（15分 = 900000ms） ---
   const now = Date.now();
@@ -34,7 +34,7 @@ export async function execute(interaction, { client }) {
     const seconds = Math.floor((remaining % 60000) / 1000);
     return interaction.reply({
       content: `⏳ 購入クールダウン中です。あと **${minutes}分${seconds}秒** 待ってください。`,
-      flags: 64,
+      ephemeral: true,
     });
   }
 
@@ -49,7 +49,7 @@ export async function execute(interaction, { client }) {
   if (userCoins < totalPayment) {
     return interaction.reply({
       content: `❌ コインが足りません。\n必要コイン: ${totalPayment}（購入額: ${totalCost} + 手数料: ${fee}）`,
-      flags: 64,
+      ephemeral: true,
     });
   }
 

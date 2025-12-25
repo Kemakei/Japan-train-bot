@@ -20,7 +20,7 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction) {
   try {
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ flags: 64 });
+      await interaction.deferReply({ ephemeral: true });
     }
 
     // --- パスワード認証 ---
@@ -56,7 +56,7 @@ export async function execute(interaction) {
   } catch (err) {
     console.error("❌ admin_vipcoin エラー:", err);
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", flags: 64 });
+      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", ephemeral: true });
     } else {
       await interaction.editReply("❌ コマンド実行中にエラーが発生しました");
     }

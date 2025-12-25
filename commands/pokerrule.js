@@ -57,13 +57,13 @@ export async function execute(interaction) {
       .setImage("attachment://Pokerrule.jpg") // 画像を表示
       .setFooter({ text: "楽しんでプレイしてください！" });
 
-    await interaction.reply({ embeds: [embed], files: [file], flags: 64 });
+    await interaction.reply({ embeds: [embed], files: [file], ephemeral: false });
   } catch (err) {
     console.error(err);
     if (!interaction.replied) {
       await interaction.reply({
         content: "❌ ルール表示中にエラーが発生しました",
-        flags: 64
+        ephemeral: true
       });
     } else {
       await interaction.editReply({
