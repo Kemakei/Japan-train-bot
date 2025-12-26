@@ -27,51 +27,119 @@ export async function execute(interaction) {
   const now = Date.now();
 
   let userJob = await interaction.client.getJobData(userId);
-  if (!userJob) userJob = { job: '無職', talent: 1, skill: 0, workCount: 0 };
-
-  if (userJob.job === '無職') {
-    return interaction.reply({ content: '❌/jobで職についてください', flags: 64 });
+  if (!userJob) {
+    userJob = { job: '無職', talent: 1, skill: 0 };
   }
 
-  if (!interaction.client.workCooldowns) interaction.client.workCooldowns = {};
+  // ------------------ 無職チェック ------------------
+  if (userJob.job === '無職') {
+    return interaction.reply({
+      content: '❌ /job で職についてください',
+      flags: 64
+    });
+  }
+
+  // ------------------ クールダウン ------------------
+  if (!interaction.client.workCooldowns) {
+    interaction.client.workCooldowns = {};
+  }
+
   const lastWork = interaction.client.workCooldowns[userId] || 0;
-  const cooldown = jobsInfo[userJob.job].cooldown;
+  const cooldown = jobsInfo[userJob.job]?.cooldown || 0;
 
   if (cooldown > 0 && now - lastWork < cooldown) {
     const rem = cooldown - (now - lastWork);
     const m = Math.floor(rem / 60000);
     const s = Math.floor((rem % 60000) / 1000);
-    return interaction.reply({ content: `⏳ 次に働けるまで **${m}分${s}秒**です。`, flags: 64 });
+    return interaction.reply({
+      content: `⏳ 次に働けるまで **${m}分${s}秒**です。`,
+      flags: 64
+    });
   }
 
   await interaction.deferReply();
 
-  // 熟練度計算
-  let workCount = (userJob.workCount || 0) + 1;
-  let skill = userJob.skill || 0;
-  if (workCount >= 3) {
-    skill += 1;
-    workCount = 0;
+  // ------------------ 失業保険の期限チェック ------------------
+  if (
+    userJob.unemploymentInsurance &&
+    userJob.unemploymentInsuranceExpires &&
+    userJob.unemploymentInsuranceExpires <= now
+  ) {
+    // 期限切れ → 無効化
+    await interaction.client.db.collection("jobs").updateOne(
+      { userId },
+      {
+        $set: {
+          unemploymentInsurance: false,
+          unemploymentInsuranceExpires: 0
+        }
+      }
+    );
+
+    userJob.unemploymentInsurance = false;
+    userJob.unemploymentInsuranceExpires = 0;
   }
 
+  // ------------------ 収入計算 ------------------
   const base = applyVariance(jobsInfo[userJob.job].base);
-  const earned = Math.floor((base + (skill / 10 * base)/100) * userJob.talent);
+  const earned = Math.floor(base * userJob.talent);
 
   await interaction.client.updateCoins(userId, earned);
   interaction.client.workCooldowns[userId] = now;
 
-  await interaction.client.updateJobData(userId, { skill, workCount });
+  // ------------------ 失業判定 ------------------
+  if (userJob.skill > 30 && Math.random() < 0.05) {
 
-  // 失業判定
-  if (skill > 30 && Math.random() < 0.05) {
-    await interaction.client.updateJobData(userId, { job: '無職', skill: 0, workCount: 0, talent: 1 });
+    // ★ 有効な失業保険あり → 失業回避
+    if (
+      userJob.unemploymentInsurance &&
+      userJob.unemploymentInsuranceExpires > now
+    ) {
+      await interaction.client.db.collection("jobs").updateOne(
+        { userId },
+        {
+          $set: {
+            unemploymentInsurance: false,
+            unemploymentInsuranceExpires: 0
+          }
+        }
+      );
+
+      return interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor('Yellow')
+            .setDescription('🛡 **失業保険が発動しました！**\n失業を免れました。')
+        ]
+      });
+    }
+
+    // ★ 保険なし → 普通に失業
+    await interaction.client.updateJobData(userId, {
+      job: '無職',
+      skill: 0,
+      talent: 1
+    });
+
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setColor('Red').setDescription(`❌失業しました。無職になりました。`)]
+      embeds: [
+        new EmbedBuilder()
+          .setColor('Red')
+          .setDescription('❌ 失業しました。無職になりました。')
+      ]
     });
   }
 
+  // ------------------ 通常成功 ------------------
   const coins = await interaction.client.getCoins(userId);
+
   await interaction.editReply({
-    embeds: [new EmbedBuilder().setColor('Green').setDescription(`💰 **${earned}コイン**を獲得！\n所持金: **${coins}コイン**`)]
+    embeds: [
+      new EmbedBuilder()
+        .setColor('Green')
+        .setDescription(
+          `💰 **${earned}コイン**を獲得！\n所持金: **${coins}コイン**`
+        )
+    ]
   });
 }
