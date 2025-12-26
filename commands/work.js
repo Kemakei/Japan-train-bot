@@ -114,12 +114,19 @@ export async function execute(interaction) {
       });
     }
 
-    // ★ 保険なし → 普通に失業
-    await interaction.client.updateJobData(userId, {
-      job: '無職',
-      skill: 0,
-      talent: 1
+    // 失業判定
+    // 失業保険がない場合のみ判定
+   const jobDocFromDB = await interaction.client.getJobData(userId);
+   const hasInsurance = jobDocFromDB.unemploymentInsurance && new Date(jobDocFromDB.unemploymentInsurance) > new Date();
+
+   if (!hasInsurance && skill > 30 && Math.random() < 0.05) {
+    await interaction.client.updateJobData(userId, { job: '無職', skill: 0, workCount: 0, talent: 1 });
+    return interaction.editReply({
+      embeds: [new EmbedBuilder()
+        .setColor('Red')
+        .setDescription(`❌ 失業しました。無職になりました。`)]
     });
+   }
 
     return interaction.editReply({
       embeds: [

@@ -84,9 +84,9 @@ export async function execute(interaction) {
     embeds: [
       new EmbedBuilder()
         .setColor("Green")
-        .setTitle("🛡 失業保険を購入しました")
+        .setTitle("失業保険を購入しました")
         .setDescription(
-          `有効期限：**${formatJST(expiresAt)} まで**\n` +
+          `有効期限：**${formatJST(expiresAt)} までで**\n` +
           `この期間中は失業しません。`
         )
     ],

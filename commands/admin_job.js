@@ -83,7 +83,7 @@ export async function execute(interaction) {
       { upsert: true }
     );
 
-    await interaction.editReply(`✅ <@${userId}> の職業を **${job}** に設定しました\n才能: **${talent}** スキル: **${skill}**`);
+    await interaction.editReply(`✅ <@${userId}> の職業を **${job}** に設定しました\n才能: **${talent}** 熟練度: **${skill}**`);
 
   } catch (err) {
     console.error("❌ admin_job エラー:", err);
