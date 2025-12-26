@@ -88,13 +88,24 @@ export async function execute(interaction) {
     const skill = jobDoc?.skill ?? 0;
     const talent = jobDoc?.talent != null ? jobDoc.talent.toFixed(1) : '0';
 
-    // -------------------- ライセンス取得 --------------------
+    // -------------------- ライセンス取得（両対応） --------------------
     const licenseDoc = await client.db.collection("licenses").findOne({ userId });
-    const obtainedLicenses = licenseDoc?.licenses
-      ? Object.entries(licenseDoc.licenses)
-          .filter(([_, v]) => v)   // true のものだけ
-          .map(([k, _]) => k)
-      : [];
+    let obtainedLicenses = [];
+
+    if (licenseDoc) {
+      // 配列形式
+      if (Array.isArray(licenseDoc.obtained)) {
+        obtainedLicenses.push(...licenseDoc.obtained);
+      }
+      // オブジェクト形式
+      if (licenseDoc.licenses) {
+        const licensesFromObj = Object.entries(licenseDoc.licenses)
+          .filter(([_, v]) => v)
+          .map(([k, _]) => k);
+        // 重複除去
+        obtainedLicenses.push(...licensesFromObj.filter(l => !obtainedLicenses.includes(l)));
+      }
+    }
 
     // -------------------- Embed作成 --------------------
     const embed = new EmbedBuilder()
