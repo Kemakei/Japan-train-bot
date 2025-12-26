@@ -4,7 +4,7 @@ const jobs = [
   { name: '無職', cost: 0, base: 0 },
   { name: 'ギャンブラー', cost: 0, base: 100 },
   { name: 'アルバイト', cost: 0, base: 800 },
-  { name: '教師', cost: 3000, base: 2000 },
+  { name: '教師', cost: 3000, base: 4000 },
   { name: '銀行員', cost: 5000, base: 5000 },
   { name: 'ジャーナリスト', cost: 7000, base: 7000 },
   { name: 'プログラマー', cost: 10000, base: 10000 },
