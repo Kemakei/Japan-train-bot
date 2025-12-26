@@ -22,10 +22,6 @@ export const data = new SlashCommandBuilder()
   .setName('work')
   .setDescription('職業に応じてお金を稼ぎます');
 
-export async function execute(interaction) {
-  const userId = interaction.user.id;
-  const now = Date.now();
-
   let userJob = await interaction.client.getJobData(userId);
   if (!userJob) {
     userJob = { job: '無職', talent: 1, skill: 0 };
@@ -88,38 +84,13 @@ export async function execute(interaction) {
   interaction.client.workCooldowns[userId] = now;
 
   // ------------------ 失業判定 ------------------
-  if (userJob.skill > 30 && Math.random() < 0.05) {
-
-    // ★ 有効な失業保険あり → 失業回避
-    if (
-      userJob.unemploymentInsurance &&
-      userJob.unemploymentInsuranceExpires > now
-    ) {
-      await interaction.client.db.collection("jobs").updateOne(
-        { userId },
-        {
-          $set: {
-            unemploymentInsurance: false,
-            unemploymentInsuranceExpires: 0
-          }
-        }
-      );
-
-      return interaction.editReply({
-        embeds: [
-          new EmbedBuilder()
-            .setColor('Yellow')
-            .setDescription('🛡 **失業保険が発動しました！**\n失業を免れました。')
-        ]
-      });
-    }
-
+  if (userJob.skill > 30) {
+   
     // 失業判定
-    // 失業保険がない場合のみ判定
    const jobDocFromDB = await interaction.client.getJobData(userId);
    const hasInsurance = jobDocFromDB.unemploymentInsurance && new Date(jobDocFromDB.unemploymentInsurance) > new Date();
 
-   if (!hasInsurance && skill > 30 && Math.random() < 0.05) {
+   if (!hasInsurance && skill > 30 && Math.random() < 1) {
     await interaction.client.updateJobData(userId, { job: '無職', skill: 0, workCount: 0, talent: 1 });
     return interaction.editReply({
       embeds: [new EmbedBuilder()
@@ -127,16 +98,7 @@ export async function execute(interaction) {
         .setDescription(`❌ 失業しました。無職になりました。`)]
     });
    }
-
-    return interaction.editReply({
-      embeds: [
-        new EmbedBuilder()
-          .setColor('Red')
-          .setDescription('❌ 失業しました。無職になりました。')
-      ]
-    });
-  }
-
+      
   // ------------------ 通常成功 ------------------
   const coins = await interaction.client.getCoins(userId);
 
