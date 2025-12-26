@@ -15,7 +15,6 @@ const jobs = [
 
 const jobNames = jobs.map(j => j.name);
 
-// ★ 修正①：必要ライセンスを配列に
 const licenseNeeded = {
   教師: ['教員免許状'],
   パイロット: ['技能証明', '航空身体検査証明'],
