@@ -15,11 +15,12 @@ const jobs = [
 
 const jobNames = jobs.map(j => j.name);
 
+// ★ 修正①：必要ライセンスを配列に
 const licenseNeeded = {
-  "教師": "教員免許状",
-  "パイロット": "技能証明と航空身体検査証明",
-  "エンジニア": "ITパスポート",
-  "医師": "医師免許"
+  教師: ['教員免許状'],
+  パイロット: ['技能証明', '航空身体検査証明'],
+  エンジニア: ['ITパスポート'],
+  医師: ['医師免許']
 };
 
 // 転職後のクールダウン時間（ミリ秒）
@@ -53,8 +54,8 @@ export async function handleAutocomplete(interaction) {
 
   await interaction.respond(
     filtered.map(j => ({
-      name: `${j.name}：${j.cost}コイン`, // 表示用
-      value: j.name                     // 内部値
+      name: `${j.name}：${j.cost}コイン`,
+      value: j.name
     }))
   );
 }
@@ -69,31 +70,50 @@ export async function execute(interaction) {
     const rem = JOB_COOLDOWN - (now - userJob.lastJobChange);
     const m = Math.floor(rem / 60000);
     const s = Math.floor((rem % 60000) / 1000);
-    return interaction.reply({ content: `⏳ 転職はまだ **${m}分${s}秒** 待つ必要があります。`, flags: 64 });
+    return interaction.reply({
+      content: `⏳ 転職はまだ **${m}分${s}秒** 待つ必要があります。`,
+      flags: 64
+    });
   }
 
   const inputJob = interaction.options.getString('職業');
   const targetJob = jobs.find(j => j.name === inputJob);
 
   if (!targetJob) {
-    return interaction.reply({ content: `❌ **${inputJob}** は無効な職業です。`, flags: 64 });
+    return interaction.reply({
+      content: `❌ **${inputJob}** は無効な職業です。`,
+      flags: 64
+    });
   }
 
   if (inputJob === userJob.job) {
-    return interaction.reply({ content: `⚠️ 既に **${userJob.job}** に就いています。`, flags: 64 });
+    return interaction.reply({
+      content: `⚠️ 既に **${userJob.job}** に就いています。`,
+      flags: 64
+    });
   }
 
-  // ライセンスチェック
+  // ★ 修正②：正しいライセンスチェック
   if (licenseNeeded[inputJob]) {
-    const has = await interaction.client.hasLicense(userId, inputJob);
-    if (!has) {
-      return interaction.reply({ content: `❌ ${inputJob}に転職するには **${licenseNeeded[inputJob]}** が必要です。`, flags: 64 });
+    const needLicenses = licenseNeeded[inputJob];
+
+    for (const lic of needLicenses) {
+      const has = await interaction.client.hasLicense(userId, lic);
+      if (!has) {
+        return interaction.reply({
+          content: `❌ ${inputJob}に転職するには **${needLicenses.join('・')}** が必要です。`,
+          flags: 64
+        });
+      }
     }
   }
 
   const coins = await interaction.client.getCoins(userId);
   if (coins < targetJob.cost) {
-    return interaction.reply({ content: `❌ ${targetJob.cost}コイン必要です。所持: ${coins}`, flags: 64 });
+    return interaction.reply({
+      content: `❌ ${targetJob.cost}コイン必要です。所持: ${coins}`,
+      flags: 64
+    });
   }
 
   // 才能スコア確定
@@ -102,6 +122,7 @@ export async function execute(interaction) {
   // 転職成功確率 95%
   const fail = Math.random() < 0.05;
   let message;
+
   if (fail) {
     await interaction.client.updateCoins(userId, -targetJob.base);
     message = `❌ 転職に失敗しました。${targetJob.base}コインが失われました。`;
