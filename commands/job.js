@@ -126,5 +126,5 @@ export async function execute(interaction) {
     message = `✅ **${targetJob.name}** に転職しました！\n才能スコア: **${talent}**`;
   }
 
-  await interaction.reply({ content: message, flags: 64 });
+  await interaction.reply({ content: message, flags: 0 });
 }
