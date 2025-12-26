@@ -24,7 +24,7 @@ function sleep(ms) {
 function pickResult(jobName = '無職') {
   // 基本確率
   let bigRate = 0.05;
-  let smallRate = 0.30;
+  let smallRate = 0.20;
 
   // ギャンブラーなら当たりやすくする
   if (jobName === 'ギャンブラー') {
