@@ -226,22 +226,15 @@ client.updateJobData = async (userId, delta) => {
 };
 
 // -------------------- ライセンス保存 --------------------
-client.getLicenses = async (userId) => {
-  const doc = await client.db.collection("licenses").findOne({ userId });
-  return doc?.licenses || {}; 
-};
+client.hasLicense = async (userId, licenseName) => {
+  const doc = await client.db
+    .collection('licenses')
+    .findOne({ userId: String(userId) });
 
-client.setLicense = async (userId, jobName) => {
-  await client.db.collection("licenses").updateOne(
-    { userId },
-    { $set: { [`licenses.${jobName}`]: true } },
-    { upsert: true }
-  );
-};
+  if (!doc) return false;
+  if (!Array.isArray(doc.obtained)) return false;
 
-client.hasLicense = async (userId, jobName) => {
-  const licenses = await client.getLicenses(userId);
-  return !!licenses[jobName];
+  return doc.obtained.includes(licenseName);
 };
 
 // -------------------- ヘッジ契約管理（MongoDB版） --------------------
