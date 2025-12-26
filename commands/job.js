@@ -13,8 +13,6 @@ const jobs = [
   { name: '医師', cost: 300000, base: 50000 },
 ];
 
-const jobNames = jobs.map(j => j.name);
-
 const licenseNeeded = {
   教師: ['教員免許状'],
   パイロット: ['技能証明', '航空身体検査証明'],
@@ -22,49 +20,39 @@ const licenseNeeded = {
   医師: ['医師免許']
 };
 
-// 転職後のクールダウン時間（ミリ秒）
-const JOB_COOLDOWN = 5 * 60 * 1000; // 5分
+// 転職後のクールダウン（5分）
+const JOB_COOLDOWN = 5 * 60 * 1000;
 
-// ランダム才能スコア生成
+// ランダム才能
 function randomTalent() {
   return +(Math.random() * (1.5 - 0.6) + 0.6).toFixed(1);
 }
 
-// スラッシュコマンド定義
+// --- スラッシュコマンド定義 ---
 export const data = new SlashCommandBuilder()
   .setName('job')
   .setDescription('転職')
-  .addStringOption(option => 
-    option.setName('職業')
-          .setDescription('希望の職業を入力してください')
-          .setRequired(true)
-          .setAutocomplete(true)
+  .addStringOption(option =>
+    option
+      .setName('職業')
+      .setDescription('希望の職業を選択してください')
+      .setRequired(true)
+      // ★ 完全固定プルダウン
+      .addChoices(
+        ...jobs.map(j => ({
+          name: `${j.name}：${j.cost.toLocaleString()}コイン`,
+          value: j.name // ← MongoDB に入るのは職業名だけ
+        }))
+      )
   );
 
-// オートコンプリート処理
-export async function handleAutocomplete(interaction) {
-  if (!interaction.isAutocomplete()) return;
-
-  const focusedValue = interaction.options.getFocused();
-
-  const filtered = jobs
-    .filter(j => j.name.includes(focusedValue))
-    .slice(0, 10);
-
-  await interaction.respond(
-    filtered.map(j => ({
-      name: `${j.name}：${j.cost}コイン`,
-      value: j.name
-    }))
-  );
-}
-
-// コマンド実行処理
+// --- 実行 ---
 export async function execute(interaction) {
   const userId = interaction.user.id;
   const userJob = await interaction.client.getJobData(userId);
-
   const now = Date.now();
+
+  // --- クールダウン ---
   if (userJob.lastJobChange && now - userJob.lastJobChange < JOB_COOLDOWN) {
     const rem = JOB_COOLDOWN - (now - userJob.lastJobChange);
     const m = Math.floor(rem / 60000);
@@ -78,6 +66,7 @@ export async function execute(interaction) {
   const inputJob = interaction.options.getString('職業');
   const targetJob = jobs.find(j => j.name === inputJob);
 
+  // 念のため（実際は通らない）
   if (!targetJob) {
     return interaction.reply({
       content: `❌ **${inputJob}** は無効な職業です。`,
@@ -92,10 +81,9 @@ export async function execute(interaction) {
     });
   }
 
-  // ★ 修正②：正しいライセンスチェック
+  // --- ライセンスチェック ---
   if (licenseNeeded[inputJob]) {
     const needLicenses = licenseNeeded[inputJob];
-
     for (const lic of needLicenses) {
       const has = await interaction.client.hasLicense(userId, lic);
       if (!has) {
@@ -107,28 +95,29 @@ export async function execute(interaction) {
     }
   }
 
+  // --- コインチェック ---
   const coins = await interaction.client.getCoins(userId);
   if (coins < targetJob.cost) {
     return interaction.reply({
-      content: `❌ ${targetJob.cost}コイン必要です。所持: ${coins}`,
+      content: `❌ ${targetJob.cost.toLocaleString()}コイン必要です。所持: ${coins.toLocaleString()}`,
       flags: 64
     });
   }
 
-  // 才能スコア確定
+  // --- 才能確定 ---
   const talent = randomTalent();
 
-  // 転職成功確率 95%
+  // --- 成功判定（95%） ---
   const fail = Math.random() < 0.05;
   let message;
 
   if (fail) {
     await interaction.client.updateCoins(userId, -targetJob.base);
-    message = `❌ 転職に失敗しました。${targetJob.base}コインが失われました。`;
+    message = `❌ 転職に失敗しました。${targetJob.base.toLocaleString()}コインが失われました。`;
   } else {
     await interaction.client.updateCoins(userId, -targetJob.cost);
     await interaction.client.setJobData(userId, {
-      job: targetJob.name,
+      job: targetJob.name, // ← DBにはこれだけ
       talent,
       skill: 0,
       workCount: 0,

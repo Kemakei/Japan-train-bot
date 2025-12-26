@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 
 // ===== 設定 =====
-const INSURANCE_COST = 20000; // 価格
+const INSURANCE_COST = 50000; // 価格
 const INSURANCE_DURATION = 7 * 24 * 60 * 60 * 1000; // 1週間
 
 // JST表示用
@@ -23,7 +23,7 @@ export const data = new SlashCommandBuilder()
       .setDescription("購入するアイテム")
       .setRequired(true)
       .addChoices(
-        { name: "失業保険（7日間）", value: "unemployment_insurance" }
+        { name: "失業保険（7日間）：50000コイン", value: "unemployment_insurance" }
       )
   );
 

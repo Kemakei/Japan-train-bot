@@ -83,7 +83,7 @@ export async function execute(interaction) {
   const userSkill = jobDocFromDB.skill || 0;
 
   // 失業判定
-  if (!hasInsurance && userSkill > 30 && Math.random() < 1) {
+  if (!hasInsurance && userSkill > 30 && Math.random() < 0.05) {
     await interaction.client.updateJobData(userId, { job: '無職', skill: 0, workCount: 0, talent: 1 });
     return interaction.editReply({
       embeds: [

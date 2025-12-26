@@ -4,7 +4,7 @@ const licenseList = [
   { name: '教員免許状', time: 30 * 60 * 1000, cost: 1000 },
   { name: '技能証明', time: 1 * 60 * 60 * 1000, cost: 10000 },
   { name: '航空身体検査証明', time: 2 * 60 * 60 * 1000, cost: 30000 },
-  { name: 'ITパスポート', time: 3 * 60 * 60 * 1000, cost: 40000 },
+  { name: 'ITパスポート', time: 4 * 60 * 60 * 1000, cost: 40000 }, // ★ 4時間
   { name: '医師免許', time: 6 * 60 * 60 * 1000, cost: 100000 },
 ];
 
@@ -15,12 +15,8 @@ function formatRemaining(ms) {
   const minutes = Math.floor((totalSec % 3600) / 60);
   const seconds = totalSec % 60;
 
-  if (hours > 0) {
-    return `${hours}時間${minutes}分${seconds}秒`;
-  }
-  if (minutes > 0) {
-    return `${minutes}分${seconds}秒`;
-  }
+  if (hours > 0) return `${hours}時間${minutes}分${seconds}秒`;
+  if (minutes > 0) return `${minutes}分${seconds}秒`;
   return `${seconds}秒`;
 }
 
@@ -32,7 +28,13 @@ export const data = new SlashCommandBuilder()
       .setName('取得')
       .setDescription('取得したいライセンス')
       .setRequired(false)
-      .addChoices(...licenseList.map(l => ({ name: l.name, value: l.name })))
+      // ★ プルダウンに必要コイン数を表示
+      .addChoices(
+        ...licenseList.map(l => ({
+          name: `${l.name}（${l.cost.toLocaleString()}コイン）`,
+          value: l.name // DBには名前のみ保存
+        }))
+      )
   );
 
 export async function execute(interaction) {
@@ -57,11 +59,11 @@ export async function execute(interaction) {
     const now = Date.now();
 
     // ==============================
-    // 取得状況の確認（引数なし）
+    // 状況確認（引数なし）
     // ==============================
     if (!target) {
 
-      // ---- 完了チェック ----
+      // ---- 取得完了チェック ----
       if (userData.pending && now >= userData.pending.finish) {
         const licenseName = userData.pending.name;
         let resultMessage;
@@ -96,7 +98,7 @@ export async function execute(interaction) {
         });
       }
 
-      // ---- 取得中表示（残り時間） ----
+      // ---- 取得中 ----
       if (userData.pending) {
         const remaining = userData.pending.finish - now;
 
@@ -138,17 +140,23 @@ export async function execute(interaction) {
 
     const license = licenseList.find(l => l.name === target);
     if (!license) {
-      return interaction.reply({ content: '❌ そのライセンスは存在しません', flags: 64 });
+      return interaction.reply({
+        content: '❌ そのライセンスは存在しません',
+        flags: 64
+      });
     }
 
     if (userData.obtained.includes(target)) {
-      return interaction.reply({ content: `✅ 既に取得済みです: ${target}`, flags: 64 });
+      return interaction.reply({
+        content: `✅ 既に取得済みです: ${target}`,
+        flags: 64
+      });
     }
 
     const coins = await interaction.client.getCoins(userId);
     if (coins < license.cost) {
       return interaction.reply({
-        content: `❌ コインが足りません（必要: ${license.cost}）`,
+        content: `❌ コインが足りません（必要: ${license.cost.toLocaleString()}）`,
         flags: 64
       });
     }
@@ -156,14 +164,13 @@ export async function execute(interaction) {
     // ---- コイン消費 & 申請開始 ----
     await interaction.client.updateCoins(userId, -license.cost);
 
-    const finishTime = now + license.time;
     await col.updateOne(
       { userId },
       {
         $set: {
           pending: {
             name: license.name,
-            finish: finishTime
+            finish: now + license.time
           }
         }
       }
@@ -178,7 +185,10 @@ export async function execute(interaction) {
   } catch (err) {
     console.error(err);
     if (!interaction.replied) {
-      await interaction.reply({ content: '❌ エラーが発生しました', flags: 64 });
+      await interaction.reply({
+        content: '❌ エラーが発生しました',
+        flags: 64
+      });
     }
   }
 }

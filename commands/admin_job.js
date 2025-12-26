@@ -19,32 +19,32 @@ export const data = new SlashCommandBuilder()
   .addStringOption(opt =>
     opt.setName("password")
       .setDescription("管理者パスワード")
-      .setRequired(true))
+      .setRequired(true)
+  )
   .addStringOption(opt =>
     opt.setName("userid")
       .setDescription("ユーザーID またはメンション")
-      .setRequired(true))
+      .setRequired(true)
+  )
   .addStringOption(opt =>
     opt.setName("job")
       .setDescription("設定する職業")
       .setRequired(true)
-      .setAutocomplete(true))
+      // ★ 完全固定
+      .addChoices(
+        ...JOBS.map(j => ({ name: j, value: j }))
+      )
+  )
   .addNumberOption(opt =>
     opt.setName("talent")
       .setDescription("才能スコア（0.6〜1.5、小数第一位まで）")
-      .setRequired(true))
+      .setRequired(true)
+  )
   .addIntegerOption(opt =>
     opt.setName("skill")
       .setDescription("熟練度")
-      .setRequired(false));
-
-// --- オートコンプリート ---
-export async function handleAutocomplete(interaction) {
-  if (!interaction.isAutocomplete()) return;
-  const focused = interaction.options.getFocused();
-  const choices = JOBS.filter(j => j.includes(focused)).slice(0, 10);
-  await interaction.respond(choices.map(j => ({ name: j, value: j })));
-}
+      .setRequired(false)
+  );
 
 // --- 実行 ---
 export async function execute(interaction) {
@@ -63,32 +63,48 @@ export async function execute(interaction) {
     const userInput = interaction.options.getString("userid");
     const userId = userInput.replace(/[<@!>]/g, "").trim();
 
-    // --- 職業・才能・スキル ---
+    // --- 職業 ---
     const job = interaction.options.getString("job");
-    if (!JOBS.includes(job)) return interaction.editReply("❌ 無効な職業です");
+    if (!JOBS.includes(job)) {
+      return interaction.editReply("❌ 無効な職業です");
+    }
 
+    // --- 才能 ---
     let talent = interaction.options.getNumber("talent");
-    // 0.6~1.5、少数第一位に丸める
     if (isNaN(talent) || talent < 0.6 || talent > 1.5) {
       return interaction.editReply("❌ talent は 0.6〜1.5 の範囲で指定してください");
     }
     talent = Math.round(talent * 10) / 10;
 
+    // --- 熟練度 ---
     const skill = interaction.options.getInteger("skill") ?? 0;
 
     // --- MongoDB 更新 ---
     await interaction.client.db.collection("jobs").updateOne(
       { userId },
-      { $set: { job, talent, skill, lastJobChange: Date.now() } },
+      {
+        $set: {
+          job,
+          talent,
+          skill,
+          lastJobChange: Date.now()
+        }
+      },
       { upsert: true }
     );
 
-    await interaction.editReply(`✅ <@${userId}> の職業を **${job}** に設定しました\n才能: **${talent}** 熟練度: **${skill}**`);
+    await interaction.editReply(
+      `✅ <@${userId}> の職業を **${job}** に設定しました\n` +
+      `才能: **${talent}**　熟練度: **${skill}**`
+    );
 
   } catch (err) {
     console.error("❌ admin_job エラー:", err);
     if (!interaction.deferred && !interaction.replied) {
-      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました", flags: 64 });
+      await interaction.reply({
+        content: "❌ コマンド実行中にエラーが発生しました",
+        flags: 64
+      });
     } else {
       await interaction.editReply("❌ コマンド実行中にエラーが発生しました");
     }
