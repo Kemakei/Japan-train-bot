@@ -1,3 +1,4 @@
+import { SlashCommandBuilder } from 'discord.js';
 
 const jobs = [
   { name: '無職', cost: 0, base: 0 },
