@@ -13,7 +13,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export const data = new SlashCommandBuilder()
-  .setName("graph")
+  .setName("trade_graph")
   .setDescription("株価折れ線グラフ表示");
 
 export async function execute(interaction, { client }) {

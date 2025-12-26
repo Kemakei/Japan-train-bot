@@ -4,7 +4,7 @@ import { SlashCommandBuilder } from "discord.js";
 const lastBuyTimestamps = new Map();
 
 export const data = new SlashCommandBuilder()
-  .setName("buy")
+  .setName("trade_buy")
   .setDescription("株を購入します")
   .addIntegerOption(opt =>
     opt.setName("count")

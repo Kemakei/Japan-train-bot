@@ -1,7 +1,7 @@
 import { SlashCommandBuilder } from "discord.js";
 
 export const data = new SlashCommandBuilder()
-  .setName("sell")
+  .setName("trade_sell")
   .setDescription("株を売却します")
   .addIntegerOption(opt =>
     opt.setName("count")
