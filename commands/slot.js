@@ -24,12 +24,12 @@ function sleep(ms) {
 function pickResult(jobName = '無職') {
   // 基本確率
   let bigRate = 0.05;
-  let smallRate = 0.20;
+  let smallRate = 0.15;
 
   // ギャンブラーなら当たりやすくする
   if (jobName === 'ギャンブラー') {
-    bigRate += 0.05;   // 大当たり 10%
-    smallRate += 0.15; // 小当たり 45%
+    bigRate += 0.02;   // 大当たり 10%
+    smallRate += 0.10; // 小当たり 45%
   }
 
   const r = Math.random();
