@@ -19,7 +19,7 @@ export const data = new SlashCommandBuilder()
   .addStringOption(option =>
     option
       .setName('message')
-      .setDescription('リマインドメッセージ（止められる人はここでメンション）')
+      .setDescription('リマインドメッセージ')
       .setRequired(false)
   )
   .addStringOption(option =>
