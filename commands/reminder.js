@@ -19,7 +19,7 @@ export const data = new SlashCommandBuilder()
   .addStringOption(option =>
     option
       .setName('message')
-      .setDescription('リマインドメッセージ')
+      .setDescription('リマインドメッセージ（止められる人はここでメンション）')
       .setRequired(false)
   )
   .addStringOption(option =>
@@ -45,7 +45,23 @@ export async function execute(interaction, { client }) {
 
   if (!client.reminders) client.reminders = new Map();
 
-  // タイムゾーン処理
+  /* =========================
+     スヌーズ停止許可ユーザー
+     ========================= */
+  const allowedUserIds = new Set([interaction.user.id]);
+
+  // message に明示的に書かれたメンションだけ追加
+  const mentionMatches = messageText.match(/<@!?(\d+)>/g);
+  if (mentionMatches) {
+    for (const m of mentionMatches) {
+      const id = m.match(/\d+/)[0];
+      allowedUserIds.add(id);
+    }
+  }
+
+  /* =========================
+     タイムゾーン処理
+     ========================= */
   let tz = 'UTC';
   if (/^[+-]?\d+$/.test(tzInput)) {
     tz = `UTC${tzInput.startsWith('+') || tzInput.startsWith('-') ? tzInput : '+' + tzInput}`;
@@ -55,8 +71,9 @@ export async function execute(interaction, { client }) {
 
   let delayMs;
   let isDatetime = false;
+
   if (/^\d+$/.test(timeInput)) {
-    delayMs = parseInt(timeInput) * 60 * 1000;
+    delayMs = parseInt(timeInput, 10) * 60 * 1000;
   } else {
     const match = timeInput.match(/^(\d{1,2})\/(\d{1,2}) (\d{1,2}):(\d{2})$/);
     if (!match) {
@@ -69,29 +86,36 @@ export async function execute(interaction, { client }) {
     isDatetime = true;
     const [, month, day, hour, minute] = match.map(Number);
     const now = DateTime.now().setZone(tz);
-    let dt = DateTime.fromObject({ year: now.year, month, day, hour, minute }, { zone: tz });
+    let dt = DateTime.fromObject(
+      { year: now.year, month, day, hour, minute },
+      { zone: tz }
+    );
+
     if (dt.toMillis() <= Date.now()) dt = dt.plus({ years: 1 });
     delayMs = dt.toMillis() - Date.now();
   }
 
   const snooze = isDatetime ? false : snoozeRequested;
-  const warningMsg = isDatetime && snoozeRequested
-    ? '\n⚠️ 日時指定ではスヌーズは無効になります。'
-    : '';
+  const warningMsg =
+    isDatetime && snoozeRequested
+      ? '\n⚠️ 日時指定ではスヌーズは無効になります。'
+      : '';
 
   let lastMessage = null;
 
+  /* =========================
+     リマインダー送信処理
+     ========================= */
   const sendReminder = async () => {
     const content = messageText
       ? `${userMention}  ${messageText}`
       : `${userMention} リマインド時間になりました！`;
 
-    // 🔹 新しいメッセージ送信前に古いボタンを削除
+    // 古いボタンを無効化
     if (lastMessage) {
       try {
         await lastMessage.edit({ components: [] });
-      } catch {
-      }
+      } catch {}
     }
 
     const row = snooze
@@ -103,30 +127,49 @@ export async function execute(interaction, { client }) {
         )
       : null;
 
-    const msg = await interaction.channel.send({ content, components: snooze ? [row] : [] });
-    lastMessage = msg; // 📌 最新メッセージを記録
+    const msg = await interaction.channel.send({
+      content,
+      components: snooze ? [row] : []
+    });
 
-    // 🔒 スヌーズボタン監視
+    lastMessage = msg;
+
+    /* =========================
+       スヌーズ停止ボタン監視
+       ========================= */
     if (snooze) {
       const collector = msg.createMessageComponentCollector({
         componentType: ComponentType.Button,
-        time: 7 * 24 * 60 * 60 * 1000 // 最大7日間
+        time: 7 * 24 * 60 * 60 * 1000
       });
 
       collector.on('collect', async i => {
         if (i.customId !== `stop_snooze_${reminderId}`) return;
+
+        // 🔐 権限制御
+        if (!allowedUserIds.has(i.user.id)) {
+          return i.reply({
+            content: '❌ このスヌーズを停止する権限がありません。',
+            flags: 64
+          });
+        }
+
         await i.deferUpdate();
 
         const active = client.reminders.get(reminderId);
         if (active) clearTimeout(active);
         client.reminders.delete(reminderId);
 
-        await msg.edit({ content: '⏹ スヌーズを停止しました', components: [] });
+        await msg.edit({
+          content: '⏹ スヌーズを停止しました',
+          components: []
+        });
+
         collector.stop('stopped_by_user');
       });
     }
 
-    // 🔁 スヌーズ再スケジュール
+    // スヌーズ再スケジュール
     if (!isDatetime && snooze && client.reminders.has(reminderId)) {
       const nextTimeout = setTimeout(sendReminder, delayMs);
       client.reminders.set(reminderId, nextTimeout);
@@ -135,7 +178,9 @@ export async function execute(interaction, { client }) {
     }
   };
 
-  // ⏰ 最初のリマインダー
+  /* =========================
+     初回セット
+     ========================= */
   const initialTimeout = setTimeout(async () => {
     await sendReminder();
     if (!snooze) client.reminders.delete(reminderId);
