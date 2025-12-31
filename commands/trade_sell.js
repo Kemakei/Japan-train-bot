@@ -1,26 +1,28 @@
 import { SlashCommandBuilder } from "discord.js";
 
-const STOCKS = [
-  { id: "A", name: "tootle株式会社" },
-  { id: "B", name: "ハイシロソフト株式会社" },
-  { id: "C", name: "バナナ株式会社" },
-  { id: "D", name: "ネムーイ株式会社" },
-  { id: "E", name: "ナニイッテンノー株式会社" },
-  { id: "F", name: "ダカラナニー株式会社" },
-  { id: "G", name: "ホシーブックス株式会社" },
-  { id: "H", name: "ランランルー株式会社" },
-];
-
 export const data = new SlashCommandBuilder()
   .setName("trade_sell")
   .setDescription("株を売却します")
-  .addStringOption(opt =>
-    opt.setName("stock")
+  .addStringOption(option =>
+    option
+      .setName("stock")
+      .setDescription("売却する会社を選択")
       .setRequired(true)
-      .addChoices(...STOCKS.map(s => ({ name: s.name, value: s.id })))
+      .addChoices(
+        { name: "tootle株式会社", value: "A" },
+        { name: "ハイシロソフト株式会社", value: "B" },
+        { name: "バナナ株式会社", value: "C" },
+        { name: "ネムーイ株式会社", value: "D" },
+        { name: "ナニイッテンノー株式会社", value: "E" },
+        { name: "ダカラナニー株式会社", value: "F" },
+        { name: "ホシーブックス株式会社", value: "G" },
+        { name: "ランランルー株式会社", value: "H" }
+      )
   )
-  .addIntegerOption(opt =>
-    opt.setName("count")
+  .addIntegerOption(option =>
+    option
+      .setName("count")
+      .setDescription("売却する株数（1〜500）")
       .setRequired(true)
   );
 
@@ -29,21 +31,33 @@ export async function execute(interaction, { client }) {
   const count = interaction.options.getInteger("count");
   const userId = interaction.user.id;
 
-  const user = await client.getUserData(userId);
-  const owned = user.stocks?.[stockId] || 0;
+  if (count < 1 || count > 500) {
+    return interaction.reply({
+      content: "❌ 株数は 1〜500 の範囲です",
+      ephemeral: true
+    });
+  }
 
+  const owned = await client.getUserStock(userId, stockId);
   if (owned < count) {
-    return interaction.reply({ content: "❌ 株不足", flags: 64 });
+    return interaction.reply({
+      content: "❌ 所有株数が足りません",
+      ephemeral: true
+    });
   }
 
   const price = await client.getStockPrice(stockId);
-  const gain = price * count;
+  const total = price * count;
+  const fee = Math.floor(total * 0.1) + 100;
+  const gain = total - fee;
 
-  await client.updateCoins(userId, gain);
   await client.updateStocks(userId, stockId, -count);
+  await client.updateCoins(userId, gain);
   await client.modifyStockByTrade(stockId, "sell", count);
 
-  interaction.reply(
-    `✅ ${count}株売却\n株価:${price}\n獲得:${gain}`
+  await interaction.reply(
+    `✅ **${STOCKS.find(s => s.id === stockId)?.name || stockId}** を **${count} 株** 売却しました\n` +
+    `株価: ${price}\n` +
+    `受取額: ${gain}`
   );
 }

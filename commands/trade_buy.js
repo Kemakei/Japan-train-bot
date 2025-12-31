@@ -1,26 +1,28 @@
 import { SlashCommandBuilder } from "discord.js";
 
-const STOCKS = [
-  { id: "A", name: "tootle株式会社" },
-  { id: "B", name: "ハイシロソフト株式会社" },
-  { id: "C", name: "バナナ株式会社" },
-  { id: "D", name: "ネムーイ株式会社" },
-  { id: "E", name: "ナニイッテンノー株式会社" },
-  { id: "F", name: "ダカラナニー株式会社" },
-  { id: "G", name: "ホシーブックス株式会社" },
-  { id: "H", name: "ランランルー株式会社" },
-];
-
 export const data = new SlashCommandBuilder()
   .setName("trade_buy")
   .setDescription("株を購入します")
-  .addStringOption(opt =>
-    opt.setName("stock")
+  .addStringOption(option =>
+    option
+      .setName("stock")
+      .setDescription("購入する会社を選択")
       .setRequired(true)
-      .addChoices(...STOCKS.map(s => ({ name: s.name, value: s.id })))
+      .addChoices(
+        { name: "tootle株式会社", value: "A" },
+        { name: "ハイシロソフト株式会社", value: "B" },
+        { name: "バナナ株式会社", value: "C" },
+        { name: "ネムーイ株式会社", value: "D" },
+        { name: "ナニイッテンノー株式会社", value: "E" },
+        { name: "ダカラナニー株式会社", value: "F" },
+        { name: "ホシーブックス株式会社", value: "G" },
+        { name: "ランランルー株式会社", value: "H" }
+      )
   )
-  .addIntegerOption(opt =>
-    opt.setName("count")
+  .addIntegerOption(option =>
+    option
+      .setName("count")
+      .setDescription("購入する株数（1〜500）")
       .setRequired(true)
   );
 
@@ -29,8 +31,11 @@ export async function execute(interaction, { client }) {
   const count = interaction.options.getInteger("count");
   const userId = interaction.user.id;
 
-  if (count <= 0 || count > 500) {
-    return interaction.reply({ content: "❌ 株数は1〜500", flags: 64 });
+  if (count < 1 || count > 500) {
+    return interaction.reply({
+      content: "❌ 株数は 1〜500 の範囲です",
+      ephemeral: true
+    });
   }
 
   const price = await client.getStockPrice(stockId);
@@ -40,14 +45,19 @@ export async function execute(interaction, { client }) {
 
   const coins = await client.getCoins(userId);
   if (coins < pay) {
-    return interaction.reply({ content: "❌ コイン不足", flags: 64 });
+    return interaction.reply({
+      content: "❌ コインが不足しています",
+      ephemeral: true
+    });
   }
 
   await client.updateCoins(userId, -pay);
   await client.updateStocks(userId, stockId, count);
   await client.modifyStockByTrade(stockId, "buy", count);
 
-  interaction.reply(
-    `✅ ${count}株購入\n株価:${price}\n支払:${pay}`
+  await interaction.reply(
+    `✅ **${STOCKS.find(s => s.id === stockId)?.name || stockId}** を **${count} 株** 購入しました\n` +
+    `株価: ${price}\n` +
+    `支払額: ${pay}`
   );
 }
