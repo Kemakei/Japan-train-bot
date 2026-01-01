@@ -57,15 +57,17 @@ export async function execute(interaction) {
     const VIPCoins = userDataDoc.VIPCoins || 0;
     const stocks = userDataDoc.stocks || {};
 
-    // -------------------- 保有株表示 --------------------
+    // -------------------- 株価付き保有株情報 --------------------
     const stockLines = [];
     for (const [stockId, count] of Object.entries(stocks)) {
       if (count > 0) {
         const stockName = STOCKS.find(s => s.id === stockId)?.name || stockId;
-        stockLines.push(`${stockName}: ${count} 株`);
+        const price = await client.getStockPrice(stockId); // 最新株価
+        const totalValue = count * price;
+        stockLines.push(`${stockName}: ${count} 株（総額: ${formatCoins(totalValue)}）`);
       }
     }
-    const stockInfo = stockLines.join('\n');
+    const stockInfo = stockLines.length > 0 ? stockLines.join('\n') : 'なし';
 
     // -------------------- 宝くじ保有枚数取得 --------------------
     const tickets = await client.lotteryTickets.find({ userId }).toArray();
@@ -84,7 +86,6 @@ export async function execute(interaction) {
 
       hedgeAccumulated = hedgeDoc.accumulated + hedgeDoc.amountPerDay * daysPassed;
 
-      // 自分自身のデータのみ更新
       if (daysPassed > 0 && userId === interaction.user.id) {
         await client.updateCoins(userId, hedgeDoc.amountPerDay * daysPassed);
         hedgeDoc.accumulated = 0;
@@ -125,7 +126,6 @@ export async function execute(interaction) {
         obtainedLicenses.push(...licensesFromObj.filter(l => !obtainedLicenses.includes(l)));
       }
     }
-    const licenseInfo = obtainedLicenses.length > 0 ? obtainedLicenses.join('\n') : 'なし';
 
     // -------------------- Embed作成 --------------------
     const embed = new EmbedBuilder()
@@ -134,12 +134,12 @@ export async function execute(interaction) {
       .setDescription(
         `**所持金:** ${formatCoins(coins)}\n` +
         `**金コイン:** ${formatCoins(VIPCoins)}\n\n` +
-        `**保有株:**\n${stockInfo || 'なし'}\n\n` +
+        `**保有株:**\n${stockInfo}\n\n` +
         `**宝くじ保有枚数:** ${totalTickets || 0} 枚\n\n` +
         `**職業:** ${jobName}\n` +
         `**熟練度:** ${skill}\n` +
-        `**才能:** ${talent}\n` +
-        `**取得ライセンス:**\n${licenseInfo}\n\n` +
+        `**才能:** ${talent}\n\n` +
+        `**取得ライセンス:** ${obtainedLicenses.length > 0 ? obtainedLicenses.join('、') : 'なし'}\n\n` +
         (hedgeAccumulated > 0 ? `**保険金:** ${formatCoins(hedgeAccumulated)}\n` : '') +
         (totalDebt > 0 ? `**借金:** ${formatCoins(totalDebt)}${loanDetails}` : '')
       )
