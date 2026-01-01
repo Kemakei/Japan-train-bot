@@ -168,7 +168,7 @@ client.updateStockPrice = async (stockId, delta) => {
   if (price < min) price = min;
   if (price > max) price = max;
 
-  await stockHistoryCol.updateOne(
+  await client.stockHistoryCol.updateOne(
     { userId: `stock_price_${stockId}` },
     { $set: { coins: price } },
     { upsert: true }
