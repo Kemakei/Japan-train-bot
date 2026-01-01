@@ -39,19 +39,18 @@ export async function execute(interaction, { client }) {
   const pages = [];
 
   for (const stock of STOCKS) {
+    // === MongoDBから履歴を取得 ===
     const historyDoc = await client.stockHistoryCol.findOne({ userId: `trade_history_${stock.id}` });
     const priceDoc = await client.stockHistoryCol.findOne({ userId: `stock_price_${stock.id}` });
+    const tradeHistory = historyDoc?.history ?? [];
+    const stockPrice = priceDoc?.currentPrice ?? stock.base;
 
-    const tradeHistory = historyDoc?.tradeHistory ?? []; 
-    const stockPrice = priceDoc?.currentPrice ?? stock.base; 
-
-    const py = spawn(process.platform === "win32" ? "py" : "python3", [
-      path.resolve(__dirname, "../python/graph.py")
-    ]);
+    // === Python に渡す JSON ===
+    const py = spawn("python", [path.resolve(__dirname, "../python/graph.py")]);
 
     py.stdin.write(JSON.stringify({
-      trade_history: tradeHistory,
-      stock_price: stockPrice,
+      trade_history: tradeHistory, // 必ずMongoDBのhistory配列
+      stock_price: stockPrice      // fallback
     }));
     py.stdin.end();
 
@@ -72,6 +71,8 @@ export async function execute(interaction, { client }) {
       current: parsed.current,
       min: parsed.min,
       max: parsed.max,
+      delta: parsed.delta,
+      deltaPercent: parsed.deltaPercent,
     });
   }
 
@@ -97,6 +98,7 @@ function buildEmbed(page, index) {
     .setTitle(`📈 ${page.stock.name}`)
     .setDescription(
       `**現在株価:** ${page.current.toLocaleString()} コイン\n` +
+      `**変動:** ${page.delta >=0 ? "+" : ""}${page.delta} (${page.deltaPercent >= 0 ? "+" : ""}${page.deltaPercent}%)\n` +
       `**最低株価:** ${page.min.toLocaleString()} コイン\n` +
       `**最高株価:** ${page.max.toLocaleString()} コイン\n\n` +
       `ページ: ${index + 1} / ${STOCKS.length}`
