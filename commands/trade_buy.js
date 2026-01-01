@@ -25,7 +25,7 @@ export const data = new SlashCommandBuilder()
       .setDescription("購入する株数（1〜500）")
       .setRequired(true)
       .setMinValue(1)
-      .setMaxValie(500)
+      .setMaxValue(500)
   );
 
 export async function execute(interaction, { client }) {

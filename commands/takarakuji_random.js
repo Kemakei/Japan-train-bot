@@ -23,6 +23,8 @@ export const data = new SlashCommandBuilder()
     opt.setName("count")
        .setDescription("購入枚数（1〜10000）")
        .setRequired(true)
+       .setMinValue(1)
+       .setMaxValue(10000)
   );
 
 export async function execute(interaction, { client }) {
