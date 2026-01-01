@@ -16,14 +16,14 @@ const __dirname = path.dirname(__filename);
 
 // ===== 株マスタ（固定8社）=====
 const STOCKS = [
-  { id: "A", name: "tootle株式会社",        base: 1000 },
+  { id: "A", name: "tootle株式会社", base: 1000 },
   { id: "B", name: "ハイシロソフト株式会社", base: 1200 },
-  { id: "C", name: "バナナ株式会社",        base: 800 },
-  { id: "D", name: "ネムーイ株式会社",      base: 600 },
+  { id: "C", name: "バナナ株式会社", base: 800 },
+  { id: "D", name: "ネムーイ株式会社", base: 600 },
   { id: "E", name: "ナニイッテンノー株式会社", base: 1500 },
-  { id: "F", name: "ダカラナニー株式会社",  base: 900 },
+  { id: "F", name: "ダカラナニー株式会社", base: 900 },
   { id: "G", name: "ホシーブックス株式会社", base: 1100 },
-  { id: "H", name: "ランランルー株式会社",  base: 2000 },
+  { id: "H", name: "ランランルー株式会社", base: 2000 },
 ];
 
 // messageId → { userId, pages, index }
@@ -40,15 +40,14 @@ export async function execute(interaction, { client }) {
 
   for (const stock of STOCKS) {
     const historyDoc = await client.coinsCol.findOne({ userId: `trade_history_${stock.id}` });
-    const priceDoc   = await client.coinsCol.findOne({ userId: `stock_price_${stock.id}` });
+    const priceDoc = await client.coinsCol.findOne({ userId: `stock_price_${stock.id}` });
 
     const tradeHistory = historyDoc?.coins ?? [];
-    const stockPrice   = priceDoc?.coins ?? stock.base;
+    const stockPrice = priceDoc?.coins ?? stock.base;
 
-    const py = spawn(
-      process.platform === "win32" ? "py" : "python3",
-      [path.resolve(__dirname, "../python/graph.py")]
-    );
+    const py = spawn(process.platform === "win32" ? "py" : "python3", [
+      path.resolve(__dirname, "../python/graph.py")
+    ]);
 
     py.stdin.write(JSON.stringify({
       trade_history: tradeHistory,
@@ -100,7 +99,7 @@ function buildEmbed(page, index) {
       `**現在株価:** ${page.current.toLocaleString()} コイン\n` +
       `**最低株価:** ${page.min.toLocaleString()} コイン\n` +
       `**最高株価:** ${page.max.toLocaleString()} コイン\n\n` +
-      `ページ: ${index + 1} / 8`
+      `ページ: ${index + 1} / ${STOCKS.length}`
     )
     .setImage("attachment://stock.png")
     .setColor("Blue");
@@ -130,13 +129,14 @@ export async function handleButton(interaction) {
     return interaction.reply({ content: "❌ 操作できません", ephemeral: true });
   }
 
-  const [, dir] = interaction.customId.split("_").slice(-2);
+  const parts = interaction.customId.split("_"); // trade_graph_prev_0
+  const dir = parts[2]; // prev / next
   let index = state.index;
 
   if (dir === "next") index = (index + 1) % state.pages.length;
   if (dir === "prev") index = (index - 1 + state.pages.length) % state.pages.length;
 
-  state.index = index;
+  state.index = index; // 更新
 
   const page = state.pages[index];
   const embed = buildEmbed(page, index);
