@@ -1,65 +1,76 @@
-// commands/treasure.js
-import { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ComponentType } from "discord.js";
+import {
+  SlashCommandBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  EmbedBuilder,
+  ComponentType
+} from "discord.js";
 
+// ===== メモリ上のゲーム管理 =====
+const activeGames = new Map();
+
+// ===== スラッシュコマンド =====
 export const data = new SlashCommandBuilder()
   .setName("treasure")
   .setDescription("4x4宝探しゲームを開始します")
   .addIntegerOption(option =>
-    option.setName("bet")
-      .setDescription("掛け金を入力")
+    option
+      .setName("bet")
+      .setDescription("掛け金")
       .setRequired(true)
       .setMinValue(100)
   );
 
-// 当たりマスを決める関数（職業で変化）
-function pickResult(jobName = '無職') {
+// ===== 当たり配置（職業で変化）=====
+function pickResult(jobName = "無職") {
   const board = Array.from({ length: 4 }, () => Array(4).fill(0));
-  const hitCount = jobName === 'ギャンブラー' ? 2 : 1;
+  const hitCount = jobName === "ギャンブラー" ? 2 : 1;
 
-  const positions = new Set();
-  while (positions.size < hitCount) {
-    const pos = Math.floor(Math.random() * 16);
-    positions.add(pos);
+  const set = new Set();
+  while (set.size < hitCount) {
+    set.add(Math.floor(Math.random() * 16));
   }
 
-  for (const pos of positions) {
-    const x = pos % 4;
-    const y = Math.floor(pos / 4);
-    board[y][x] = 1; // 当たり
+  for (const n of set) {
+    const x = n % 4;
+    const y = Math.floor(n / 4);
+    board[y][x] = 1;
   }
 
   return board;
 }
 
-// ボード描画（チェック状況を反映）
+// ===== 盤面描画 =====
 function renderBoard(game) {
   let text = "";
+
   for (let y = 0; y < 4; y++) {
     for (let x = 0; x < 4; x++) {
-      const pos = game.position;
-      const checked = game.checked?.[y]?.[x] || 0; 
+      const checked = game.checked[y][x];
 
-      if (pos.x === x && pos.y === y) {
-        text += "🟨"; 
-      } else if (checked === 1) {
-        text += "⬜"; 
+      if (game.position.x === x && game.position.y === y) {
+        text += "🔵";
       } else if (checked === 2) {
-        text += "🟩"; 
+        text += "🟩";
+      } else if (checked === 1) {
+        text += "⬜";
       } else {
-        text += "⬛"; 
+        text += "⬛";
       }
     }
     text += "\n";
   }
 
   if (game.resultText) {
-    text += `\n${game.resultText}`; 
+    text += `\n${game.resultText}`;
   }
 
   return text;
 }
 
-function updateEmbed(game) {
+// ===== Embed更新 =====
+function buildEmbed(game) {
   return new EmbedBuilder()
     .setTitle("🎯 宝探しゲーム")
     .setDescription(renderBoard(game))
@@ -67,42 +78,37 @@ function updateEmbed(game) {
     .setColor("#FFD700");
 }
 
+// ===== 実行 =====
 export async function execute(interaction, { client }) {
   const bet = interaction.options.getInteger("bet");
   const userId = interaction.user.id;
 
-  // 所持コイン確認
+  // 所持金チェック
   const coins = await client.getCoins(userId);
   if (coins < bet) {
-    return interaction.reply({ content: `❌ 所持コインが足りません。現在のコイン: ${coins}`, ephemeral: true });
+    return interaction.reply({
+      content: `❌ 所持コインが足りません（現在: ${coins}）`,
+      ephemeral: true
+    });
   }
 
   // 職業取得
   const jobDoc = await client.db.collection("jobs").findOne({ userId });
-  const jobName = jobDoc?.job || '無職';
+  const jobName = jobDoc?.job || "無職";
 
-  // ボード作成
-  const board = pickResult(jobName);
-
-  // 初期状態
+  // ゲーム初期化
   const game = {
     userId,
-    board,
-    checked: Array.from({ length: 4 }, () => Array(4).fill(0)), 
+    jobName,
+    board: pickResult(jobName),
+    checked: Array.from({ length: 4 }, () => Array(4).fill(0)),
     position: { x: 3, y: 0 },
     chances: 5,
     bet,
-    status: "playing",
     resultText: ""
   };
 
-  await client.db.collection("treasureGames").updateOne(
-    { userId, status: "playing" },
-    { $set: game },
-    { upsert: true }
-  );
-
-  const embed = updateEmbed(game);
+  activeGames.set(userId, game);
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("up").setLabel("⬆️").setStyle(ButtonStyle.Primary),
@@ -112,79 +118,101 @@ export async function execute(interaction, { client }) {
     new ButtonBuilder().setCustomId("check").setLabel("✅").setStyle(ButtonStyle.Success)
   );
 
-  const message = await interaction.reply({ embeds: [embed], components: [row], fetchReply: true });
+  const message = await interaction.reply({
+    embeds: [buildEmbed(game)],
+    components: [row],
+    fetchReply: true
+  });
 
-  const collector = message.createMessageComponentCollector({ componentType: ComponentType.Button, time: 5 * 60 * 1000 });
+  const collector = message.createMessageComponentCollector({
+    componentType: ComponentType.Button,
+    time: 5 * 60 * 1000
+  });
 
   collector.on("collect", async i => {
-    if (i.user.id !== userId) return i.reply({ content: "❌ あなたのゲームではありません", ephemeral: true });
+    if (i.user.id !== userId) {
+      return i.reply({ content: "❌ あなたのゲームではありません", ephemeral: true });
+    }
 
-    let game = await client.db.collection("treasureGames").findOne({ userId, status: "playing" });
-    if (!game) return i.update({ content: "❌ ゲームが見つかりません", components: [], embeds: [] });
+    const game = activeGames.get(userId);
+    if (!game) {
+      collector.stop();
+      return;
+    }
 
-    if (["up","down","left","right"].includes(i.customId)) {
+    // 移動
+    if (["up", "down", "left", "right"].includes(i.customId)) {
       let { x, y } = game.position;
       if (i.customId === "up" && y > 0) y--;
       if (i.customId === "down" && y < 3) y++;
       if (i.customId === "left" && x > 0) x--;
       if (i.customId === "right" && x < 3) x++;
       game.position = { x, y };
-      await client.db.collection("treasureGames").updateOne({ userId }, { $set: { "position": game.position } });
-      await i.update({ embeds: [updateEmbed(game)], components: [row] });
-      return;
+
+      return i.update({ embeds: [buildEmbed(game)], components: [row] });
     }
 
+    // チェック
     if (i.customId === "check") {
       const { x, y } = game.position;
+
       if (game.checked[y][x] !== 0) {
-        await i.reply({ content: "❌ すでにチェック済みのマスです", ephemeral: true });
-        return;
+        return i.reply({ content: "❌ すでにチェック済みです", ephemeral: true });
       }
 
-      const hit = game.board[y][x] === 1;
-      if (hit) {
-        game.checked[y][x] = 2; // 当たり
+      if (game.board[y][x] === 1) {
+        game.checked[y][x] = 2;
         const reward = game.bet * 5;
         await client.updateCoins(userId, reward);
-        const coinsAfter = await client.getCoins(userId);
-        if (coinsAfter < 0) await client.setCoins(userId, 0);
-        game.resultText = `🎉 成功！コイン +${reward} 獲得！`;
-        game.status = "finished";
-        await client.db.collection("treasureGames").updateOne({ userId }, { $set: game });
-        await i.update({ embeds: [updateEmbed(game)], content: null, components: [] });
+
+        const after = await client.getCoins(userId);
+        if (after < 0) await client.setCoins(userId, 0);
+
+        game.resultText = `成功！\n +${reward} コイン`;
+        activeGames.delete(userId);
         collector.stop();
-        return;
-      } else {
-        game.checked[y][x] = 1; // 外れ
-        game.chances--;
-        if (game.chances <= 0) {
-          const loss = game.bet * 3;
-          await client.updateCoins(userId, -loss);
-          const coinsAfter = await client.getCoins(userId);
-          if (coinsAfter < 0) await client.setCoins(userId, 0);
-          game.resultText = `❌ 失敗…コイン -${loss}。ゲーム終了。`;
-          game.status = "finished";
-          await client.db.collection("treasureGames").updateOne({ userId }, { $set: game });
-          await i.update({ embeds: [updateEmbed(game)], content: null, components: [] });
-          collector.stop();
-          return;
-        } else {
-          await client.db.collection("treasureGames").updateOne({ userId }, { $set: { checked: game.checked, chances: game.chances } });
-          await i.update({ embeds: [updateEmbed(game)], components: [row] });
-        }
+
+        return i.update({
+          embeds: [buildEmbed(game)],
+          components: []
+        });
       }
+
+      // 外れ
+      game.checked[y][x] = 1;
+      game.chances--;
+
+      if (game.chances <= 0) {
+        const loss = game.bet * 3;
+        await client.updateCoins(userId, -loss);
+
+        const after = await client.getCoins(userId);
+        if (after < 0) await client.setCoins(userId, 0);
+
+        game.resultText = `失敗\n -${loss} コイン`;
+        activeGames.delete(userId);
+        collector.stop();
+
+        return i.update({
+          embeds: [buildEmbed(game)],
+          components: []
+        });
+      }
+
+      return i.update({ embeds: [buildEmbed(game)], components: [row] });
     }
   });
 
   collector.on("end", async () => {
-    const game = await client.db.collection("treasureGames").findOne({ userId });
-    if (game?.status === "playing") {
-      game.status = "finished";
-      game.resultText = "⌛ ゲーム時間切れです";
-      await client.db.collection("treasureGames").updateOne({ userId }, { $set: game });
-      await message.edit({ embeds: [updateEmbed(game)], components: [] });
-    } else {
-      await message.edit({ components: [] });
-    }
+    const game = activeGames.get(userId);
+    if (!game) return;
+
+    game.resultText = "⌛ 時間切れです";
+    activeGames.delete(userId);
+
+    await message.edit({
+      embeds: [buildEmbed(game)],
+      components: []
+    });
   });
 }
