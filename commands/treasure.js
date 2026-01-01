@@ -177,7 +177,7 @@ export async function execute(interaction, { client }) {
         const loss = game.bet * 3;
         await client.updateCoins(userId, -loss);
         if (await client.getCoins(userId) < 0) await client.setCoins(userId, 0);
-
+        game.showPlayer = false;
         game.resultText = `失敗\n-${loss} コイン`;
         activeGames.delete(userId);
         collector.stop();
