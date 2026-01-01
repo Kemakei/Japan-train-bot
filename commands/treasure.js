@@ -10,7 +10,6 @@ import {
 // ===== メモリ上のゲーム管理 =====
 const activeGames = new Map();
 
-// ===== スラッシュコマンド =====
 export const data = new SlashCommandBuilder()
   .setName("treasure")
   .setDescription("4x4宝探しゲームを開始します")
@@ -22,7 +21,7 @@ export const data = new SlashCommandBuilder()
       .setMinValue(100)
   );
 
-// ===== 当たり配置（職業で変化）=====
+// ===== 当たり配置 =====
 function pickResult(jobName = "無職") {
   const board = Array.from({ length: 4 }, () => Array(4).fill(0));
   const hitCount = jobName === "ギャンブラー" ? 2 : 1;
@@ -49,14 +48,14 @@ function renderBoard(game) {
     for (let x = 0; x < 4; x++) {
       const checked = game.checked[y][x];
 
-      if (game.position.x === x && game.position.y === y) {
-        text += "🔵";
+      if (game.showPlayer && game.position.x === x && game.position.y === y) {
+        text += "🟡";
       } else if (checked === 2) {
         text += "🟩";
       } else if (checked === 1) {
-        text += "⬜";
-      } else {
         text += "⬛";
+      } else {
+        text += "⬜";
       }
     }
     text += "\n";
@@ -69,7 +68,6 @@ function renderBoard(game) {
   return text;
 }
 
-// ===== Embed更新 =====
 function buildEmbed(game) {
   return new EmbedBuilder()
     .setTitle("🎯 宝探しゲーム")
@@ -78,33 +76,29 @@ function buildEmbed(game) {
     .setColor("#FFD700");
 }
 
-// ===== 実行 =====
 export async function execute(interaction, { client }) {
   const bet = interaction.options.getInteger("bet");
   const userId = interaction.user.id;
 
-  // 所持金チェック
   const coins = await client.getCoins(userId);
   if (coins < bet) {
     return interaction.reply({
-      content: `❌ 所持コインが足りません（現在: ${coins}）`,
+      content: `所持コインが足りません（現在: ${coins}）`,
       ephemeral: true
     });
   }
 
-  // 職業取得
   const jobDoc = await client.db.collection("jobs").findOne({ userId });
   const jobName = jobDoc?.job || "無職";
 
-  // ゲーム初期化
   const game = {
     userId,
-    jobName,
     board: pickResult(jobName),
     checked: Array.from({ length: 4 }, () => Array(4).fill(0)),
     position: { x: 3, y: 0 },
     chances: 5,
     bet,
+    showPlayer: true,
     resultText: ""
   };
 
@@ -135,12 +129,9 @@ export async function execute(interaction, { client }) {
     }
 
     const game = activeGames.get(userId);
-    if (!game) {
-      collector.stop();
-      return;
-    }
+    if (!game) return;
 
-    // 移動
+    // ===== 移動 =====
     if (["up", "down", "left", "right"].includes(i.customId)) {
       let { x, y } = game.position;
       if (i.customId === "up" && y > 0) y--;
@@ -148,11 +139,10 @@ export async function execute(interaction, { client }) {
       if (i.customId === "left" && x > 0) x--;
       if (i.customId === "right" && x < 3) x++;
       game.position = { x, y };
-
       return i.update({ embeds: [buildEmbed(game)], components: [row] });
     }
 
-    // チェック
+    // ===== チェック =====
     if (i.customId === "check") {
       const { x, y } = game.position;
 
@@ -160,43 +150,39 @@ export async function execute(interaction, { client }) {
         return i.reply({ content: "❌ すでにチェック済みです", ephemeral: true });
       }
 
+      // 当たり
       if (game.board[y][x] === 1) {
         game.checked[y][x] = 2;
+        game.showPlayer = false;
+
         const reward = game.bet * 5;
         await client.updateCoins(userId, reward);
-
-        const after = await client.getCoins(userId);
-        if (after < 0) await client.setCoins(userId, 0);
+        if (await client.getCoins(userId) < 0) await client.setCoins(userId, 0);
 
         game.resultText = `成功！\n +${reward} コイン`;
         activeGames.delete(userId);
         collector.stop();
 
-        return i.update({
-          embeds: [buildEmbed(game)],
-          components: []
-        });
+        return i.update({ embeds: [buildEmbed(game)], components: [] });
       }
 
       // 外れ
       game.checked[y][x] = 1;
       game.chances--;
 
+      // 右上に戻す
+      game.position = { x: 3, y: 0 };
+
       if (game.chances <= 0) {
         const loss = game.bet * 3;
         await client.updateCoins(userId, -loss);
+        if (await client.getCoins(userId) < 0) await client.setCoins(userId, 0);
 
-        const after = await client.getCoins(userId);
-        if (after < 0) await client.setCoins(userId, 0);
-
-        game.resultText = `失敗\n -${loss} コイン`;
+        game.resultText = `失敗\n-${loss} コイン`;
         activeGames.delete(userId);
         collector.stop();
 
-        return i.update({
-          embeds: [buildEmbed(game)],
-          components: []
-        });
+        return i.update({ embeds: [buildEmbed(game)], components: [] });
       }
 
       return i.update({ embeds: [buildEmbed(game)], components: [row] });
@@ -210,9 +196,6 @@ export async function execute(interaction, { client }) {
     game.resultText = "⌛ 時間切れです";
     activeGames.delete(userId);
 
-    await message.edit({
-      embeds: [buildEmbed(game)],
-      components: []
-    });
+    await message.edit({ embeds: [buildEmbed(game)], components: [] });
   });
 }
