@@ -208,7 +208,7 @@ setInterval(async () => {
     const sign = Math.random() < 0.5 ? -1 : 1;
     await client.updateStockPrice(stock.id, sign * randomDelta());
   }
-}, 10 * 60 * 1000);
+}, 1 * 60 * 1000);
 // -------------------- 職業・才能スコア保存 --------------------
 client.getJobData = async (userId) => {
   const doc = await client.db.collection("jobs").findOne({ userId });
