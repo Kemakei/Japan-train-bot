@@ -31,6 +31,18 @@ function formatCoins(amount) {
   return result + 'コイン';
 }
 
+// -------------------- 株マスタ --------------------
+const STOCKS = [
+  { id: "A", name: "tootle株式会社" },
+  { id: "B", name: "ハイシロソフト株式会社" },
+  { id: "C", name: "バナナ株式会社" },
+  { id: "D", name: "ネムーイ株式会社" },
+  { id: "E", name: "ナニイッテンノー株式会社" },
+  { id: "F", name: "ダカラナニー株式会社" },
+  { id: "G", name: "ホシーブックス株式会社" },
+  { id: "H", name: "ランランルー株式会社" },
+];
+
 export async function execute(interaction) {
   try {
     await interaction.deferReply();
@@ -43,22 +55,17 @@ export async function execute(interaction) {
     const userDataDoc = await client.coinsCol.findOne({ userId }) || {};
     const coins = userDataDoc.coins || 0;
     const VIPCoins = userDataDoc.VIPCoins || 0;
+    const stocks = userDataDoc.stocks || {};
 
-    // -------------------- 保有株取得 --------------------
-    let stockInfo = '';
-    const userStockDoc = await client.stockHistoryCol.findOne({ userId });
-    if (userStockDoc?.stocks && Object.keys(userStockDoc.stocks).length > 0) {
-      const stockLines = [];
-      for (const [stockId, count] of Object.entries(userStockDoc.stocks)) {
-        if (count <= 0) continue;
-        const stockMaster = client.STOCKS.find(s => s.id === stockId);
-        const stockName = stockMaster?.name || stockId;
-        const stockPrice = await client.getStockPrice(stockId);
-        stockLines.push(`${stockName}: ${count} 株 (${stockPrice} コイン/株)`);
+    // -------------------- 保有株表示 --------------------
+    const stockLines = [];
+    for (const [stockId, count] of Object.entries(stocks)) {
+      if (count > 0) {
+        const stockName = STOCKS.find(s => s.id === stockId)?.name || stockId;
+        stockLines.push(`${stockName}: ${count} 株`);
       }
-      if (stockLines.length > 0) stockInfo = stockLines.join('\n');
     }
-    if (!stockInfo) stockInfo = 'なし';
+    const stockInfo = stockLines.join('\n');
 
     // -------------------- 宝くじ保有枚数取得 --------------------
     const tickets = await client.lotteryTickets.find({ userId }).toArray();
@@ -77,6 +84,7 @@ export async function execute(interaction) {
 
       hedgeAccumulated = hedgeDoc.accumulated + hedgeDoc.amountPerDay * daysPassed;
 
+      // 自分自身のデータのみ更新
       if (daysPassed > 0 && userId === interaction.user.id) {
         await client.updateCoins(userId, hedgeDoc.amountPerDay * daysPassed);
         hedgeDoc.accumulated = 0;
@@ -117,21 +125,21 @@ export async function execute(interaction) {
         obtainedLicenses.push(...licensesFromObj.filter(l => !obtainedLicenses.includes(l)));
       }
     }
-    const licensesText = obtainedLicenses.length > 0 ? obtainedLicenses.join('、') : 'なし';
+    const licenseInfo = obtainedLicenses.length > 0 ? obtainedLicenses.join('\n') : 'なし';
 
     // -------------------- Embed作成 --------------------
     const embed = new EmbedBuilder()
       .setColor(userId === interaction.user.id ? 'Green' : 'Blue')
       .setTitle(`${targetUser.tag} の所持金`)
       .setDescription(
-        `**所持金:** ${formatCoins(coins)}\n\n` +
+        `**所持金:** ${formatCoins(coins)}\n` +
         `**金コイン:** ${formatCoins(VIPCoins)}\n\n` +
-        `**保有株:**\n${stockInfo}\n\n` +
+        `**保有株:**\n${stockInfo || 'なし'}\n\n` +
         `**宝くじ保有枚数:** ${totalTickets || 0} 枚\n\n` +
         `**職業:** ${jobName}\n` +
         `**熟練度:** ${skill}\n` +
-        `**才能:** ${talent}\n\n` +
-        `**取得ライセンス:** ${licensesText}\n\n` +
+        `**才能:** ${talent}\n` +
+        `**取得ライセンス:**\n${licenseInfo}\n\n` +
         (hedgeAccumulated > 0 ? `**保険金:** ${formatCoins(hedgeAccumulated)}\n` : '') +
         (totalDebt > 0 ? `**借金:** ${formatCoins(totalDebt)}${loanDetails}` : '')
       )
@@ -149,4 +157,3 @@ export async function execute(interaction) {
     }
   }
 }
-
