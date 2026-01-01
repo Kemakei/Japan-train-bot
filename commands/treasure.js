@@ -53,7 +53,7 @@ function renderBoard(game) {
       } else if (checked === 2) {
         text += "🟩";
       } else if (checked === 1) {
-        text += "⬛";
+        text += "🟫";
       } else {
         text += "⬜";
       }
