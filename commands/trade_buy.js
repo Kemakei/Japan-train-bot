@@ -42,6 +42,16 @@ export async function execute(interaction, { client }) {
   const total = price * count;
   const fee = Math.floor(total * 0.1) + 100;
   const pay = total + fee;
+  const STOCKS = [
+   { id: "A", name: "tootle株式会社"},
+   { id: "B", name: "ハイシロソフト株式会社"},
+   { id: "C", name: "バナナ株式会社"},
+   { id: "D", name: "ネムーイ株式会社"},
+   { id: "E", name: "ナニイッテンノー株式会社"},
+   { id: "F", name: "ダカラナニー株式会社"},
+   { id: "G", name: "ホシーブックス株式会社"},
+   { id: "H", name: "ランランルー株式会社"},
+  ];
 
   const coins = await client.getCoins(userId);
   if (coins < pay) {
