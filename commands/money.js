@@ -51,8 +51,9 @@ export async function execute(interaction) {
       const stockLines = [];
       for (const [stockId, count] of Object.entries(userStockDoc.stocks)) {
         if (count <= 0) continue;
+        const stockMaster = client.STOCKS.find(s => s.id === stockId);
+        const stockName = stockMaster?.name || stockId;
         const stockPrice = await client.getStockPrice(stockId);
-        const stockName = client.STOCKS?.find(s => s.id === stockId)?.name || stockId;
         stockLines.push(`${stockName}: ${count} 株 (${stockPrice} コイン/株)`);
       }
       if (stockLines.length > 0) stockInfo = stockLines.join('\n');
@@ -76,7 +77,6 @@ export async function execute(interaction) {
 
       hedgeAccumulated = hedgeDoc.accumulated + hedgeDoc.amountPerDay * daysPassed;
 
-      // 自分自身のデータのみ更新
       if (daysPassed > 0 && userId === interaction.user.id) {
         await client.updateCoins(userId, hedgeDoc.amountPerDay * daysPassed);
         hedgeDoc.accumulated = 0;
@@ -107,7 +107,9 @@ export async function execute(interaction) {
     let obtainedLicenses = [];
 
     if (licenseDoc) {
-      if (Array.isArray(licenseDoc.obtained)) obtainedLicenses.push(...licenseDoc.obtained);
+      if (Array.isArray(licenseDoc.obtained)) {
+        obtainedLicenses.push(...licenseDoc.obtained);
+      }
       if (licenseDoc.licenses) {
         const licensesFromObj = Object.entries(licenseDoc.licenses)
           .filter(([_, v]) => v)
@@ -115,20 +117,21 @@ export async function execute(interaction) {
         obtainedLicenses.push(...licensesFromObj.filter(l => !obtainedLicenses.includes(l)));
       }
     }
+    const licensesText = obtainedLicenses.length > 0 ? obtainedLicenses.join('、') : 'なし';
 
     // -------------------- Embed作成 --------------------
     const embed = new EmbedBuilder()
       .setColor(userId === interaction.user.id ? 'Green' : 'Blue')
       .setTitle(`${targetUser.tag} の所持金`)
       .setDescription(
-        `**所持金:** ${formatCoins(coins)}\n` +
+        `**所持金:** ${formatCoins(coins)}\n\n` +
         `**金コイン:** ${formatCoins(VIPCoins)}\n\n` +
         `**保有株:**\n${stockInfo}\n\n` +
         `**宝くじ保有枚数:** ${totalTickets || 0} 枚\n\n` +
         `**職業:** ${jobName}\n` +
         `**熟練度:** ${skill}\n` +
         `**才能:** ${talent}\n\n` +
-        `**取得ライセンス:** ${obtainedLicenses.length > 0 ? obtainedLicenses.join('、') : 'なし'}\n\n` +
+        `**取得ライセンス:** ${licensesText}\n\n` +
         (hedgeAccumulated > 0 ? `**保険金:** ${formatCoins(hedgeAccumulated)}\n` : '') +
         (totalDebt > 0 ? `**借金:** ${formatCoins(totalDebt)}${loanDetails}` : '')
       )
@@ -146,3 +149,4 @@ export async function execute(interaction) {
     }
   }
 }
+
