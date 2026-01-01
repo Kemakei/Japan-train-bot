@@ -98,7 +98,7 @@ function buildEmbed(page, index) {
     .setTitle(`📈 ${page.stock.name}`)
     .setDescription(
       `**現在株価:** ${page.current.toLocaleString()} コイン\n` +
-      `**変動:** ${page.delta >=0 ? "+" : ""}${page.delta} (${page.deltaPercent >= 0 ? "+" : ""}${page.deltaPercent}%)\n` +
+      `**変動:** ${page.delta >=0 ? "+" : ""}${page.delta}コイン (${page.deltaPercent >= 0 ? "+" : ""}${page.deltaPercent}%)\n` +
       `**最低株価:** ${page.min.toLocaleString()} コイン\n` +
       `**最高株価:** ${page.max.toLocaleString()} コイン\n\n` +
       `ページ: ${index + 1} / ${STOCKS.length}`

@@ -43,7 +43,20 @@ export async function execute(interaction) {
     const userDataDoc = await client.coinsCol.findOne({ userId }) || {};
     const coins = userDataDoc.coins || 0;
     const VIPCoins = userDataDoc.VIPCoins || 0;
-    const stocks = userDataDoc.stocks || 0;
+
+    // -------------------- 保有株情報作成 --------------------
+    let stockInfo = '';
+    if (userDataDoc?.stocks && Object.keys(userDataDoc.stocks).length > 0) {
+      const stockLines = [];
+      for (const [stockId, count] of Object.entries(userDataDoc.stocks)) {
+        if (count <= 0) continue;
+        const stockPrice = await client.getStockPrice(stockId);
+        const stockName = client.STOCKS?.find(s => s.id === stockId)?.name || stockId;
+        stockLines.push(`${stockName}: ${count} 株 (${stockPrice} コイン/株)`);
+      }
+      if (stockLines.length > 0) stockInfo = stockLines.join('\n');
+    }
+    if (!stockInfo) stockInfo = 'なし';
 
     // -------------------- 宝くじ保有枚数取得 --------------------
     const tickets = await client.lotteryTickets.find({ userId }).toArray();
@@ -52,7 +65,6 @@ export async function execute(interaction) {
     // -------------------- ヘッジ契約確認 --------------------
     const hedgeDoc = await client.getHedge(userId);
     let hedgeAccumulated = 0;
-
     if (hedgeDoc) {
       const now = new Date();
       const jstOffset = 9 * 60 * 60 * 1000;
@@ -62,7 +74,6 @@ export async function execute(interaction) {
 
       hedgeAccumulated = hedgeDoc.accumulated + hedgeDoc.amountPerDay * daysPassed;
 
-      // 自分自身のデータのみ更新
       if (daysPassed > 0 && userId === interaction.user.id) {
         await client.updateCoins(userId, hedgeDoc.amountPerDay * daysPassed);
         hedgeDoc.accumulated = 0;
@@ -88,24 +99,21 @@ export async function execute(interaction) {
     const skill = jobDoc?.skill ?? 0;
     const talent = jobDoc?.talent != null ? jobDoc.talent.toFixed(1) : '0';
 
-    // -------------------- ライセンス取得（両対応） --------------------
+    // -------------------- ライセンス取得 --------------------
     const licenseDoc = await client.db.collection("licenses").findOne({ userId });
     let obtainedLicenses = [];
-
     if (licenseDoc) {
-      // 配列形式
       if (Array.isArray(licenseDoc.obtained)) {
         obtainedLicenses.push(...licenseDoc.obtained);
       }
-      // オブジェクト形式
       if (licenseDoc.licenses) {
         const licensesFromObj = Object.entries(licenseDoc.licenses)
           .filter(([_, v]) => v)
           .map(([k, _]) => k);
-        // 重複除去
         obtainedLicenses.push(...licensesFromObj.filter(l => !obtainedLicenses.includes(l)));
       }
     }
+    if (obtainedLicenses.length === 0) obtainedLicenses.push('なし');
 
     // -------------------- Embed作成 --------------------
     const embed = new EmbedBuilder()
@@ -113,13 +121,13 @@ export async function execute(interaction) {
       .setTitle(`${targetUser.tag} の所持金`)
       .setDescription(
         `**所持金:** ${formatCoins(coins)}\n` +
-        `**金コイン:** ${formatCoins(VIPCoins)}\n` +
-        `**保有株数:** ${stocks || 0} 株\n` +
-        `**宝くじ保有枚数:** ${totalTickets || 0} 枚\n` +
+        `**金コイン:** ${formatCoins(VIPCoins)}\n\n` +
+        `**保有株:**\n${stockInfo}\n\n` +
+        `**宝くじ保有枚数:** ${totalTickets || 0} 枚\n\n` +
         `**職業:** ${jobName}\n` +
         `**熟練度:** ${skill}\n` +
         `**才能:** ${talent}\n` +
-        `**取得ライセンス:** ${obtainedLicenses.length > 0 ? obtainedLicenses.join('、') : 'なし'}\n` +
+        `**取得ライセンス:** ${obtainedLicenses.join('、')}\n\n` +
         (hedgeAccumulated > 0 ? `**保険金:** ${formatCoins(hedgeAccumulated)}\n` : '') +
         (totalDebt > 0 ? `**借金:** ${formatCoins(totalDebt)}${loanDetails}` : '')
       )
