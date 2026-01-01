@@ -195,13 +195,33 @@ client.updateStockPrice = async (stockId, delta) => {
 // ===== 自動株価変動（10分ごと） =====
 setInterval(async () => {
   for (const stock of STOCKS) {
-    // ランダム変動 ±10%以内
-    const delta = Math.round((Math.random() - 0.5) * 0.2 * stock.base);
+    const currentPrice = await client.getStockPrice(stock.id);
+
+    // ±10%以内の変動幅を決定
+    let delta = Math.round((Math.random() - 0.5) * 0.2 * stock.base);
+
+    // 最低値に達していたら必ず上がる
+    if (currentPrice <= stock.min) {
+      delta = Math.max(1, Math.abs(delta)); // +1以上
+    }
+
+    // 最高値に達していたら必ず下がる
+    if (currentPrice >= stock.max) {
+      delta = -Math.max(1, Math.abs(delta)); // -1以下
+    }
+
+    // 0もあり得る
+    if (Math.random() < 0.1) delta = 0;
+
+    // 株価更新
     await client.updateStockPrice(stock.id, delta);
+
     const price = await client.getStockPrice(stock.id);
-    console.log(`株価自動変動: ${stock.name} ${delta >= 0 ? "+" : ""}${delta}, 現在株価: ${price}`);
+    const sign = delta > 0 ? "+" : delta < 0 ? "-" : "0";
+    console.log(`株価自動変動: ${stock.name} ${sign}${Math.abs(delta)}, 現在株価: ${price}`);
   }
 }, 10 * 60 * 1000); // 10分ごと
+
 
 // -------------------- 職業・才能スコア保存 --------------------
 client.getJobData = async (userId) => {
