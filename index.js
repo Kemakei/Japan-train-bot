@@ -181,7 +181,7 @@ client.updateStockPrice = async (stockId, delta) => {
   history.push({ time: new Date().toISOString(), price });
   if (history.length > 144) history.shift();
 
-  await stockHistoryCol.updateOne(
+  await client.stockHistoryCol.updateOne(
     { userId: historyKey },
     { $set: { coins: history } },
     { upsert: true }
