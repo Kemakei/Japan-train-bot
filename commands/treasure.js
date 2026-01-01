@@ -31,6 +31,42 @@ function pickResult(jobName = '無職') {
   return board;
 }
 
+// ボード描画（チェック状況を反映）
+function renderBoard(game) {
+  let text = "";
+  for (let y = 0; y < 4; y++) {
+    for (let x = 0; x < 4; x++) {
+      const pos = game.position;
+      const checked = game.checked?.[y]?.[x] || 0; 
+
+      if (pos.x === x && pos.y === y) {
+        text += "🟨"; 
+      } else if (checked === 1) {
+        text += "⬜"; 
+      } else if (checked === 2) {
+        text += "🟩"; 
+      } else {
+        text += "⬛"; 
+      }
+    }
+    text += "\n";
+  }
+
+  if (game.resultText) {
+    text += `\n${game.resultText}`; 
+  }
+
+  return text;
+}
+
+function updateEmbed(game) {
+  return new EmbedBuilder()
+    .setTitle("🎯 宝探しゲーム")
+    .setDescription(renderBoard(game))
+    .setFooter({ text: `残りチェック回数: ${game.chances}` })
+    .setColor("#FFD700");
+}
+
 export async function execute(interaction, { client }) {
   const bet = interaction.options.getInteger("bet");
   const userId = interaction.user.id;
@@ -41,7 +77,7 @@ export async function execute(interaction, { client }) {
     return interaction.reply({ content: `❌ 所持コインが足りません。現在のコイン: ${coins}`, ephemeral: true });
   }
 
-  // ユーザー職業取得
+  // 職業取得
   const jobDoc = await client.db.collection("jobs").findOne({ userId });
   const jobName = jobDoc?.job || '無職';
 
@@ -52,10 +88,12 @@ export async function execute(interaction, { client }) {
   const game = {
     userId,
     board,
-    position: { x: 3, y: 0 }, // 右上スタート
+    checked: Array.from({ length: 4 }, () => Array(4).fill(0)), 
+    position: { x: 3, y: 0 },
     chances: 5,
     bet,
-    status: "playing"
+    status: "playing",
+    resultText: ""
   };
 
   await client.db.collection("treasureGames").updateOne(
@@ -64,12 +102,7 @@ export async function execute(interaction, { client }) {
     { upsert: true }
   );
 
-  // Embedとボタン
-  const embed = new EmbedBuilder()
-    .setTitle("🎯 宝探しゲーム")
-    .setDescription(renderBoard(game))
-    .setFooter({ text: `残りチェック回数: ${game.chances}` })
-    .setColor("#FFD700");
+  const embed = updateEmbed(game);
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("up").setLabel("⬆️").setStyle(ButtonStyle.Primary),
@@ -81,7 +114,6 @@ export async function execute(interaction, { client }) {
 
   const message = await interaction.reply({ embeds: [embed], components: [row], fetchReply: true });
 
-  // ボタン処理
   const collector = message.createMessageComponentCollector({ componentType: ComponentType.Button, time: 5 * 60 * 1000 });
 
   collector.on("collect", async i => {
@@ -91,87 +123,68 @@ export async function execute(interaction, { client }) {
     if (!game) return i.update({ content: "❌ ゲームが見つかりません", components: [], embeds: [] });
 
     if (["up","down","left","right"].includes(i.customId)) {
-      const { x, y } = game.position;
-      let nx = x, ny = y;
-      if (i.customId === "up" && y > 0) ny--;
-      if (i.customId === "down" && y < 3) ny++;
-      if (i.customId === "left" && x > 0) nx--;
-      if (i.customId === "right" && x < 3) nx++;
-
-      await client.db.collection("treasureGames").updateOne({ userId }, { $set: { "position.x": nx, "position.y": ny } });
-      game.position = { x: nx, y: ny };
-
+      let { x, y } = game.position;
+      if (i.customId === "up" && y > 0) y--;
+      if (i.customId === "down" && y < 3) y++;
+      if (i.customId === "left" && x > 0) x--;
+      if (i.customId === "right" && x < 3) x++;
+      game.position = { x, y };
+      await client.db.collection("treasureGames").updateOne({ userId }, { $set: { "position": game.position } });
       await i.update({ embeds: [updateEmbed(game)], components: [row] });
       return;
     }
 
     if (i.customId === "check") {
       const { x, y } = game.position;
-      const hit = game.board[y][x] === 1;
-      let replyText = "";
+      if (game.checked[y][x] !== 0) {
+        await i.reply({ content: "❌ すでにチェック済みのマスです", ephemeral: true });
+        return;
+      }
 
+      const hit = game.board[y][x] === 1;
       if (hit) {
+        game.checked[y][x] = 2; // 当たり
         const reward = game.bet * 5;
         await client.updateCoins(userId, reward);
         const coinsAfter = await client.getCoins(userId);
         if (coinsAfter < 0) await client.setCoins(userId, 0);
-
-        replyText = `成功\nコイン +${reward} 獲得！`;
-        await client.db.collection("treasureGames").updateOne({ userId }, { $set: { status: "finished" } });
+        game.resultText = `🎉 成功！コイン +${reward} 獲得！`;
+        game.status = "finished";
+        await client.db.collection("treasureGames").updateOne({ userId }, { $set: game });
+        await i.update({ embeds: [updateEmbed(game)], content: null, components: [] });
         collector.stop();
+        return;
       } else {
+        game.checked[y][x] = 1; // 外れ
         game.chances--;
         if (game.chances <= 0) {
           const loss = game.bet * 3;
           await client.updateCoins(userId, -loss);
           const coinsAfter = await client.getCoins(userId);
           if (coinsAfter < 0) await client.setCoins(userId, 0);
-
-          replyText = `失敗\n-${loss}コイン`;
-          await client.db.collection("treasureGames").updateOne({ userId }, { $set: { status: "finished" } });
+          game.resultText = `❌ 失敗…コイン -${loss}。ゲーム終了。`;
+          game.status = "finished";
+          await client.db.collection("treasureGames").updateOne({ userId }, { $set: game });
+          await i.update({ embeds: [updateEmbed(game)], content: null, components: [] });
           collector.stop();
+          return;
         } else {
-          await client.db.collection("treasureGames").updateOne({ userId }, { $set: { chances: game.chances } });
+          await client.db.collection("treasureGames").updateOne({ userId }, { $set: { checked: game.checked, chances: game.chances } });
+          await i.update({ embeds: [updateEmbed(game)], components: [row] });
         }
       }
-
-      await i.update({ embeds: [updateEmbed(game)], content: replyText, components: [row] });
     }
   });
 
   collector.on("end", async () => {
     const game = await client.db.collection("treasureGames").findOne({ userId });
     if (game?.status === "playing") {
-      await client.db.collection("treasureGames").updateOne({ userId }, { $set: { status: "finished" } });
-      const endEmbed = updateEmbed(game);
-      await message.edit({ embeds: [endEmbed], content: "⌛ ゲーム時間切れです", components: [] });
+      game.status = "finished";
+      game.resultText = "⌛ ゲーム時間切れです";
+      await client.db.collection("treasureGames").updateOne({ userId }, { $set: game });
+      await message.edit({ embeds: [updateEmbed(game)], components: [] });
     } else {
       await message.edit({ components: [] });
     }
   });
-}
-
-// ボード表示
-function renderBoard(game) {
-  let text = "";
-  for (let y = 0; y < 4; y++) {
-    for (let x = 0; x < 4; x++) {
-      if (game.position.x === x && game.position.y === y) {
-        text += "🟩 "; // カーソル
-      } else {
-        text += "⬜ "; // 未チェック
-      }
-    }
-    text += "\n";
-  }
-  return text;
-}
-
-// Embed更新
-function updateEmbed(game) {
-  return new EmbedBuilder()
-    .setTitle("🎯 宝探しゲーム")
-    .setDescription(renderBoard(game))
-    .setFooter({ text: `残りチェック回数: ${game.chances}` })
-    .setColor("#FFD700");
 }

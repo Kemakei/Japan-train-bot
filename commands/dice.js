@@ -8,23 +8,61 @@ export const data = new SlashCommandBuilder()
     option.setName('bet')
       .setDescription('掛け金')
       .setRequired(true)
-      .setMinValue(100)
   );
+
+/**
+ * 職業補正付きで揃う数（maxCount）を決める
+ * @param {string} jobName - ユーザーの職業
+ * @returns {number} maxCount（3以上で勝ち、2以下で負け）
+ */
+function pickResult(jobName = '無職') {
+  // 基本確率
+  const probabilities = {
+    3: 0.23,
+    4: 0.10,
+    5: 0.02,
+    6: 0.002
+  };
+
+  // 職業補正: ギャンブラーなら当たりやすくする
+  if (jobName === 'ギャンブラー') {
+    probabilities[3] += 0.05;
+    probabilities[4] += 0.03;
+    probabilities[5] += 0.01;
+    probabilities[6] += 0.001;
+  }
+
+  // ランダムでどれが出るか決定
+  const r = Math.random();
+  let cumulative = 0;
+  for (let count = 6; count >= 3; count--) {
+    cumulative += probabilities[count] || 0;
+    if (r < cumulative) return count;
+  }
+
+  // 3つ以上揃わなければ負け
+  return 2;
+}
 
 export async function execute(interaction, { client }) {
   const bet = interaction.options.getInteger('bet');
 
+  if (bet <= 0) {
+    await interaction.reply({ content: '掛け金は1以上で指定してください', ephemeral: true });
+    return;
+  }
+
+  const userId = interaction.user.id;
+
+  // ユーザー職業取得
+  const jobDoc = await client.db.collection("jobs").findOne({ userId });
+  const jobName = jobDoc?.job || '無職';
+
   // サイコロ6つをランダムで振る
   const dice = Array.from({ length: 6 }, () => Math.floor(Math.random() * 6) + 1);
 
-  // 数字ごとの出現数をカウント
-  const counts = {};
-  for (const d of dice) {
-    counts[d] = (counts[d] || 0) + 1;
-  }
-
-  // 最大何個揃ったか確認
-  const maxCount = Math.max(...Object.values(counts));
+  // 最大何個揃ったかを職業補正付きで決定
+  const maxCount = pickResult(jobName);
 
   // デフォルトは負け
   let multiplier = -1.8;
@@ -39,14 +77,14 @@ export async function execute(interaction, { client }) {
   }
 
   // コイン反映
-  let coinsBefore = await client.getCoins(interaction.user.id);
+  let coinsBefore = await client.getCoins(userId);
   let change = Math.round(bet * multiplier);
   let newCoins = coinsBefore + change;
 
   // 所持コインがマイナスになったら0にする
   if (newCoins < 0) newCoins = 0;
 
-  await client.setCoins(interaction.user.id, newCoins);
+  await client.setCoins(userId, newCoins);
 
   // サイコロの結果を太文字に
   const diceText = dice.map(n => `**${n}**`).join(' ');
@@ -62,7 +100,8 @@ export async function execute(interaction, { client }) {
         value: `${change >= 0 ? '+' : ''}${change}`, 
         inline: true 
       },
-      { name: '所持コイン', value: `${newCoins}`, inline: true }
+      { name: '所持コイン', value: `${newCoins}`, inline: true },
+      { name: '職業補正', value: jobName, inline: true }
     )
     .setTimestamp();
 
