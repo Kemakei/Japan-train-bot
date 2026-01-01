@@ -138,77 +138,71 @@ client.updateVIPCoins = async (userId, delta) => {
 
 
 // -------------------- 株価管理（MongoDB版） --------------------
-// ===== 株マスタ（8社固定）=====
+// ===== 株マスタ（固定8社 + 上限/下限設定）=====
 const STOCKS = [
-  { id: "A", base: 1000 },
-  { id: "B", base: 1200 },
-  { id: "C", base: 800 },
-  { id: "D", base: 600 },
-  { id: "E", base: 1500 },
-  { id: "F", base: 900 },
-  { id: "G", base: 1100 },
-  { id: "H", base: 2000 },
+  { id: "A", name: "tootle株式会社",        base: 1000, min: 850,  max: 1200 },
+  { id: "B", name: "ハイシロソフト株式会社", base: 1200, min: 900,  max: 1500 },
+  { id: "C", name: "バナナ株式会社",        base: 800,  min: 700,  max: 1000 },
+  { id: "D", name: "ネムーイ株式会社",      base: 600,  min: 500,  max: 900 },
+  { id: "E", name: "ナニイッテンノー株式会社", base: 1500, min: 1000, max: 2000 },
+  { id: "F", name: "ダカラナニー株式会社",  base: 900,  min: 800,  max: 1200 },
+  { id: "G", name: "ホシーブックス株式会社", base: 1100, min: 900,  max: 1400 },
+  { id: "H", name: "ランランルー株式会社",  base: 2000, min: 1500, max: 2500 },
 ];
 
-// ===== 株価取得（会社別）=====
+// MongoDBコレクション
+client.stockHistoryCol = client.db.collection("stock_history");
+
+// ===== 株価取得 =====
 client.getStockPrice = async (stockId) => {
-  const doc = await coinsCol.findOne({ userId: `stock_price_${stockId}` });
-  const stock = STOCKS.find(s => s.id === stockId);
-  return typeof doc?.coins === "number" ? doc.coins : stock.base;
+  const stockDoc = await client.stockHistoryCol.findOne({ userId: `stock_price_${stockId}` });
+  return typeof stockDoc?.currentPrice === "number" ? stockDoc.currentPrice : STOCKS.find(s => s.id === stockId).base;
 };
 
-// ===== 株価更新（会社別 + 履歴）=====
+// ===== 株価更新（delta反映 + 上下限 + 履歴保存） =====
 client.updateStockPrice = async (stockId, delta) => {
   const stock = STOCKS.find(s => s.id === stockId);
-  let price = await client.getStockPrice(stockId) + delta;
+  if (!stock) return;
 
-  const min = Math.floor(stock.base * 0.85);
-  const max = Math.floor(stock.base * 1.15);
+  // 現在株価取得
+  const stockDoc = await client.stockHistoryCol.findOne({ userId: `stock_price_${stockId}` });
+  let price = (stockDoc?.currentPrice ?? stock.base) + delta;
 
-  if (price < min) price = min;
-  if (price > max) price = max;
+  // 上下限チェック
+  if (price < stock.min) price = stock.min;
+  if (price > stock.max) price = stock.max;
 
+  // 株価保存
   await client.stockHistoryCol.updateOne(
     { userId: `stock_price_${stockId}` },
-    { $set: { coins: price } },
+    { $set: { currentPrice: price } },
     { upsert: true }
   );
 
-  const historyKey = `trade_history_${stockId}`;
-  const historyDoc = await coinsCol.findOne({ userId: historyKey });
-  const history = Array.isArray(historyDoc?.coins) ? historyDoc.coins : [];
-
+  // 履歴追加
+  const historyDoc = await client.stockHistoryCol.findOne({ userId: `trade_history_${stockId}` });
+  const history = Array.isArray(historyDoc?.history) ? historyDoc.history : [];
   history.push({ time: new Date().toISOString(), price });
-  if (history.length > 144) history.shift();
+  if (history.length > 144) history.shift(); // 過去24時間分（10分ごと → 144個）
 
   await client.stockHistoryCol.updateOne(
-    { userId: historyKey },
-    { $set: { coins: history } },
+    { userId: `trade_history_${stockId}` },
+    { $set: { history } },
     { upsert: true }
   );
 };
 
-// ===== 売買による変動 =====
-client.modifyStockByTrade = async (stockId, type, count) => {
-  let delta = Math.max(1, Math.floor(Math.sqrt(count)));
-  delta = Math.round(delta * (1 + Math.random() * 0.2 - 0.1));
-  if (type === "sell") delta = -delta;
-
-  await client.updateStockPrice(stockId, delta);
-};
-
-// ===== 自動変動（8社独立）=====
-function randomDelta() {
-  const r = Math.random();
-  return Math.max(1, Math.floor(r * r * 25));
-}
-
+// ===== 自動株価変動（10分ごと） =====
 setInterval(async () => {
   for (const stock of STOCKS) {
-    const sign = Math.random() < 0.5 ? -1 : 1;
-    await client.updateStockPrice(stock.id, sign * randomDelta());
+    // ランダム変動 ±10%以内
+    const delta = Math.round((Math.random() - 0.5) * 0.2 * stock.base);
+    await client.updateStockPrice(stock.id, delta);
+    const price = await client.getStockPrice(stock.id);
+    console.log(`株価自動変動: ${stock.name} ${delta >= 0 ? "+" : ""}${delta}, 現在株価: ${price}`);
   }
-}, 1 * 60 * 1000);
+}, 10 * 60 * 1000); // 10分ごと
+
 // -------------------- 職業・才能スコア保存 --------------------
 client.getJobData = async (userId) => {
   const doc = await client.db.collection("jobs").findOne({ userId });

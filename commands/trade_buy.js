@@ -72,6 +72,7 @@ export async function execute(interaction, { client }) {
   await interaction.reply(
     `✅ **${STOCKS.find(s => s.id === stockId)?.name || stockId}** を **${count} 株** 購入しました\n` +
     `株価: ${price}\n` +
+    `手数料: ${fee}\n` +
     `支払額: ${pay}`
   );
 }
