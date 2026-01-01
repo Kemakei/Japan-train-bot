@@ -8,7 +8,8 @@ export const data = new SlashCommandBuilder()
     option.setName('bet')
       .setDescription('掛け金')
       .setRequired(true)
-  );
+      .setMinValue(100)
+    );
 
 // サイコロ6個を振る関数
 function rollDice() {
@@ -58,7 +59,7 @@ export async function execute(interaction, { client }) {
   }
 
   // ===== 勝敗判定 =====
-  let multiplier = -1.8;
+  let multiplier = -2.0;
   let win = false;
 
   if (maxCount >= 3) {
