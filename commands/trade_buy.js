@@ -67,7 +67,11 @@ export async function execute(interaction, { client }) {
   { $inc: { [`stocks.${stockId}`]: count } }, 
   { upsert: true } 
 );
-  await client.modifyStockByTrade(stockId, "buy", count);
+  await client.stockHistoryCol.updateOne(
+  { userId }, 
+  { $inc: { [`stocks.${stockId}`]: count } }, 
+  { upsert: true } 
+);
 
   await interaction.reply(
     `✅ **${STOCKS.find(s => s.id === stockId)?.name || stockId}** を **${count} 株** 購入しました\n` +
