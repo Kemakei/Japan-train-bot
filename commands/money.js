@@ -77,7 +77,7 @@ export async function execute(interaction) {
     stockTotalValue += totalValue;
 
     stockLines.push(
-      `${stockName}\n  ${count} 株 × ${formatCoins(price)} = ${formatCoins(totalValue)}`
+      `${stockName}\n  ${count}株（総額： ${formatCoins(totalValue)}コイン）`
     );
   }
 
