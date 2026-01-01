@@ -39,11 +39,11 @@ export async function execute(interaction, { client }) {
   const pages = [];
 
   for (const stock of STOCKS) {
-    const historyDoc = await client.coinsCol.findOne({ userId: `trade_history_${stock.id}` });
-    const priceDoc = await client.coinsCol.findOne({ userId: `stock_price_${stock.id}` });
+    const historyDoc = await client.stockHistoryCol.findOne({ userId: `trade_history_${stock.id}` });
+    const priceDoc = await client.stockHistoryCol.findOne({ userId: `stock_price_${stock.id}` });
 
-    const tradeHistory = historyDoc?.coins ?? [];
-    const stockPrice = priceDoc?.coins ?? stock.base;
+    const tradeHistory = historyDoc?.tradeHistory ?? []; 
+    const stockPrice = priceDoc?.currentPrice ?? stock.base; 
 
     const py = spawn(process.platform === "win32" ? "py" : "python3", [
       path.resolve(__dirname, "../python/graph.py")

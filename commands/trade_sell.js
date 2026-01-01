@@ -40,7 +40,7 @@ export async function execute(interaction, { client }) {
   }
 
   // ✅ 正しい株数取得方法
-  const userDoc = await client.getUserData(userId);
+  const userDoc = await client.stockHistoryCol.findOne({ userId })
   const owned = userDoc.stocks?.[stockId] || 0;
 
   if (owned < count) {
@@ -54,8 +54,11 @@ export async function execute(interaction, { client }) {
   const totalGain = stockPrice * count;
 
   await client.updateCoins(userId, totalGain);
-  await client.updateStocks(userId, stockId, -count);
-
+  await client.stockHistoryCol.updateOne(
+   { userId }, 
+   { $inc: { [`stocks.${stockId}`]: -count } }, 
+   { upsert: true }
+  );
   await interaction.reply(
     `✅ ${STOCKS.find(s => s.id === stockId).name} を **${count} 株** 売却しました\n` +
     `💰 獲得コイン: ${totalGain}\n` +

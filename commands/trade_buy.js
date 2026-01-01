@@ -52,7 +52,11 @@ export async function execute(interaction, { client }) {
   }
 
   await client.updateCoins(userId, -pay);
-  await client.updateStocks(userId, stockId, count);
+  await client.stockHistoryCol.updateOne(
+  { userId }, 
+  { $inc: { [`stocks.${stockId}`]: count } }, 
+  { upsert: true } 
+);
   await client.modifyStockByTrade(stockId, "buy", count);
 
   await interaction.reply(

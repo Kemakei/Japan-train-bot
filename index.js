@@ -75,6 +75,7 @@ client.autoRoleMap = new Map();
 client.reminders = new Map();
 client.commands = new Collection();
 client.lotteryTickets = client.db.collection("lotteryTickets");
+client.stockHistoryCol = client.db.collection("stock_history");
 
 // -------------------- コイン・株管理（MongoDB版 + VIPCoins追加） --------------------
 
@@ -105,12 +106,11 @@ client.updateCoins = async (userId, delta) => {
   );
 };
 
-// 既存: Stocks
-client.updateStocks = async (userId, delta) => {
-  await coinsCol.updateOne(
+client.updateStocks = async (userId, stockId, delta) => {
+  await client.stockHistoryCol.updateOne(
     { userId },
-    { $inc: { stocks: delta } },
-    { upsert: true }
+    { $inc: { [`stocks.${stockId}`]: delta } }, 
+    { upsert: true } 
   );
 };
 
@@ -168,7 +168,7 @@ client.updateStockPrice = async (stockId, delta) => {
   if (price < min) price = min;
   if (price > max) price = max;
 
-  await coinsCol.updateOne(
+  await stockHistoryCol.updateOne(
     { userId: `stock_price_${stockId}` },
     { $set: { coins: price } },
     { upsert: true }
@@ -181,7 +181,7 @@ client.updateStockPrice = async (stockId, delta) => {
   history.push({ time: new Date().toISOString(), price });
   if (history.length > 144) history.shift();
 
-  await coinsCol.updateOne(
+  await stockHistoryCol.updateOne(
     { userId: historyKey },
     { $set: { coins: history } },
     { upsert: true }
