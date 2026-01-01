@@ -29,7 +29,7 @@ export async function execute(interaction) {
 
   // ユーザージョブ取得
   let userJob = await interaction.client.getJobData(userId);
-  if (!userJob) userJob = { job: '無職', talent: 1, skill: 0 };
+  if (!userJob) userJob = { job: '無職', skill: 0, talent: 1, workCount: 0 };
 
   // 無職チェック
   if (userJob.job === '無職') {
@@ -81,6 +81,19 @@ export async function execute(interaction) {
   const jobDocFromDB = await interaction.client.getJobData(userId);
   const hasInsurance = jobDocFromDB.unemploymentInsurance && jobDocFromDB.unemploymentInsuranceExpires > now;
   const userSkill = jobDocFromDB.skill || 0;
+  const currentWorkCount = jobDocFromDB.workCount || 0;
+
+  // workCount を +1、3回ごとに skill +1
+  const newWorkCount = currentWorkCount + 1;
+  let newSkill = userSkill;
+  if (newWorkCount % 3 === 0) {
+    newSkill += 1;
+  }
+
+  await interaction.client.updateJobData(userId, {
+    workCount: newWorkCount,
+    skill: newSkill,
+  });
 
   // 失業判定
   if (!hasInsurance && userSkill > 30 && Math.random() < 0.05) {
