@@ -85,8 +85,9 @@ export async function execute(interaction) {
     stockLines.length > 0 ? stockLines.join('\n') : 'なし';
 
   // -------------------- 宝くじ --------------------
-  const ticketCount = await client.lotteryTickets
-  .countDocuments({ userId });
+  const tickets = await client.lotteryTickets
+    .find({ userId })
+    .toArray();
 
   // -------------------- 総資産 --------------------
   const totalAssets = coins + stockTotalValue;
@@ -157,7 +158,7 @@ export async function execute(interaction) {
       `**株評価額合計:** ${formatCoins(stockTotalValue)}\n` +
       `**総資産:** ${formatCoins(totalAssets)}\n\n` +
 
-      `**宝くじ保有枚数:** ${ticketCount} 枚\n\n`
+      `**宝くじ保有枚数:** ${tickets.length} 枚\n\n`+
       `**職業:** ${jobName}\n` +
       `**熟練度:** ${skill}\n` +
       `**才能:** ${talent}\n` +
