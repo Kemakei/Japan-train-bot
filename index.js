@@ -140,14 +140,14 @@ client.updateVIPCoins = async (userId, delta) => {
 // -------------------- 株価管理（MongoDB版） --------------------
 // ===== 株マスタ（固定8社 + 上限/下限設定）=====
 const STOCKS = [
-  { id: "A", name: "tootle株式会社",        base: 1000, min: 850,  max: 1200 },
-  { id: "B", name: "ハイシロソフト株式会社", base: 1200, min: 900,  max: 1500 },
-  { id: "C", name: "バナナ株式会社",        base: 800,  min: 700,  max: 1000 },
-  { id: "D", name: "ネムーイ株式会社",      base: 600,  min: 500,  max: 900 },
-  { id: "E", name: "ナニイッテンノー株式会社", base: 1500, min: 1000, max: 2000 },
-  { id: "F", name: "ダカラナニー株式会社",  base: 900,  min: 800,  max: 1200 },
-  { id: "G", name: "ホシーブックス株式会社", base: 1100, min: 900,  max: 1400 },
-  { id: "H", name: "ランランルー株式会社",  base: 2000, min: 1500, max: 2500 },
+  { id: "A", name: "tootle株式会社",        base: 1000, min: 700,  max: 1300 },
+  { id: "B", name: "ハイシロソフト株式会社", base: 1500, min: 1000,  max: 2000 },
+  { id: "C", name: "バナナ株式会社",        base: 600,  min: 300,  max: 1000 },
+  { id: "D", name: "ネムーイ株式会社",      base: 200,  min: 50,  max: 500 },
+  { id: "E", name: "ナニイッテンノー株式会社", base: 3000, min: 1000, max: 5000 },
+  { id: "F", name: "ダカラナニー株式会社",  base: 1750,  min: 900,  max: 3000 },
+  { id: "G", name: "ホシーブックス株式会社", base: 9000, min: 2500,  max: 15000 },
+  { id: "H", name: "ランランルー株式会社",  base: 5000, min: 1500, max: 7000 },
 ];
 
 // MongoDBコレクション
