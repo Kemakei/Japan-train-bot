@@ -94,11 +94,6 @@ export async function execute(interaction, { client }) {
         name: '所持コイン',
         value: `${newCoins}`,
         inline: true
-      },
-      {
-        name: '職業',
-        value: jobName,
-        inline: true
       }
     )
     .setTimestamp();
