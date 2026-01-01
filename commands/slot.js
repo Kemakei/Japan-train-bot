@@ -21,21 +21,31 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function pickResult() {
+function pickResult(jobName = '無職') {
+  // 基本確率
+  let bigRate = 0.05;
+  let smallRate = 0.15;
+
+  // ギャンブラーなら当たりやすくする
+  if (jobName === 'ギャンブラー') {
+    bigRate += 0.02;   // 大当たり 10%
+    smallRate += 0.10; // 小当たり 45%
+  }
+
   const r = Math.random();
-  if (r < 0.05) {
-    // 大当たり 5%
+  if (r < bigRate) {
+    // 大当たり
     const symbol = symbols[Math.floor(Math.random() * symbols.length)];
     return [symbol, symbol, symbol];
-  } else if (r < 0.35) {
-    // 小当たり 30%
+  } else if (r < bigRate + smallRate) {
+    // 小当たり
     const symbol = symbols[Math.floor(Math.random() * symbols.length)];
     let other;
     do { other = symbols[Math.floor(Math.random() * symbols.length)]; } while (other === symbol);
     const result = [symbol, symbol, other];
     return result.sort(() => Math.random() - 0.5);
   } else {
-    // ハズレ 65%
+    // ハズレ
     let res;
     do {
       res = Array.from({ length: 3 }, () => symbols[Math.floor(Math.random() * symbols.length)]);
@@ -54,11 +64,15 @@ export async function execute(interaction, { client }) {
   const userDoc = await coinsCol.findOne({ userId });
   const points = userDoc?.coins || 0;
 
-  if (bet * 1.5 > points) return interaction.reply({ content: "❌ コインが足りません！", flags: 64 });
+  if (bet > points) return interaction.reply({ content: "❌ コインが足りません！", flags: 64 });
 
   await interaction.deferReply();
 
-  const finalResult = pickResult();
+  // ユーザー職業取得
+  const jobDoc = await client.db.collection("jobs").findOne({ userId });
+  const jobName = jobDoc?.job || '無職';
+
+  const finalResult = pickResult(jobName);
 
   let display = ['❔', '❔', '❔'];
   const msg = await interaction.editReply({ content: `🎰 ${display.join(' ')}\n回転中…` });

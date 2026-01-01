@@ -1,77 +1,63 @@
 import { SlashCommandBuilder } from "discord.js";
 
-// --- 購入クールダウン管理（ユーザーID → 最終購入時刻） ---
-const lastBuyTimestamps = new Map();
-
 export const data = new SlashCommandBuilder()
-  .setName("buy")
+  .setName("trade_buy")
   .setDescription("株を購入します")
-  .addIntegerOption(opt =>
-    opt.setName("count")
-      .setDescription("購入する株数（最大500）")
+  .addStringOption(option =>
+    option
+      .setName("stock")
+      .setDescription("購入する会社を選択")
+      .setRequired(true)
+      .addChoices(
+        { name: "tootle株式会社", value: "A" },
+        { name: "ハイシロソフト株式会社", value: "B" },
+        { name: "バナナ株式会社", value: "C" },
+        { name: "ネムーイ株式会社", value: "D" },
+        { name: "ナニイッテンノー株式会社", value: "E" },
+        { name: "ダカラナニー株式会社", value: "F" },
+        { name: "ホシーブックス株式会社", value: "G" },
+        { name: "ランランルー株式会社", value: "H" }
+      )
+  )
+  .addIntegerOption(option =>
+    option
+      .setName("count")
+      .setDescription("購入する株数（1〜500）")
       .setRequired(true)
   );
 
 export async function execute(interaction, { client }) {
+  const stockId = interaction.options.getString("stock");
   const count = interaction.options.getInteger("count");
   const userId = interaction.user.id;
 
-  // --- 株数上限チェック ---
-  if (count <= 0)
-    return interaction.reply({ content: "❌ 購入数は1以上にしてください", flags: 64 });
-
-  if (count > 500)
-    return interaction.reply({ content: "❌ 一度に購入できるのは最大500株までです", flags: 64 });
-
-  // --- クールダウンチェック（15分 = 900000ms） ---
-  const now = Date.now();
-  const lastBuy = lastBuyTimestamps.get(userId);
-  const cooldown = 15 * 60 * 1000;
-
-  if (lastBuy && now - lastBuy < cooldown) {
-    const remaining = cooldown - (now - lastBuy);
-    const minutes = Math.floor(remaining / 60000);
-    const seconds = Math.floor((remaining % 60000) / 1000);
+  if (count < 1 || count > 500) {
     return interaction.reply({
-      content: `⏳ 購入クールダウン中です。あと **${minutes}分${seconds}秒** 待ってください。`,
-      flags: 64,
+      content: "❌ 株数は 1〜500 の範囲です",
+      ephemeral: true
     });
   }
 
-  // --- 現在株価取得 ---
-  const stockPrice = await client.getStockPrice();
-  const totalCost = stockPrice * count;
-  const fee = Math.floor(totalCost * 0.1) + 100;
-  const totalPayment = totalCost + fee;
+  const price = await client.getStockPrice(stockId);
+  const total = price * count;
+  const fee = Math.floor(total * 0.1) + 100;
+  const pay = total + fee;
 
-  // --- 所持コイン確認 ---
-  const userCoins = await client.getCoins(userId);
-  if (userCoins < totalPayment) {
+  const coins = await client.getCoins(userId);
+  if (coins < pay) {
     return interaction.reply({
-      content: `❌ コインが足りません。\n必要コイン: ${totalPayment}（購入額: ${totalCost} + 手数料: ${fee}）`,
-      flags: 64,
+      content: "❌ コインが不足しています",
+      ephemeral: true
     });
   }
 
-  // --- コイン減少処理 ---
-  await client.updateCoins(userId, -totalPayment);
+  await client.updateCoins(userId, -pay);
+  await client.updateStocks(userId, stockId, count);
+  await client.modifyStockByTrade(stockId, "buy", count);
 
-  // --- 株価変動処理 ---
-  client.modifyStockByTrade("buy", count);
-
-  // --- ユーザーデータ更新 ---
-  const userDoc = await client.getUserData(userId);
-  const prevStock = userDoc.stocks || 0;
-  await client.updateStocks(userId, count);
-
-  // --- クールダウン開始 ---
-  lastBuyTimestamps.set(userId, now);
-
-  // --- 結果返信 ---
-  return interaction.reply(
-    `✅ 株を **${count} 株** 購入しました！\n` +
-    `📈 購入額: ${totalCost} コイン\n💸 手数料: ${fee} コイン\n💰 合計支払い: ${totalPayment} コイン\n` +
-    `🏦 現在の保有株数: ${prevStock + count} 株\n` +
-    `🕒 次回購入可能まで: **15分**`
+  await interaction.reply(
+    `✅ **${STOCKS.find(s => s.id === stockId)?.name || stockId}** を **${count} 株** 購入しました\n` +
+    `株価: ${price}\n` +
+    `支払額: ${pay}`
   );
 }

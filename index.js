@@ -138,70 +138,77 @@ client.updateVIPCoins = async (userId, delta) => {
 
 
 // -------------------- 株価管理（MongoDB版） --------------------
-let forceSign = 0; // -1 = 下げ強制, 1 = 上げ強制, 0 = ランダム
+// ===== 株マスタ（8社固定）=====
+const STOCKS = [
+  { id: "A", base: 1000 },
+  { id: "B", base: 1200 },
+  { id: "C", base: 800 },
+  { id: "D", base: 600 },
+  { id: "E", base: 1500 },
+  { id: "F", base: 900 },
+  { id: "G", base: 1100 },
+  { id: "H", base: 2000 },
+];
 
-client.getStockPrice = async () => {
-  const stock = await coinsCol.findOne({ userId: "stock_price" });
-  return typeof stock?.coins === "number" ? stock.coins : 950;
+// ===== 株価取得（会社別）=====
+client.getStockPrice = async (stockId) => {
+  const doc = await coinsCol.findOne({ userId: `stock_price_${stockId}` });
+  const stock = STOCKS.find(s => s.id === stockId);
+  return typeof doc?.coins === "number" ? doc.coins : stock.base;
 };
 
-client.updateStockPrice = async (delta) => {
-  let price = await client.getStockPrice() + delta;
+// ===== 株価更新（会社別 + 履歴）=====
+client.updateStockPrice = async (stockId, delta) => {
+  const stock = STOCKS.find(s => s.id === stockId);
+  let price = await client.getStockPrice(stockId) + delta;
 
-  if (price < 850) {
-    price = 850;
-    forceSign = 1;
-  } else if (price > 1100) {
-    price = 1100;
-    forceSign = -1;
-  }
+  const min = Math.floor(stock.base * 0.85);
+  const max = Math.floor(stock.base * 1.15);
+
+  if (price < min) price = min;
+  if (price > max) price = max;
 
   await coinsCol.updateOne(
-    { userId: "stock_price" },
+    { userId: `stock_price_${stockId}` },
     { $set: { coins: price } },
     { upsert: true }
   );
 
-  // 履歴管理
-  const historyDoc = await coinsCol.findOne({ userId: "trade_history" });
+  const historyKey = `trade_history_${stockId}`;
+  const historyDoc = await coinsCol.findOne({ userId: historyKey });
   const history = Array.isArray(historyDoc?.coins) ? historyDoc.coins : [];
+
   history.push({ time: new Date().toISOString(), price });
   if (history.length > 144) history.shift();
 
   await coinsCol.updateOne(
-    { userId: "trade_history" },
+    { userId: historyKey },
     { $set: { coins: history } },
     { upsert: true }
   );
 };
 
-client.modifyStockByTrade = (type, count) => {
-  // 株数の平方根をベースにした緩やかな変動
+// ===== 売買による変動 =====
+client.modifyStockByTrade = async (stockId, type, count) => {
   let delta = Math.max(1, Math.floor(Math.sqrt(count)));
-
-  // 小さなランダム要素（±10%）
-  const randomFactor = 1 + (Math.random() * 0.2 - 0.1);
-  delta = Math.round(delta * randomFactor);
-
-  // 売買方向を反映
+  delta = Math.round(delta * (1 + Math.random() * 0.2 - 0.1));
   if (type === "sell") delta = -delta;
 
-  client.updateStockPrice(delta);
+  await client.updateStockPrice(stockId, delta);
 };
 
+// ===== 自動変動（8社独立）=====
 function randomDelta() {
   const r = Math.random();
-  return Math.max(1, Math.floor(r * r * 31));
+  return Math.max(1, Math.floor(r * r * 25));
 }
 
-setInterval(() => {
-  let sign = forceSign !== 0 ? forceSign : (Math.random() < 0.5 ? -1 : 1);
-  forceSign = 0;
-  const delta = sign * randomDelta();
-  client.updateStockPrice(delta);
-  client.getStockPrice().then(price => console.log(`株価自動変動: ${delta}, 現在株価: ${price}`));
+setInterval(async () => {
+  for (const stock of STOCKS) {
+    const sign = Math.random() < 0.5 ? -1 : 1;
+    await client.updateStockPrice(stock.id, sign * randomDelta());
+  }
 }, 10 * 60 * 1000);
-
 // -------------------- 職業・才能スコア保存 --------------------
 client.getJobData = async (userId) => {
   const doc = await client.db.collection("jobs").findOne({ userId });
@@ -226,22 +233,15 @@ client.updateJobData = async (userId, delta) => {
 };
 
 // -------------------- ライセンス保存 --------------------
-client.getLicenses = async (userId) => {
-  const doc = await client.db.collection("licenses").findOne({ userId });
-  return doc?.licenses || {}; 
-};
+client.hasLicense = async (userId, licenseName) => {
+  const doc = await client.db
+    .collection('licenses')
+    .findOne({ userId: String(userId) });
 
-client.setLicense = async (userId, jobName) => {
-  await client.db.collection("licenses").updateOne(
-    { userId },
-    { $set: { [`licenses.${jobName}`]: true } },
-    { upsert: true }
-  );
-};
+  if (!doc) return false;
+  if (!Array.isArray(doc.obtained)) return false;
 
-client.hasLicense = async (userId, jobName) => {
-  const licenses = await client.getLicenses(userId);
-  return !!licenses[jobName];
+  return doc.obtained.includes(licenseName);
 };
 
 // -------------------- ヘッジ契約管理（MongoDB版） --------------------
@@ -467,6 +467,25 @@ for (const file of commandFiles) {
 // ----------------------------------------------------------------------
 client.on(Events.InteractionCreate, async interaction => {
   try {
+    // ===== ボタンインタラクション対応（trade_graph）=====
+   if (interaction.isButton()) {
+     const command = client.commands.get("trade_graph");
+
+     if (command && typeof command.handleButton === "function") {
+       try {
+         await command.handleButton(interaction);
+       } catch (err) {
+         console.error("Button handling error:", err);
+         if (!interaction.replied && !interaction.deferred) {
+           await interaction.reply({
+             content: "❌ ボタン処理中にエラーが発生しました",
+             ephemeral: true,
+           });
+          }
+         }
+        }
+       return;
+      }
     // オートコンプリート処理
     if (interaction.isAutocomplete()) {
       const command = client.commands.get(interaction.commandName);

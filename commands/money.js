@@ -45,7 +45,7 @@ export async function execute(interaction) {
     const VIPCoins = userDataDoc.VIPCoins || 0;
     const stocks = userDataDoc.stocks || 0;
 
-    // -------------------- 宝くじ保有枚数取得（全件取得に変更） --------------------
+    // -------------------- 宝くじ保有枚数取得 --------------------
     const tickets = await client.lotteryTickets.find({ userId }).toArray();
     const totalTickets = tickets.length;
 
@@ -81,23 +81,34 @@ export async function execute(interaction) {
         loanDetails += `\n- 借入: ${formatCoins(loan.principal)} | 利息込: ${formatCoins(loan.totalDue)} | 期限: <t:${Math.floor(loan.dueTime / 1000)}:D>`;
       }
     }
-    
-    // -------------------- 職業・ライセンス取得 --------------------
+
+    // -------------------- 職業・才能・熟練度 --------------------
     const jobDoc = await client.db.collection("jobs").findOne({ userId });
     const jobName = jobDoc?.job || '無職';
     const skill = jobDoc?.skill ?? 0;
-    let talent;
-    if (jobDoc?.talent == null || jobDoc.talent === 0) {
-      talent = '0';
-    } else {
-      talent = jobDoc.talent.toFixed(1);
+    const talent = jobDoc?.talent != null ? jobDoc.talent.toFixed(1) : '0';
+
+    // -------------------- ライセンス取得（両対応） --------------------
+    const licenseDoc = await client.db.collection("licenses").findOne({ userId });
+    let obtainedLicenses = [];
+
+    if (licenseDoc) {
+      // 配列形式
+      if (Array.isArray(licenseDoc.obtained)) {
+        obtainedLicenses.push(...licenseDoc.obtained);
+      }
+      // オブジェクト形式
+      if (licenseDoc.licenses) {
+        const licensesFromObj = Object.entries(licenseDoc.licenses)
+          .filter(([_, v]) => v)
+          .map(([k, _]) => k);
+        // 重複除去
+        obtainedLicenses.push(...licensesFromObj.filter(l => !obtainedLicenses.includes(l)));
+      }
     }
 
-    const licenseDoc = await client.db.collection("licenses").findOne({ userId });
-    const obtainedLicenses = licenseDoc?.obtained || [];
-
     // -------------------- Embed作成 --------------------
-      const embed = new EmbedBuilder()
+    const embed = new EmbedBuilder()
       .setColor(userId === interaction.user.id ? 'Green' : 'Blue')
       .setTitle(`${targetUser.tag} の所持金`)
       .setDescription(
@@ -114,7 +125,6 @@ export async function execute(interaction) {
       )
       .setThumbnail(targetUser.displayAvatarURL({ extension: 'png', size: 256 }))
       .setFooter({ text: userId === interaction.user.id ? 'あなたの資産情報' : `${targetUser.username} の情報を表示中` });
-
 
     await interaction.editReply({ embeds: [embed] });
 

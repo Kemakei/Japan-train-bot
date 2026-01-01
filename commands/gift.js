@@ -4,12 +4,14 @@ export const data = new SlashCommandBuilder()
   .setName("gift")
   .setDescription("指定したユーザーにコインを送ります")
   .addStringOption(option =>
-    option.setName("user")
+    option
+      .setName("user")
       .setDescription("ユーザーID またはメンション")
       .setRequired(true)
   )
   .addIntegerOption(option =>
-    option.setName("amount")
+    option
+      .setName("amount")
       .setDescription("送るコインの量")
       .setRequired(true)
   );
@@ -24,17 +26,26 @@ export async function execute(interaction) {
     // --- ユーザーID抽出（メンション or ID） ---
     const targetId = targetInput.replace(/[<@!>]/g, "").trim();
     if (!/^\d+$/.test(targetId)) {
-      return await interaction.reply({ content: "❌ 無効なユーザー指定です。", flags: 64 });
+      return await interaction.reply({
+        content: "❌ 無効なユーザー指定です。",
+        flags: 64
+      });
     }
 
     // --- 自分に送れない ---
     if (targetId === senderId) {
-      return await interaction.reply({ content: "❌ 自分にコインを送ることはできません！", flags: 64 });
+      return await interaction.reply({
+        content: "❌ 自分にコインを送ることはできません！",
+        flags: 64
+      });
     }
 
     // --- 金額チェック ---
     if (amount <= 0) {
-      return await interaction.reply({ content: "❌ 送るコインは1以上で指定してください。", flags: 64 });
+      return await interaction.reply({
+        content: "❌ 送るコインは1以上で指定してください。",
+        flags: 64
+      });
     }
 
     // --- 送信者の所持金チェック ---
@@ -46,23 +57,30 @@ export async function execute(interaction) {
       });
     }
 
-    // --- 送信先ユーザー確認 ---
+    // --- 送信先ユーザー取得 ---
     const targetUser = await client.users.fetch(targetId).catch(() => null);
     if (!targetUser) {
-      return await interaction.reply({ content: "❌ 指定したユーザーが見つかりません。", flags: 64 });
+      return await interaction.reply({
+        content: "❌ 指定したユーザーが見つかりません。",
+        flags: 64
+      });
+    }
+
+    // --- Botに送れない（自分のBot + 他Botすべて） ---
+    if (targetUser.bot) {
+      return await interaction.reply({
+        content: "❌ Botにコインを送ることはできません。",
+        flags: 64
+      });
     }
 
     // --- コイン移動 ---
-    // 送信者の残高を差分減算
     await client.updateCoins(senderId, -amount);
-
-    // 受信者の残高を取得して、setCoins で上書き
-    const targetCoins = await client.getCoins(targetId) || 0;
-    await client.setCoins(targetId, targetCoins + amount);
+    await client.updateCoins(targetId, amount);
 
     const remaining = await client.getCoins(senderId);
 
-    // --- 成功メッセージ（全員に公開） ---
+    // --- 成功メッセージ（公開） ---
     await interaction.reply({
       content: `🎁 <@${senderId}> が <@${targetId}> に **${amount} コイン** を贈りました！\n💰 送信者の残りコイン: ${remaining}`,
       ephemeral: false
@@ -70,10 +88,16 @@ export async function execute(interaction) {
 
   } catch (err) {
     console.error("Gift command error:", err);
+
     if (!interaction.replied) {
-      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました。", flags: 64 });
+      await interaction.reply({
+        content: "❌ コマンド実行中にエラーが発生しました。",
+        flags: 64
+      });
     } else {
-      await interaction.editReply({ content: "❌ コマンド実行中にエラーが発生しました。" });
+      await interaction.editReply({
+        content: "❌ コマンド実行中にエラーが発生しました。"
+      });
     }
   }
 }
