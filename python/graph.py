@@ -1,27 +1,20 @@
-#!/usr/bin/env python3
 import sys
 import json
-import os
-from datetime import datetime, timedelta
-from concurrent.futures import ProcessPoolExecutor
-import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-
-# =========================
-# 高速設定
-# =========================
 import matplotlib as mpl
+from datetime import datetime, timedelta
+import os
+from concurrent.futures import ProcessPoolExecutor
+
+# matplotlib 高速化
 mpl.rcParams.update({
     "path.simplify": True,
     "path.simplify_threshold": 1.0,
     "agg.path.chunksize": 10000,
 })
 
-# =========================
-# ヘルパー関数
-# =========================
 def parse_time_fast(t):
     try:
         s = str(t)
@@ -30,7 +23,7 @@ def parse_time_fast(t):
     except:
         return None
 
-def downsample_minmax_np(times, prices, max_points=2000):
+def downsample_minmax(times, prices, max_points=2000):
     n = len(times)
     if n <= max_points:
         return times, prices
@@ -39,19 +32,20 @@ def downsample_minmax_np(times, prices, max_points=2000):
     for i in range(0, n, step):
         chunk_t = times[i:i+step]
         chunk_p = prices[i:i+step]
-        chunk_p_np = np.array(chunk_p)
-        min_idx = int(np.argmin(chunk_p_np))
-        max_idx = int(np.argmax(chunk_p_np))
-        if min_idx == max_idx:
-            new_t.append(chunk_t[min_idx])
-            new_p.append(chunk_p[min_idx])
+        if not chunk_p:
+            continue
+        min_i = chunk_p.index(min(chunk_p))
+        max_i = chunk_p.index(max(chunk_p))
+        if min_i == max_i:
+            new_t.append(chunk_t[min_i])
+            new_p.append(chunk_p[min_i])
         else:
-            if min_idx < max_idx:
-                new_t.extend([chunk_t[min_idx], chunk_t[max_idx]])
-                new_p.extend([chunk_p[min_idx], chunk_p[max_idx]])
+            if min_i < max_i:
+                new_t.extend([chunk_t[min_i], chunk_t[max_i]])
+                new_p.extend([chunk_p[min_i], chunk_p[max_i]])
             else:
-                new_t.extend([chunk_t[max_idx], chunk_t[min_idx]])
-                new_p.extend([chunk_p[max_idx], chunk_p[min_idx]])
+                new_t.extend([chunk_t[max_i], chunk_t[min_i]])
+                new_p.extend([chunk_p[max_i], chunk_p[min_i]])
     return new_t, new_p
 
 def process_stock(stock):
@@ -88,19 +82,17 @@ def process_stock(stock):
     prev_price = prices_full[-2]
     delta = current_price - prev_price
     deltaPercent = round(delta / prev_price * 100, 2) if prev_price != 0 else 0.0
-    min_price = np.min(prices_full)
-    max_price = np.max(prices_full)
+    min_price = min(prices_full)
+    max_price = max(prices_full)
 
-    times, prices = downsample_minmax_np(times_full, prices_full, max_points=2000)
+    times, prices = downsample_minmax(times_full, prices_full, max_points=2000)
 
-    # =========================
-    # グラフ描画（軽量化）
-    # =========================
-    plt.figure(figsize=(8,4), dpi=80)
+    # グラフ描画
+    plt.figure(figsize=(8,4))
     plt.plot(times, prices, linewidth=1.8)
     plt.xlabel("time")
     plt.ylabel("price")
-    plt.title("trade")
+    plt.title("stocks")
     plt.grid(True, linestyle="--", alpha=0.6)
     plt.gca().set_xticks([])
     plt.tight_layout()
@@ -117,17 +109,16 @@ def process_stock(stock):
         "prev_price": prev_price,
         "delta": delta,
         "deltaPercent": deltaPercent,
-        "min": float(min_price),
-        "max": float(max_price),
+        "min": min_price,
+        "max": max_price,
         "image": output_file
     }
 
-# =========================
-# メイン
-# =========================
+# ===== メイン =====
 input_json = sys.stdin.read()
 stocks = json.loads(input_json)
 
+# ProcessPoolExecutor でプロセス並列化（CPUコア数まで同時描画）
 with ProcessPoolExecutor(max_workers=min(len(stocks), os.cpu_count())) as executor:
     results = list(executor.map(process_stock, stocks))
 
