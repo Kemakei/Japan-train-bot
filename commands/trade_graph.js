@@ -31,85 +31,54 @@ const graphCache = new Map();
 
 export const data = new SlashCommandBuilder()
   .setName("trade_graph")
-  .setDescription("株価グラフ（高速版・ページ切り替え）");
+  .setDescription("株価グラフ（ページ切り替え）");
 
 export async function execute(interaction, { client }) {
   await interaction.deferReply();
 
-  // ============================
-  // MongoDB から全銘柄取得
-  // ============================
-  const stocksPayload = [];
+  const pages = [];
 
   for (const stock of STOCKS) {
-    const historyDoc = await client.stockHistoryCol.findOne({
-      userId: `trade_history_${stock.id}`,
+    // === MongoDBから履歴を取得 ===
+    const historyDoc = await client.stockHistoryCol.findOne({ userId: `trade_history_${stock.id}` });
+    const priceDoc = await client.stockHistoryCol.findOne({ userId: `stock_price_${stock.id}` });
+    const tradeHistory = historyDoc?.history ?? [];
+    const stockPrice = priceDoc?.currentPrice ?? stock.base;
+
+    // === Python に渡す JSON ===
+    const py = spawn("python", [path.resolve(__dirname, "../python/graph.py")]);
+
+    py.stdin.write(JSON.stringify({
+      trade_history: tradeHistory, // 必ずMongoDBのhistory配列
+      stock_price: stockPrice      // fallback
+    }));
+    py.stdin.end();
+
+    const output = await new Promise((resolve, reject) => {
+      let out = "", err = "";
+      py.stdout.on("data", d => out += d);
+      py.stderr.on("data", d => err += d);
+      py.on("close", code => code === 0 ? resolve(out) : reject(err));
     });
 
-    const priceDoc = await client.stockHistoryCol.findOne({
-      userId: `stock_price_${stock.id}`,
-    });
+    const parsed = JSON.parse(output);
+    const buffer = fs.readFileSync(parsed.image);
+    fs.unlinkSync(parsed.image);
 
-    stocksPayload.push({
-      id: stock.id,
-      name: stock.name,
-      history: historyDoc?.history ?? [],
-      price: priceDoc?.currentPrice ?? stock.base,
+    pages.push({
+      stock,
+      buffer,
+      current: parsed.current,
+      min: parsed.min,
+      max: parsed.max,
+      delta: parsed.delta,
+      deltaPercent: parsed.deltaPercent,
     });
   }
 
-  // ============================
-  // Python 起動（1回）
-  // ============================
-  const py = spawn("python", [
-    path.resolve(__dirname, "../python/graph_fast.py"),
-  ]);
-
-  py.stdin.write(JSON.stringify({ stocks: stocksPayload }));
-  py.stdin.end();
-
-  const output = await new Promise((resolve, reject) => {
-    let out = "";
-    let err = "";
-
-    py.stdout.on("data", d => (out += d));
-    py.stderr.on("data", d => (err += d));
-
-    py.on("close", code => {
-      if (code === 0) resolve(out);
-      else reject(err);
-    });
-  });
-
-  const parsed = JSON.parse(output);
-
-  // ============================
-  // ページ構築
-  // ============================
-  const pages = parsed.map(result => {
-    const stock = STOCKS.find(s => s.id === result.id);
-    const buffer = fs.readFileSync(result.image);
-    fs.unlinkSync(result.image);
-
-    return {
-      stock,
-      buffer,
-      current: result.current,
-      min: result.min,
-      max: result.max,
-      delta: result.delta,
-      deltaPercent: result.deltaPercent,
-    };
-  });
-
-  // ============================
-  // 初期表示
-  // ============================
   const index = 0;
   const embed = buildEmbed(pages[index], index);
-  const attachment = new AttachmentBuilder(pages[index].buffer, {
-    name: "stock.png",
-  });
+  const attachment = new AttachmentBuilder(pages[index].buffer, { name: "stock.png" });
 
   const message = await interaction.editReply({
     embeds: [embed],
@@ -124,27 +93,20 @@ export async function execute(interaction, { client }) {
   });
 }
 
-// ============================
-// Embed
-// ============================
 function buildEmbed(page, index) {
   return new EmbedBuilder()
     .setTitle(`📈 ${page.stock.name}`)
     .setDescription(
       `**現在株価:** ${page.current.toLocaleString()} コイン\n` +
-        `**変動:** ${page.delta >= 0 ? "+" : ""}${page.delta} コイン ` +
-        `(${page.deltaPercent >= 0 ? "+" : ""}${page.deltaPercent}%)\n` +
-        `**最低株価:** ${page.min.toLocaleString()} コイン\n` +
-        `**最高株価:** ${page.max.toLocaleString()} コイン\n\n` +
-        `ページ: ${index + 1} / ${STOCKS.length}`
+      `**変動:** ${page.delta >=0 ? "+" : ""}${page.delta}コイン (${page.deltaPercent >= 0 ? "+" : ""}${page.deltaPercent}%)\n` +
+      `**最低株価:** ${page.min.toLocaleString()} コイン\n` +
+      `**最高株価:** ${page.max.toLocaleString()} コイン\n\n` +
+      `ページ: ${index + 1} / ${STOCKS.length}`
     )
     .setImage("attachment://stock.png")
     .setColor("Blue");
 }
 
-// ============================
-// Buttons
-// ============================
 function buildButtons(index) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -154,13 +116,11 @@ function buildButtons(index) {
     new ButtonBuilder()
       .setCustomId(`trade_graph_next_${index}`)
       .setLabel("▶")
-      .setStyle(ButtonStyle.Secondary)
+      .setStyle(ButtonStyle.Secondary),
   );
 }
 
-// ============================
-// Button Interaction
-// ============================
+// ===== ButtonInteraction 側 =====
 export async function handleButton(interaction) {
   if (!interaction.customId.startsWith("trade_graph_")) return;
 
@@ -168,27 +128,21 @@ export async function handleButton(interaction) {
   if (!state) return;
 
   if (interaction.user.id !== state.userId) {
-    return interaction.reply({
-      content: "❌ 操作できません",
-      ephemeral: true,
-    });
+    return interaction.reply({ content: "❌ 操作できません", ephemeral: true });
   }
 
   const parts = interaction.customId.split("_"); // trade_graph_prev_0
-  const dir = parts[2];
+  const dir = parts[2]; // prev / next
   let index = state.index;
 
   if (dir === "next") index = (index + 1) % state.pages.length;
-  if (dir === "prev")
-    index = (index - 1 + state.pages.length) % state.pages.length;
+  if (dir === "prev") index = (index - 1 + state.pages.length) % state.pages.length;
 
-  state.index = index;
+  state.index = index; // 更新
 
   const page = state.pages[index];
   const embed = buildEmbed(page, index);
-  const attachment = new AttachmentBuilder(page.buffer, {
-    name: "stock.png",
-  });
+  const attachment = new AttachmentBuilder(page.buffer, { name: "stock.png" });
 
   await interaction.update({
     embeds: [embed],
