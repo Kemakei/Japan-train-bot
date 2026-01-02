@@ -7,6 +7,7 @@ import matplotlib as mpl
 from datetime import datetime, timedelta
 import sys
 import os
+from concurrent.futures import ThreadPoolExecutor
 
 # matplotlib 高速化
 mpl.rcParams.update({
@@ -70,7 +71,6 @@ def process_stock(stock):
         pairs.append((t, p))
 
     pairs.sort(key=lambda x: x[0])
-
     if not pairs:
         pairs = [(now - timedelta(minutes=10), fallback_price), (now, fallback_price)]
     elif len(pairs) == 1:
@@ -91,9 +91,9 @@ def process_stock(stock):
     # グラフ描画
     plt.figure(figsize=(8,4))
     plt.plot(times, prices, linewidth=1.8)
-    plt.xlabel("time")
-    plt.ylabel("price")
-    plt.title("trade")
+    plt.xlabel("時間")
+    plt.ylabel("コイン")
+    plt.title(f"{stock.get('name', '')} 株価 (24h)")
     plt.grid(True, linestyle="--", alpha=0.6)
     plt.gca().set_xticks([])  # 時間ラベルは非表示
     plt.tight_layout()
@@ -119,6 +119,8 @@ def process_stock(stock):
 input_json = sys.stdin.read()
 stocks = json.loads(input_json)
 
-results = [process_stock(s) for s in stocks]
+# 並列処理で描画
+with ThreadPoolExecutor(max_workers=len(stocks)) as executor:
+    results = list(executor.map(process_stock, stocks))
 
 print(json.dumps(results))
