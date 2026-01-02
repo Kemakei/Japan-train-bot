@@ -4,73 +4,76 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 import os
 
-# matplotlib 高速化（見た目影響なし）
+# ---------- matplotlib 高速化（見た目影響なし） ----------
 mpl.rcParams.update({
     "path.simplify": True,
     "path.simplify_threshold": 1.0,
     "agg.path.chunksize": 10000,
 })
 
+# ---------- 高速時間パース ----------
 def parse_time_fast(t):
     try:
         s = str(t)
         return datetime(
             int(s[0:4]), int(s[5:7]), int(s[8:10]),
-            int(s[11:13]), int(s[14:16]), int(s[17:19])
+            int(s[11:13]), int(s[14:16]), int(s[17:19]),
+            tzinfo=UTC
         )
     except Exception:
         return None
 
+# ---------- min/max ダウンサンプリング（見た目同一） ----------
 def downsample_minmax(times, prices, max_points=2000):
     n = len(times)
     if n <= max_points:
         return times, prices
 
     step = max(1, n // max_points)
-    new_t, new_p = [], []
+    nt, np = [], []
 
     for i in range(0, n, step):
-        chunk_t = times[i:i + step]
-        chunk_p = prices[i:i + step]
-        if not chunk_p:
+        cp = prices[i:i + step]
+        if not cp:
             continue
+        ct = times[i:i + step]
 
-        min_i = chunk_p.index(min(chunk_p))
-        max_i = chunk_p.index(max(chunk_p))
+        lo = min(range(len(cp)), key=cp.__getitem__)
+        hi = max(range(len(cp)), key=cp.__getitem__)
 
-        if min_i == max_i:
-            new_t.append(chunk_t[min_i])
-            new_p.append(chunk_p[min_i])
+        if lo < hi:
+            nt.extend((ct[lo], ct[hi]))
+            np.extend((cp[lo], cp[hi]))
+        elif hi < lo:
+            nt.extend((ct[hi], ct[lo]))
+            np.extend((cp[hi], cp[lo]))
         else:
-            if min_i < max_i:
-                new_t.extend([chunk_t[min_i], chunk_t[max_i]])
-                new_p.extend([chunk_p[min_i], chunk_p[max_i]])
-            else:
-                new_t.extend([chunk_t[max_i], chunk_t[min_i]])
-                new_p.extend([chunk_p[max_i], chunk_p[min_i]])
+            nt.append(ct[lo])
+            np.append(cp[lo])
 
-    return new_t, new_p
+    return nt, np
 
-# ---------- Figure / Axes 再利用 ----------
+# ---------- Figure / Axes 完全再利用 ----------
 fig = plt.figure(figsize=(8, 4))
 ax = fig.add_subplot(111)
-
-# ★ レイアウトは最初に1回だけ
 ax.set_xlabel("time")
 ax.set_ylabel("price")
 ax.set_title("stocks")
+ax.grid(True, linestyle="--", alpha=0.6)
 ax.set_xticks([])
-fig.tight_layout()
+
+OUT_DIR = "/tmp"
+os.makedirs(OUT_DIR, exist_ok=True)
 
 def process_stock(stock):
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     cutoff = now - timedelta(hours=24)
 
     history = stock.get("trade_history", [])
-    fallback_price = float(stock.get("stock_price", 1000))
+    fallback = float(stock.get("stock_price", 1000))
 
     pairs = []
     for h in history:
@@ -84,55 +87,48 @@ def process_stock(stock):
             continue
 
         try:
-            p = float(p_raw)
+            pairs.append((t, float(p_raw)))
         except Exception:
-            continue
-
-        pairs.append((t, p))
+            pass
 
     pairs.sort(key=lambda x: x[0])
 
     if not pairs:
-        pairs = [
-            (now - timedelta(minutes=10), fallback_price),
-            (now, fallback_price)
-        ]
+        pairs = [(now - timedelta(minutes=10), fallback), (now, fallback)]
     elif len(pairs) == 1:
         pairs.insert(0, (pairs[0][0] - timedelta(minutes=10), pairs[0][1]))
 
-    times_full = [p[0] for p in pairs]
-    prices_full = [p[1] for p in pairs]
+    times = [p[0] for p in pairs]
+    prices = [p[1] for p in pairs]
 
-    times, prices = downsample_minmax(times_full, prices_full)
+    times, prices = downsample_minmax(times, prices)
 
-    ax.clear()
+    # ---------- 描画 ----------
+    ax.lines.clear()
     ax.plot(times, prices, linewidth=1.8)
-    ax.grid(True, alpha=0.6)  # dashed をやめる
 
-    out_dir = "/tmp"
-    os.makedirs(out_dir, exist_ok=True)
-    output_file = os.path.join(out_dir, f"{stock['id']}.png")
-
+    output_file = os.path.join(OUT_DIR, f"{stock['id']}.png")
     fig.savefig(
         output_file,
-        dpi=72,               # ★ 最大効果
-        compress_level=1      # ★ Render 向け
+        dpi=60,            # ★ 最大効果
+        format="png"
     )
+
+    cur = prices[-1]
+    prev = prices[-2]
 
     return {
         "id": stock["id"],
-        "current": prices_full[-1],
-        "prev_price": prices_full[-2],
-        "delta": prices_full[-1] - prices_full[-2],
-        "deltaPercent": round(
-            (prices_full[-1] - prices_full[-2]) / prices_full[-2] * 100, 2
-        ) if prices_full[-2] != 0 else 0.0,
-        "min": min(prices_full),
-        "max": max(prices_full),
+        "current": cur,
+        "prev_price": prev,
+        "delta": cur - prev,
+        "deltaPercent": round((cur - prev) / prev * 100, 2) if prev else 0.0,
+        "min": min(prices),
+        "max": max(prices),
         "image": output_file
     }
 
-# ===== メイン =====
+# ---------- main ----------
 stocks = json.loads(sys.stdin.read())
-results = [process_stock(stock) for stock in stocks]
+results = [process_stock(s) for s in stocks]
 print(json.dumps(results))
