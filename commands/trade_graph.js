@@ -22,7 +22,7 @@ const graphCache = new Map();
 
 export const data = new SlashCommandBuilder()
   .setName("trade_graph")
-  .setDescription("株価グラフ（ページ切り替え）");
+  .setDescription("株価グラフ");
 
 export async function execute(interaction, { client }) {
   await interaction.deferReply();

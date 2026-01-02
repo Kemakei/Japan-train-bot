@@ -91,9 +91,9 @@ def process_stock(stock):
     # グラフ描画
     plt.figure(figsize=(8,4))
     plt.plot(times, prices, linewidth=1.8)
-    plt.xlabel("時間")
-    plt.ylabel("コイン")
-    plt.title(f"{stock.get('name', '')} 株価 (24h)")
+    plt.xlabel("time")
+    plt.ylabel("price")
+    plt.title("trade")
     plt.grid(True, linestyle="--", alpha=0.6)
     plt.gca().set_xticks([])  # 時間ラベルは非表示
     plt.tight_layout()
