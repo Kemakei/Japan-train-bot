@@ -11,18 +11,13 @@ import uuid
 import time
 
 # ===================
-# 📝 ログ設定（stdout を汚さない）
+# 🧠 debug を JSON に埋め込む
 # ===================
-LOG_FILE = "/tmp/trade_graph.log"
-
-def log(msg):
-    with open(LOG_FILE, "a") as f:
-        f.write(f"[{time.time() - T0:6.2f}s] {msg}\n")
-
-# ===================
-# ⏱ 計測開始
-# ===================
+DEBUG = []
 T0 = time.time()
+def log(msg):
+    DEBUG.append(f"{time.time() - T0:6.2f}s {msg}")
+
 log("script start")
 
 # ===================
@@ -154,7 +149,7 @@ deltaPercent = round(delta / prev_price * 100, 2) if prev_price != 0 else 0.0
 min_price = min(prices_full)
 max_price = max(prices_full)
 
-# グラフ用のみ削減
+# グラフ用だけ削減
 times, prices = downsample_minmax(times_full, prices_full, max_points=2000)
 log(f"downsampled: {len(times)}")
 
@@ -178,7 +173,7 @@ plt.close()
 log("image saved")
 
 # ===================
-# stdout は JSON のみ
+# JSON 出力（debug 含む）
 # ===================
 print(json.dumps({
     "current": current_price,
@@ -187,5 +182,6 @@ print(json.dumps({
     "deltaPercent": deltaPercent,
     "min": min_price,
     "max": max_price,
-    "image": output_file
+    "image": output_file,
+    "debug": DEBUG
 }))
