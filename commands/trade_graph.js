@@ -31,7 +31,7 @@ const graphCache = new Map();
 
 export const data = new SlashCommandBuilder()
   .setName("trade_graph")
-  .setDescription("株価グラフ（Render安定版）");
+  .setDescription("株価グラフ");
 
 export async function execute(interaction, { client }) {
   await interaction.deferReply();
