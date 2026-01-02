@@ -5,9 +5,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from datetime import datetime, timedelta
-import sys
 import os
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 
 # matplotlib 高速化
 mpl.rcParams.update({
@@ -91,11 +90,11 @@ def process_stock(stock):
     # グラフ描画
     plt.figure(figsize=(8,4))
     plt.plot(times, prices, linewidth=1.8)
-    plt.xlabel("時間")
-    plt.ylabel("コイン")
-    plt.title(f"{stock.get('name', '')} 株価 (24h)")
+    plt.xlabel("time")
+    plt.ylabel("price")
+    plt.title("stocks")
     plt.grid(True, linestyle="--", alpha=0.6)
-    plt.gca().set_xticks([])  # 時間ラベルは非表示
+    plt.gca().set_xticks([])
     plt.tight_layout()
 
     out_dir = "/tmp"
@@ -119,8 +118,8 @@ def process_stock(stock):
 input_json = sys.stdin.read()
 stocks = json.loads(input_json)
 
-# 並列処理で描画
-with ThreadPoolExecutor(max_workers=len(stocks)) as executor:
+# ProcessPoolExecutor でプロセス並列化（CPUコア数まで同時描画）
+with ProcessPoolExecutor(max_workers=min(len(stocks), os.cpu_count())) as executor:
     results = list(executor.map(process_stock, stocks))
 
 print(json.dumps(results))

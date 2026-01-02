@@ -27,7 +27,6 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction, { client }) {
   await interaction.deferReply();
 
-  // MongoDB から各株の履歴取得
   const stocksData = [];
   for (const stock of STOCKS) {
     const historyDoc = await client.stockHistoryCol.findOne({ userId: `trade_history_${stock.id}` });
@@ -40,7 +39,6 @@ export async function execute(interaction, { client }) {
     });
   }
 
-  // Python にまとめて送信
   const py = spawn("python", [path.resolve(__dirname, "../python/graph.py")]);
   py.stdin.write(JSON.stringify(stocksData));
   py.stdin.end();
@@ -52,7 +50,7 @@ export async function execute(interaction, { client }) {
     py.on("close", code => code === 0 ? resolve(out) : reject(err));
   });
 
-  const results = JSON.parse(output); // 配列になる
+  const results = JSON.parse(output);
 
   const pages = results.map(r => {
     const stock = STOCKS.find(s => s.id === r.id);
@@ -61,7 +59,6 @@ export async function execute(interaction, { client }) {
     return { stock, buffer, ...r };
   });
 
-  // 最初のページ
   const index = 0;
   const embed = buildEmbed(pages[index], index);
   const attachment = new AttachmentBuilder(pages[index].buffer, { name: "stock.png" });
@@ -102,7 +99,6 @@ function buildButtons(index) {
   );
 }
 
-// ボタン操作
 export async function handleButton(interaction) {
   if (!interaction.customId.startsWith("trade_graph_")) return;
   const state = graphCache.get(interaction.message.id);
