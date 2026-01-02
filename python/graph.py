@@ -11,11 +11,20 @@ import uuid
 import time
 
 # ===================
-# ⏱ 計測用
+# 📝 ログ設定（stdout を汚さない）
+# ===================
+LOG_FILE = "/tmp/trade_graph.log"
+
+def log(msg):
+    with open(LOG_FILE, "a") as f:
+        f.write(f"[{time.time() - T0:6.2f}s] {msg}\n")
+
+# ===================
+# ⏱ 計測開始
 # ===================
 T0 = time.time()
-def log(msg):
-    print(f"[{time.time() - T0:6.2f}s] {msg}", flush=True)
+log("script start")
+
 # ===================
 # matplotlib 高速化
 # ===================
@@ -26,12 +35,11 @@ mpl.rcParams.update({
 })
 
 # ===================
-# 🚀 超高速 datetime パース（ISO固定前提）
+# 🚀 超高速 datetime パース
 # ===================
 def parse_time_fast(t):
     try:
         s = t if isinstance(t, str) else str(t)
-        # YYYY-MM-DDTHH:MM:SS まで使用（Z / offset 無視）
         return datetime(
             int(s[0:4]), int(s[5:7]), int(s[8:10]),
             int(s[11:13]), int(s[14:16]), int(s[17:19])
@@ -89,7 +97,6 @@ raw = sys.stdin.read()
 log("stdin read done")
 
 if not raw:
-    print("❌ no input", file=sys.stderr)
     sys.exit(1)
 
 data = json.loads(raw)
@@ -125,11 +132,10 @@ for h in history:
 
 log(f"pairs built: {len(pairs)}")
 
-# ソート（時系列保証があるなら削除可）
 pairs.sort(key=lambda x: x[0])
 log("pairs sorted")
 
-# fallback（最低2点）
+# fallback
 if not pairs:
     pairs = [
         (now - timedelta(minutes=10), fallback_price),
@@ -138,7 +144,6 @@ if not pairs:
 elif len(pairs) == 1:
     pairs.insert(0, (pairs[0][0] - timedelta(minutes=10), pairs[0][1]))
 
-# ---- 数値計算（フルデータ）----
 times_full = [p[0] for p in pairs]
 prices_full = [p[1] for p in pairs]
 
@@ -149,12 +154,12 @@ deltaPercent = round(delta / prev_price * 100, 2) if prev_price != 0 else 0.0
 min_price = min(prices_full)
 max_price = max(prices_full)
 
-# ---- グラフ用だけ削減 ----
+# グラフ用のみ削減
 times, prices = downsample_minmax(times_full, prices_full, max_points=2000)
-log(f"downsampled to {len(times)} points")
+log(f"downsampled: {len(times)}")
 
 # ===================
-# グラフ描画（見た目そのまま）
+# グラフ描画
 # ===================
 plt.figure(figsize=(8, 4))
 plt.plot(times, prices, linewidth=1.8)
@@ -170,9 +175,11 @@ output_file = os.path.join(
 )
 plt.savefig(output_file)
 plt.close()
-
 log("image saved")
 
+# ===================
+# stdout は JSON のみ
+# ===================
 print(json.dumps({
     "current": current_price,
     "prev_price": prev_price,
