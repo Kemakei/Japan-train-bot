@@ -11,14 +11,14 @@ import uuid
 import time
 
 # ===================
-# 🧠 debug を JSON に埋め込む
+# 計測開始
 # ===================
-DEBUG = []
 T0 = time.time()
-def log(msg):
-    DEBUG.append(f"{time.time() - T0:6.2f}s {msg}")
 
-log("script start")
+logs = []
+
+def log(msg):
+    logs.append(f"[{time.time() - T0:6.2f}s] {msg}")
 
 # ===================
 # matplotlib 高速化
@@ -30,7 +30,7 @@ mpl.rcParams.update({
 })
 
 # ===================
-# 🚀 超高速 datetime パース
+# 高速 datetime パース
 # ===================
 def parse_time_fast(t):
     try:
@@ -53,7 +53,7 @@ def extract_history(data):
     return []
 
 # ===================
-# 📉 min/max ダウンサンプル
+# min/max ダウンサンプル
 # ===================
 def downsample_minmax(times, prices, max_points=2000):
     n = len(times)
@@ -92,10 +92,15 @@ raw = sys.stdin.read()
 log("stdin read done")
 
 if not raw:
+    print(json.dumps({"error": "no input", "logs": logs}))
     sys.exit(1)
 
-data = json.loads(raw)
-log("json loaded")
+try:
+    data = json.loads(raw)
+    log("json loaded")
+except Exception as e:
+    print(json.dumps({"error": f"JSON load failed: {e}", "logs": logs}))
+    sys.exit(1)
 
 history = extract_history(data)
 log(f"history extracted: {len(history)}")
@@ -149,7 +154,7 @@ deltaPercent = round(delta / prev_price * 100, 2) if prev_price != 0 else 0.0
 min_price = min(prices_full)
 max_price = max(prices_full)
 
-# グラフ用だけ削減
+# グラフ用のみダウンサンプル
 times, prices = downsample_minmax(times_full, prices_full, max_points=2000)
 log(f"downsampled: {len(times)}")
 
@@ -173,7 +178,7 @@ plt.close()
 log("image saved")
 
 # ===================
-# JSON 出力（debug 含む）
+# stdout は JSON のみ
 # ===================
 print(json.dumps({
     "current": current_price,
@@ -183,5 +188,5 @@ print(json.dumps({
     "min": min_price,
     "max": max_price,
     "image": output_file,
-    "debug": DEBUG
+    "logs": logs   # ← 全ログを JSON 内に含める
 }))
