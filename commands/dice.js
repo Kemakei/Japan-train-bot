@@ -8,45 +8,25 @@ export const data = new SlashCommandBuilder()
     option.setName('bet')
       .setDescription('掛け金')
       .setRequired(true)
-  );
+      .setMinValue(100)
+    );
 
-/**
- * 職業補正付きで揃う数（maxCount）を決める
- * @param {string} jobName - ユーザーの職業
- * @returns {number} maxCount（3以上で勝ち、2以下で負け）
- */
-function pickResult(jobName = '無職') {
-  // 基本確率
-  const probabilities = {
-    3: 0.23,
-    4: 0.10,
-    5: 0.02,
-    6: 0.002
-  };
+// サイコロ6個を振る関数
+function rollDice() {
+  return Array.from({ length: 6 }, () => Math.floor(Math.random() * 6) + 1);
+}
 
-  // 職業補正: ギャンブラーなら当たりやすくする
-  if (jobName === 'ギャンブラー') {
-    probabilities[3] += 0.05;
-    probabilities[4] += 0.03;
-    probabilities[5] += 0.01;
-    probabilities[6] += 0.001;
+// 出目から最大何個揃ったか計算
+function getMaxCount(dice) {
+  const counts = {};
+  for (const d of dice) {
+    counts[d] = (counts[d] || 0) + 1;
   }
-
-  // ランダムでどれが出るか決定
-  const r = Math.random();
-  let cumulative = 0;
-  for (let count = 6; count >= 3; count--) {
-    cumulative += probabilities[count] || 0;
-    if (r < cumulative) return count;
-  }
-
-  // 3つ以上揃わなければ負け
-  return 2;
+  return Math.max(...Object.values(counts));
 }
 
 export async function execute(interaction, { client }) {
   const bet = interaction.options.getInteger('bet');
-
   if (bet <= 0) {
     await interaction.reply({ content: '掛け金は1以上で指定してください', ephemeral: true });
     return;
@@ -54,18 +34,32 @@ export async function execute(interaction, { client }) {
 
   const userId = interaction.user.id;
 
-  // ユーザー職業取得
+  // 職業取得
   const jobDoc = await client.db.collection("jobs").findOne({ userId });
   const jobName = jobDoc?.job || '無職';
 
-  // サイコロ6つをランダムで振る
-  const dice = Array.from({ length: 6 }, () => Math.floor(Math.random() * 6) + 1);
+  // ===== サイコロを振る =====
+  let dice = rollDice();
+  let maxCount = getMaxCount(dice);
 
-  // 最大何個揃ったかを職業補正付きで決定
-  const maxCount = pickResult(jobName);
+  // ===== 職業補正（ギャンブラー）=====
+  // 一定確率で「振り直し」
+  if (jobName === 'ギャンブラー') {
+    const rerollChance = 0.35; // 35%で振り直し
+    if (Math.random() < rerollChance) {
+      const rerollDice = rollDice();
+      const rerollMax = getMaxCount(rerollDice);
 
-  // デフォルトは負け
-  let multiplier = -1.8;
+      // 振り直しのほうが良ければ採用
+      if (rerollMax > maxCount) {
+        dice = rerollDice;
+        maxCount = rerollMax;
+      }
+    }
+  }
+
+  // ===== 勝敗判定 =====
+  let multiplier = -2.0;
   let win = false;
 
   if (maxCount >= 3) {
@@ -76,31 +70,32 @@ export async function execute(interaction, { client }) {
     else if (maxCount === 6) multiplier = 5;
   }
 
-  // コイン反映
-  let coinsBefore = await client.getCoins(userId);
-  let change = Math.round(bet * multiplier);
+  // ===== コイン処理 =====
+  const coinsBefore = await client.getCoins(userId);
+  const change = Math.round(bet * multiplier);
   let newCoins = coinsBefore + change;
-
-  // 所持コインがマイナスになったら0にする
   if (newCoins < 0) newCoins = 0;
 
   await client.setCoins(userId, newCoins);
 
-  // サイコロの結果を太文字に
+  // ===== 表示 =====
   const diceText = dice.map(n => `**${n}**`).join(' ');
 
-  // Embed作成
   const embed = new EmbedBuilder()
     .setTitle(win ? `${maxCount}つ揃いました！` : '3つ以上揃いませんでした')
     .setDescription(diceText)
-    .setColor(win ? 0x00FF00 : 0xFF0000) // 緑:勝ち / 赤:負け
+    .setColor(win ? 0x00FF00 : 0xFF0000)
     .addFields(
-      { 
-        name: change >= 0 ? '獲得コイン' : '失ったコイン', 
-        value: `${change >= 0 ? '+' : ''}${change}`, 
-        inline: true 
+      {
+        name: change >= 0 ? '獲得コイン' : '失ったコイン',
+        value: `${change >= 0 ? '+' : ''}${change}`,
+        inline: true
       },
-      { name: '所持コイン', value: `${newCoins}`, inline: true },
+      {
+        name: '所持コイン',
+        value: `${newCoins}`,
+        inline: true
+      }
     )
     .setTimestamp();
 

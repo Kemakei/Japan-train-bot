@@ -24,6 +24,8 @@ export const data = new SlashCommandBuilder()
       .setName("count")
       .setDescription("購入する株数（1〜500）")
       .setRequired(true)
+      .setMinValue(1)
+      .setMaxValue(500)
   );
 
 export async function execute(interaction, { client }) {

@@ -4,13 +4,18 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+<<<<<<< HEAD
 from datetime import datetime, timedelta
+=======
+from datetime import datetime, timedelta, timezone
+>>>>>>> 45f1ea9083f74c86f60b2aef5e3fc2782dbd172b
 import sys
 import os
 import uuid
 import time
 
 # ===================
+<<<<<<< HEAD
 # ⏱ 計測用
 # ===================
 T0 = time.time()
@@ -18,6 +23,8 @@ def log(msg):
     print(f"[{time.time() - T0:6.2f}s] {msg}", file=sys.stderr)
 
 # ===================
+=======
+>>>>>>> 45f1ea9083f74c86f60b2aef5e3fc2782dbd172b
 # matplotlib 高速化
 # ===================
 mpl.rcParams.update({
@@ -27,6 +34,7 @@ mpl.rcParams.update({
 })
 
 # ===================
+<<<<<<< HEAD
 # 🚀 超高速 datetime パース（ISO固定前提）
 # ===================
 def parse_time_fast(t):
@@ -39,6 +47,25 @@ def parse_time_fast(t):
         )
     except Exception:
         return None
+=======
+# 高速 time パース
+# ===================
+def parse_time_fast(t):
+    if isinstance(t, datetime):
+        dt = t
+    else:
+        s = str(t).strip()
+        if s.endswith("Z"):
+            s = s[:-1]
+        try:
+            dt = datetime.fromisoformat(s)
+        except ValueError:
+            return None
+
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+>>>>>>> 45f1ea9083f74c86f60b2aef5e3fc2782dbd172b
 
 def extract_history(data):
     th = data.get("trade_history")
@@ -51,7 +78,11 @@ def extract_history(data):
     return []
 
 # ===================
+<<<<<<< HEAD
 # 📉 min/max ダウンサンプル
+=======
+# min/max ダウンサンプル
+>>>>>>> 45f1ea9083f74c86f60b2aef5e3fc2782dbd172b
 # ===================
 def downsample_minmax(times, prices, max_points=2000):
     n = len(times)
@@ -70,6 +101,7 @@ def downsample_minmax(times, prices, max_points=2000):
         min_i = chunk_p.index(min(chunk_p))
         max_i = chunk_p.index(max(chunk_p))
 
+<<<<<<< HEAD
         if min_i == max_i:
             new_t.append(chunk_t[min_i])
             new_p.append(chunk_p[min_i])
@@ -80,6 +112,11 @@ def downsample_minmax(times, prices, max_points=2000):
             else:
                 new_t.extend([chunk_t[max_i], chunk_t[min_i]])
                 new_p.extend([chunk_p[max_i], chunk_p[min_i]])
+=======
+        for idx in sorted({min_i, max_i}):
+            new_t.append(chunk_t[idx])
+            new_p.append(chunk_p[idx])
+>>>>>>> 45f1ea9083f74c86f60b2aef5e3fc2782dbd172b
 
     return new_t, new_p
 
@@ -121,6 +158,7 @@ for h in history:
         p = float(p_raw)
     except ValueError:
         continue
+<<<<<<< HEAD
 
     pairs.append((t, p))
 
@@ -130,6 +168,14 @@ log(f"pairs built: {len(pairs)}")
 pairs.sort(key=lambda x: x[0])
 log("pairs sorted")
 
+=======
+
+    pairs.append((t, p))
+
+# ソート（元データが時系列なら削除可）
+pairs.sort(key=lambda x: x[0])
+
+>>>>>>> 45f1ea9083f74c86f60b2aef5e3fc2782dbd172b
 # fallback（最低2点）
 if not pairs:
     pairs = [
@@ -139,7 +185,11 @@ if not pairs:
 elif len(pairs) == 1:
     pairs.insert(0, (pairs[0][0] - timedelta(minutes=10), pairs[0][1]))
 
+<<<<<<< HEAD
 # ---- 数値計算（フルデータ）----
+=======
+# ---- 数値計算はフルデータ ----
+>>>>>>> 45f1ea9083f74c86f60b2aef5e3fc2782dbd172b
 times_full = [p[0] for p in pairs]
 prices_full = [p[1] for p in pairs]
 
@@ -152,7 +202,10 @@ max_price = max(prices_full)
 
 # ---- グラフ用だけ削減 ----
 times, prices = downsample_minmax(times_full, prices_full, max_points=2000)
+<<<<<<< HEAD
 log(f"downsampled to {len(times)} points")
+=======
+>>>>>>> 45f1ea9083f74c86f60b2aef5e3fc2782dbd172b
 
 # ===================
 # グラフ描画（見た目そのまま）
