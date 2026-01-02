@@ -1,18 +1,9 @@
 import sys
 import json
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import matplotlib as mpl
-from datetime import datetime, timedelta
 import os
-
-# matplotlib 高速化（見た目影響なし）
-mpl.rcParams.update({
-    "path.simplify": True,
-    "path.simplify_threshold": 1.0,
-    "agg.path.chunksize": 10000,
-})
+from datetime import datetime, timedelta
+from PIL import Image, ImageDraw
+import numpy as np
 
 # ---------- 高速時間パース ----------
 def parse_time_fast(t):
@@ -25,7 +16,7 @@ def parse_time_fast(t):
     except Exception:
         return None
 
-# ---------- min/max ダウンサンプリング（見た目同一） ----------
+# ---------- min/max ダウンサンプリング ----------
 def downsample_minmax(times, prices, max_points=2000):
     n = len(times)
     if n <= max_points:
@@ -56,12 +47,38 @@ def downsample_minmax(times, prices, max_points=2000):
 
     return new_t, new_p
 
-# ---------- Figure / Axes を再利用（重要） ----------
-FIG_SIZE = (8, 4)
+# ---------- 高速描画（Pillow） ----------
+def draw_graph(times, prices, output_file, w=800, h=400):
+    prices = np.asarray(prices, dtype=float)
 
-fig = plt.figure(figsize=FIG_SIZE)
-ax = fig.add_subplot(111)
+    if prices.size < 2:
+        prices = np.array([prices[0], prices[0]])
 
+    img = Image.new("RGB", (w, h), "white")
+    draw = ImageDraw.Draw(img)
+
+    # グリッド（見た目維持）
+    grid_color = (220, 220, 220)
+    for i in range(1, 5):
+        y = int(h * i / 5)
+        draw.line((0, y, w, y), fill=grid_color)
+    for i in range(1, 5):
+        x = int(w * i / 5)
+        draw.line((x, 0, x, h), fill=grid_color)
+
+    pmin, pmax = prices.min(), prices.max()
+    if pmax == pmin:
+        pmax += 1.0
+
+    xs = np.linspace(0, w - 1, prices.size)
+    ys = h - 1 - (prices - pmin) / (pmax - pmin) * (h - 1)
+
+    points = list(zip(xs.astype(int), ys.astype(int)))
+    draw.line(points, fill=(0, 0, 0), width=2)
+
+    img.save(output_file, "PNG", optimize=True)
+
+# ---------- 株ごとの処理 ----------
 def process_stock(stock):
     now = datetime.utcnow()
     cutoff = now - timedelta(hours=24)
@@ -104,28 +121,14 @@ def process_stock(stock):
     prev_price = prices_full[-2]
     delta = current_price - prev_price
     deltaPercent = round(delta / prev_price * 100, 2) if prev_price != 0 else 0.0
-    min_price = min(prices_full)
-    max_price = max(prices_full)
 
     times, prices = downsample_minmax(times_full, prices_full)
-
-    # ---------- 描画（見た目完全維持） ----------
-    ax.clear()
-    ax.plot(times, prices, linewidth=1.8)
-    ax.set_xlabel("time")
-    ax.set_ylabel("price")
-    ax.set_title("stocks")
-    ax.grid(True, linestyle="--", alpha=0.6)
-    ax.set_xticks([])
-
-    fig.tight_layout()
 
     out_dir = "/tmp"
     os.makedirs(out_dir, exist_ok=True)
     output_file = os.path.join(out_dir, f"{stock['id']}.png")
 
-    fig.savefig(output_file)
-    # close はしない（再利用）
+    draw_graph(times, prices, output_file)
 
     return {
         "id": stock["id"],
@@ -133,8 +136,8 @@ def process_stock(stock):
         "prev_price": prev_price,
         "delta": delta,
         "deltaPercent": deltaPercent,
-        "min": min_price,
-        "max": max_price,
+        "min": min(prices_full),
+        "max": max(prices_full),
         "image": output_file
     }
 
@@ -142,7 +145,6 @@ def process_stock(stock):
 input_json = sys.stdin.read()
 stocks = json.loads(input_json)
 
-# Render では並列化しない（最重要）
 results = [process_stock(stock) for stock in stocks]
 
 print(json.dumps(results))
