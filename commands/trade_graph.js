@@ -69,7 +69,7 @@ export async function execute(interaction, { client }) {
   // Python 起動（1回）
   // ============================
   const py = spawn("python", [
-    path.resolve(__dirname, "../python/graph_render_safe.py"),
+    path.resolve(__dirname, "../python/graph.py"),
   ]);
 
   py.stdin.write(JSON.stringify({ stocks: stocksPayload }));
