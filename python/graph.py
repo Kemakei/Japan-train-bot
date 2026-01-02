@@ -15,8 +15,7 @@ import time
 # ===================
 T0 = time.time()
 def log(msg):
-    print(f"[{time.time() - T0:6.2f}s] {msg}", file=sys.stderr)
-
+    print(f"[{time.time() - T0:6.2f}s] {msg}", flush=True)
 # ===================
 # matplotlib 高速化
 # ===================
