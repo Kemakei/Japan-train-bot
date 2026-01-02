@@ -1,32 +1,12 @@
 #!/usr/bin/env python3
 import json
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import matplotlib as mpl
-from datetime import datetime, timedelta
 import sys
 import os
-import uuid
-import time
+from datetime import datetime, timedelta
+from PIL import Image, ImageDraw
 
-
-# ===================
-# matplotlib 高速化
-# ===================
-mpl.rcParams.update({
-    "path.simplify": True,
-    "path.simplify_threshold": 1.0,
-    "agg.path.chunksize": 10000,
-})
-
-# ===================
-# 🚀 超高速 datetime パース（ISO固定前提）
-# ===================
-def parse_time_fast(t):
+def parse_time_fast(s):
     try:
-        s = t if isinstance(t, str) else str(t)
-        # YYYY-MM-DDTHH:MM:SS まで使用（Z / offset 無視）
         return datetime(
             int(s[0:4]), int(s[5:7]), int(s[8:10]),
             int(s[11:13]), int(s[14:16]), int(s[17:19])
@@ -34,146 +14,99 @@ def parse_time_fast(t):
     except Exception:
         return None
 
-def extract_history(data):
-    th = data.get("trade_history")
-    if isinstance(th, list):
-        return th
-    if isinstance(th, dict):
-        for v in th.values():
-            if isinstance(v, list):
-                return v
-    return []
-
-# ===================
-# 📉 min/max ダウンサンプル
-# ===================
-def downsample_minmax(times, prices, max_points=2000):
-    n = len(times)
+def downsample(prices, max_points=1500):
+    n = len(prices)
     if n <= max_points:
-        return times, prices
+        return prices
 
     step = max(1, n // max_points)
-    new_t, new_p = [], []
-
+    out = []
     for i in range(0, n, step):
-        chunk_t = times[i:i+step]
-        chunk_p = prices[i:i+step]
-        if not chunk_p:
-            continue
+        out.append(prices[i])
+    return out
 
-        min_i = chunk_p.index(min(chunk_p))
-        max_i = chunk_p.index(max(chunk_p))
+def draw(prices, out_path):
+    W, H = 800, 400
+    PAD = 30
 
-        if min_i == max_i:
-            new_t.append(chunk_t[min_i])
-            new_p.append(chunk_p[min_i])
-        else:
-            if min_i < max_i:
-                new_t.extend([chunk_t[min_i], chunk_t[max_i]])
-                new_p.extend([chunk_p[min_i], chunk_p[max_i]])
-            else:
-                new_t.extend([chunk_t[max_i], chunk_t[min_i]])
-                new_p.extend([chunk_p[max_i], chunk_p[min_i]])
+    img = Image.new("RGB", (W, H), "white")
+    d = ImageDraw.Draw(img)
 
-    return new_t, new_p
+    mn, mx = min(prices), max(prices)
+    span = max(mx - mn, 1e-6)
 
-# ===================
-# メイン
-# ===================
+    def tx(i):
+        return PAD + i / (len(prices)-1) * (W - PAD*2)
+
+    def ty(p):
+        return H - PAD - (p - mn) / span * (H - PAD*2)
+
+    pts = [(tx(i), ty(p)) for i, p in enumerate(prices)]
+    d.line(pts, fill=(40, 110, 220), width=2)
+
+    img.save(out_path, format="PNG", optimize=False)
+
+# ============================
+# Main
+# ============================
 raw = sys.stdin.read()
-log("stdin read done")
-
 if not raw:
-    print("❌ no input", file=sys.stderr)
     sys.exit(1)
 
 data = json.loads(raw)
-log("json loaded")
-
-history = extract_history(data)
-log(f"history extracted: {len(history)}")
-
-fallback_price = float(data.get("stock_price", 1000))
-
 now = datetime.utcnow()
-cutoff = now - timedelta(hours=24)
+results = []
 
-pairs = []
-log("start parsing history")
+for stock in data["stocks"]:
+    history = stock["history"]
+    fallback = float(stock["price"])
 
-for h in history:
-    t_raw = h.get("time") or h.get("timestamp") or h.get("date")
-    p_raw = h.get("price") or h.get("value") or h.get("close")
-    if t_raw is None or p_raw is None:
-        continue
+    pairs = []
 
-    t = parse_time_fast(t_raw)
-    if t is None or t < cutoff:
-        continue
+    for h in history:
+        t_raw = h.get("time") or h.get("timestamp") or h.get("date")
+        p_raw = h.get("price") or h.get("value") or h.get("close")
+        if not t_raw or p_raw is None:
+            continue
 
-    try:
-        p = float(p_raw)
-    except ValueError:
-        continue
+        t = parse_time_fast(t_raw)
+        if not t:
+            continue
 
-    pairs.append((t, p))
+        try:
+            p = float(p_raw)
+        except:
+            continue
 
-log(f"pairs built: {len(pairs)}")
+        pairs.append((t, p))
 
-# ソート（時系列保証があるなら削除可）
-pairs.sort(key=lambda x: x[0])
-log("pairs sorted")
+    if not pairs:
+        pairs = [
+            (now - timedelta(minutes=10), fallback),
+            (now, fallback),
+        ]
+    elif len(pairs) == 1:
+        pairs.insert(0, (pairs[0][0] - timedelta(minutes=10), pairs[0][1]))
 
-# fallback（最低2点）
-if not pairs:
-    pairs = [
-        (now - timedelta(minutes=10), fallback_price),
-        (now, fallback_price),
-    ]
-elif len(pairs) == 1:
-    pairs.insert(0, (pairs[0][0] - timedelta(minutes=10), pairs[0][1]))
+    prices = [p[1] for p in pairs]
+    prices = downsample(prices)
 
-# ---- 数値計算（フルデータ）----
-times_full = [p[0] for p in pairs]
-prices_full = [p[1] for p in pairs]
+    current = prices[-1]
+    prev = prices[-2]
+    delta = current - prev
+    delta_pct = round(delta / prev * 100, 2) if prev != 0 else 0.0
 
-current_price = prices_full[-1]
-prev_price = prices_full[-2]
-delta = current_price - prev_price
-deltaPercent = round(delta / prev_price * 100, 2) if prev_price != 0 else 0.0
-min_price = min(prices_full)
-max_price = max(prices_full)
+    out = f"/tmp/stock_{stock['id']}.png"
+    draw(prices, out)
 
-# ---- グラフ用だけ削減 ----
-times, prices = downsample_minmax(times_full, prices_full, max_points=2000)
-log(f"downsampled to {len(times)} points")
+    results.append({
+        "id": stock["id"],
+        "current": current,
+        "delta": delta,
+        "deltaPercent": delta_pct,
+        "min": min(prices),
+        "max": max(prices),
+        "image": out,
+    })
 
-# ===================
-# グラフ描画（見た目そのまま）
-# ===================
-plt.figure(figsize=(8, 4))
-plt.plot(times, prices, linewidth=1.8)
-plt.xlabel("time")
-plt.ylabel("price")
-plt.title("Stock Price (24h)")
-plt.grid(True, linestyle="--", alpha=0.6)
-plt.gca().set_xticks([])
-plt.tight_layout()
-
-output_file = os.path.join(
-    os.getcwd(), f"stock_{uuid.uuid1().hex}.png"
-)
-plt.savefig(output_file)
-plt.close()
-
-log("image saved")
-
-print(json.dumps({
-    "current": current_price,
-    "prev_price": prev_price,
-    "delta": delta,
-    "deltaPercent": deltaPercent,
-    "min": min_price,
-    "max": max_price,
-    "image": output_file
-}))
+print(json.dumps(results))
