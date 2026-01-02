@@ -7,7 +7,7 @@ import matplotlib as mpl
 from datetime import datetime, timedelta, UTC
 import os
 
-# ---------- matplotlib 高速化（見た目影響なし） ----------
+# ---------- matplotlib 高速化 ----------
 mpl.rcParams.update({
     "path.simplify": True,
     "path.simplify_threshold": 1.0,
@@ -26,7 +26,7 @@ def parse_time_fast(t):
     except Exception:
         return None
 
-# ---------- min/max ダウンサンプリング（見た目同一） ----------
+# ---------- min/max ダウンサンプリング ----------
 def downsample_minmax(times, prices, max_points=2000):
     n = len(times)
     if n <= max_points:
@@ -56,14 +56,18 @@ def downsample_minmax(times, prices, max_points=2000):
 
     return nt, np
 
-# ---------- Figure / Axes 完全再利用 ----------
+# ---------- Figure / Axes 再利用 ----------
 fig = plt.figure(figsize=(8, 4))
 ax = fig.add_subplot(111)
-ax.set_xlabel("time")
-ax.set_ylabel("price")
-ax.set_title("stocks")
-ax.grid(True, linestyle="--", alpha=0.6)
-ax.set_xticks([])
+
+def setup_axes():
+    ax.set_xlabel("time")
+    ax.set_ylabel("price")
+    ax.set_title("stocks")
+    ax.grid(True, linestyle="--", alpha=0.6)
+    ax.set_xticks([])
+
+setup_axes()
 
 OUT_DIR = "/tmp"
 os.makedirs(OUT_DIR, exist_ok=True)
@@ -104,15 +108,12 @@ def process_stock(stock):
     times, prices = downsample_minmax(times, prices)
 
     # ---------- 描画 ----------
-    ax.lines.clear()
+    ax.cla()          # ← ここが修正点
+    setup_axes()
     ax.plot(times, prices, linewidth=1.8)
 
     output_file = os.path.join(OUT_DIR, f"{stock['id']}.png")
-    fig.savefig(
-        output_file,
-        dpi=60,            # ★ 最大効果
-        format="png"
-    )
+    fig.savefig(output_file, dpi=60)
 
     cur = prices[-1]
     prev = prices[-2]
