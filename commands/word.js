@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
+import { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from "discord.js";
 import XLSX from "xlsx";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -35,13 +35,13 @@ export async function execute(interaction) {
   const client = interaction.client; // client取得
   const rows = loadWords();
 
-  if (rows.length < 5) {
-    await interaction.reply({
-      content: "単語数が足りません、管理者に連絡してください",
-      ephemeral: true,
-    });
-    return;
-  }
+  if (rows.length < 5) { 
+      await interaction.reply({
+       content: "単語数が足りません、管理者に連絡してください", 
+       ephemeral: true, 
+      }); 
+      return; 
+    }
 
   // ===== 出題済み単語を避ける =====
   const usedSet = usedWordsMap.get(userId) || new Set();
@@ -74,9 +74,14 @@ export async function execute(interaction) {
     )
   );
 
-  // ===== 出題 =====
+  // ===== 出題 Embed =====
+  const quizEmbed = new EmbedBuilder()
+    .setTitle("英単語クイズ")
+    .setDescription(`**同じ意味となる英単語を選択してください**\n**${word}**`)
+    .setColor("Blue");
+
   await interaction.reply({
-    content: `📘 **同じ意味となる英単語を選択してください**\n**${word}**`,
+    embeds: [quizEmbed],
     components: [buttons],
     ephemeral: false,
   });
@@ -90,7 +95,7 @@ export async function execute(interaction) {
 
   collector.on("collect", async i => {
     if (i.user.id !== userId) {
-      await i.reply({ content: "❌ あなたのクイズではありません", ephemeral: true });
+      await i.reply({ content: "❌あなたのクイズではありません", ephemeral: true });
       return;
     }
 
@@ -100,11 +105,23 @@ export async function execute(interaction) {
     if (selected === correctMeaning) {
       // 正解 + Coins +500
       await client.updateCoins(userId, 500);
-      await i.update({ content: `**正解**\n解答：**${correctMeaning}**`, components: [] });
+
+      const correctEmbed = new EmbedBuilder()
+        .setTitle("正解！")
+        .setDescription(`500コインを入手しました\n英単語：**${word}**   意味：**${correctMeaning}**`)
+        .setColor("Green");
+
+      await i.update({ embeds: [correctEmbed], components: [] });
     } else {
       // 不正解 + Coins +150
       await client.updateCoins(userId, 150);
-      await i.update({ content: `不正解\n解答：**${correctMeaning}**`, components: [] });
+
+      const wrongEmbed = new EmbedBuilder()
+        .setTitle("不正解")
+        .setDescription(`150コインを入手しました\n英単語：**${word}**   意味：**${correctMeaning}**`)
+        .setColor("Red");
+
+      await i.update({ embeds: [wrongEmbed], components: [] });
     }
 
     collector.stop();
@@ -112,10 +129,12 @@ export async function execute(interaction) {
 
   collector.on("end", collected => {
     if (collected.size === 0) {
-      interaction.editReply({
-        content: `時間切れ\n解答：**${correctMeaning}**`,
-        components: [],
-      });
+      const timeoutEmbed = new EmbedBuilder()
+        .setTitle("時間切れ")
+        .setDescription(`英単語：**${word}**  意味：**${correctMeaning}**`)
+        .setColor("Grey");
+
+      interaction.editReply({ embeds: [timeoutEmbed], components: [] });
     }
   });
 }
