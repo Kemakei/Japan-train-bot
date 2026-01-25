@@ -38,17 +38,26 @@ export async function execute(interaction, { client }) {
   const count = interaction.options.getInteger("count");
   const now = Date.now();
 
-  /** クールダウンチェック */
+  /** クールダウンチェック（0分を表示しない） */
   const lastBuy = buyCooldown.get(userId);
   if (lastBuy && now - lastBuy < COOLDOWN_TIME) {
-    const remain = Math.ceil((COOLDOWN_TIME - (now - lastBuy)) / 1000);
+    const remainMs = COOLDOWN_TIME - (now - lastBuy);
+    const remainSec = Math.ceil(remainMs / 1000);
+    const minutes = Math.floor(remainSec / 60);
+    const seconds = remainSec % 60;
+
+    const timeText =
+      minutes > 0
+        ? `${minutes}分${seconds}秒`
+        : `${seconds}秒`;
+
     return interaction.reply({
-      content: `⏳ 再購入は **${remain}秒後** に可能です`,
+      content: `⏳ 再購入は **${timeText}後** に可能です`,
       ephemeral: true
     });
   }
 
-  /** 株数チェック（念のため） */
+  /** 株数チェック */
   if (count < 1 || count > 1000) {
     return interaction.reply({
       content: "❌ 株数は 1〜1000 の範囲です",
@@ -83,7 +92,7 @@ export async function execute(interaction, { client }) {
   /** コイン減算 */
   await client.updateCoins(userId, -pay);
 
-  /** 株を加算（1回だけ！） */
+  /** 株を加算 */
   await client.stockHistoryCol.updateOne(
     { userId },
     { $inc: { [`stocks.${stockId}`]: count } },
