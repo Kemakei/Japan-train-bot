@@ -6,8 +6,9 @@ export const data = new SlashCommandBuilder()
   .setDescription('失業保険の期限切れリマインダーを設定')
   .addUserOption(option =>
     option.setName('user')
-      .setDescription('対象ユーザー'));
+      .setDescription('対象ユーザー'))
 
+// APIから履歴取得・7日後算出
 async function fetchUnemployExpireDate(userId) {
   let res;
   try {
@@ -27,22 +28,23 @@ async function fetchUnemployExpireDate(userId) {
     throw new Error("takasumi bot側でエラーが発生しました");
   }
 
-  // 直接配列が返る
   const history = Array.isArray(data) ? data : [];
-
   if (!history.length) return null;
 
-  // 「失業保険を購入」の最新履歴を取得
-  const latest = history
-    .filter(h => h.reason === "失業保険を購入")
+  // 最新1000件に絞る
+  const recentHistory = history.slice(-1000);
+
+  // 「失業保険の購入」だけフィルターして最新を取得
+  const latest = recentHistory
+    .filter(h => h.reason === "失業保険の購入")
     .sort((a, b) => new Date(b.tradedAt) - new Date(a.tradedAt))[0];
 
   if (!latest) return null;
 
-  // 7日後を計算
   return new Date(new Date(latest.tradedAt).getTime() + 7 * 24 * 60 * 60 * 1000);
 }
 
+// 期限切れチェックして通知
 async function checkUnemployTimers(client) {
   const col = client.db.collection("unemploy_timers");
   const now = Date.now();
@@ -71,14 +73,14 @@ async function checkUnemployTimers(client) {
   }
 }
 
+// コマンド実行
 export async function execute(interaction, { client }) {
   const targetUser = interaction.options.getUser('user') || interaction.user;
   const userId = targetUser.id;
 
-  // takasumi bot 履歴から7日後を取得
   const expireDate = await fetchUnemployExpireDate(userId);
   if (!expireDate) {
-    await interaction.reply({ content: 'Error: 失業保険の購入履歴が見つかりません', ephemeral: true });
+    await interaction.reply({ content: '❌失業保険の購入履歴が見つかりません', ephemeral: true });
     return;
   }
 
@@ -103,7 +105,7 @@ export async function execute(interaction, { client }) {
   });
 }
 
-// Bot 起動時に1分ごとチェック
+// Bot起動時に1分ごとチェック
 export async function scheduleUnemployCheck(client) {
   setInterval(() => {
     checkUnemployTimers(client)
