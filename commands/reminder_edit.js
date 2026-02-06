@@ -36,7 +36,6 @@ export const data = new SlashCommandBuilder()
       .setRequired(false)
   );
 
-
 // =====================
 // Autocomplete
 // =====================
@@ -70,7 +69,6 @@ export async function handleAutocomplete(interaction) {
   await interaction.respond(filtered.slice(0, 25));
 }
 
-
 // =====================
 // Execute
 // =====================
@@ -80,6 +78,17 @@ export async function execute(interaction, { client }) {
 
   const target = interaction.options.getString("target");
   const del = interaction.options.getBoolean("delete");
+
+  /* ---------- まずユーザーの過去リマインダーをチェックして削除 ---------- */
+  const userReminders = await remindersCol.find({ userId, active: true }).toArray();
+  for (const r of userReminders) {
+    if (r.targetAt && r.targetAt <= new Date()) {
+      await remindersCol.deleteOne({ reminderId: r.reminderId });
+      const t = client.reminders.get(r.reminderId);
+      if (t) clearTimeout(t);
+      client.reminders.delete(r.reminderId);
+    }
+  }
 
   /* ---------- 一覧表示 ---------- */
   if (!target) {
@@ -94,7 +103,7 @@ export async function execute(interaction, { client }) {
 
     const lines = list.map(r => {
       const dt = DateTime.fromJSDate(r.targetAt).setZone(r.timezone);
-      return `• ${dt.toFormat("MM/dd HH:mm")} (${r.timezone}) snooze=${r.snooze}`;
+      return `• ${dt.toFormat("MM/dd HH:mm")} (${r.timezone}) snooze=${r.snooze}｜${r.message || "メッセージなし"}`;
     });
 
     return interaction.reply({ content: lines.join("\n"), flags: 64 });
@@ -191,6 +200,10 @@ export async function execute(interaction, { client }) {
     const timeout = setTimeout(async () => {
       const ch = await client.channels.fetch(found.channelId);
       await ch.send(`<@${userId}> ${update.message ?? found.message ?? "リマインドです"}`);
+
+      // 実行後は削除
+      await remindersCol.deleteOne({ reminderId: found.reminderId });
+      client.reminders.delete(found.reminderId);
     }, newDelayMs);
 
     client.reminders.set(found.reminderId, timeout);
@@ -200,11 +213,21 @@ export async function execute(interaction, { client }) {
   }
 
   update.updatedAt = new Date();
-
   await remindersCol.updateOne(
     { reminderId: found.reminderId },
     { $set: update }
   );
+
+  /* ---------- 編集後に現在時刻を過ぎていたら削除 ---------- */
+  const checkTargetAt = update.targetAt || found.targetAt;
+  if (checkTargetAt && checkTargetAt <= new Date()) {
+    await remindersCol.deleteOne({ reminderId: found.reminderId });
+    const t = client.reminders.get(found.reminderId);
+    if (t) clearTimeout(t);
+    client.reminders.delete(found.reminderId);
+
+    return interaction.reply({ content: "編集後、リマインダーの時間が過ぎていたため削除しました", flags: 64 });
+  }
 
   await interaction.reply({ content: "更新しました", flags: 64 });
 }

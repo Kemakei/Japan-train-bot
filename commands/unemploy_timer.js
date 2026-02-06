@@ -6,9 +6,8 @@ export const data = new SlashCommandBuilder()
   .setDescription('失業保険の期限切れリマインダーを設定')
   .addUserOption(option =>
     option.setName('user')
-      .setDescription('対象ユーザー'))
+      .setDescription('対象ユーザー'));
 
-// APIから履歴取得・7日後算出
 async function fetchUnemployExpireDate(userId) {
   let res;
   try {
@@ -31,27 +30,24 @@ async function fetchUnemployExpireDate(userId) {
   const history = Array.isArray(data) ? data : [];
   if (!history.length) return null;
 
-  // 最新1000件に絞る
-  const recentHistory = history.slice(-1000);
-
-  // 「失業保険の購入」だけフィルターして最新を取得
-  const latest = recentHistory
+  // 「失業保険の購入」の最新履歴を取得（最後の1000件に絞る）
+  const latest = history
+    .slice(-1000)
     .filter(h => h.reason === "失業保険の購入")
     .sort((a, b) => new Date(b.tradedAt) - new Date(a.tradedAt))[0];
 
   if (!latest) return null;
 
+  // 7日後を計算
   return new Date(new Date(latest.tradedAt).getTime() + 7 * 24 * 60 * 60 * 1000);
 }
 
-// 期限切れチェックして通知
 async function checkUnemployTimers(client) {
   const col = client.db.collection("unemploy_timers");
   const now = Date.now();
 
   const expired = await col.find({
-    expireAt: { $lte: now },
-    notified: false
+    expireAt: { $lte: now }
   }).toArray();
 
   for (const doc of expired) {
@@ -64,23 +60,23 @@ async function checkUnemployTimers(client) {
           `<@${doc.userId}> takasumi botでの失業保険が切れました`
         );
       }
+    } catch (err) {
+      console.error(`通知失敗: ${err}`);
     } finally {
-      await col.updateOne(
-        { _id: doc._id },
-        { $set: { notified: true } }
-      );
+      // 通知後に MongoDB から削除
+      await col.deleteOne({ _id: doc._id });
     }
   }
 }
 
-// コマンド実行
 export async function execute(interaction, { client }) {
   const targetUser = interaction.options.getUser('user') || interaction.user;
   const userId = targetUser.id;
 
+  // takasumi bot 履歴から7日後を取得
   const expireDate = await fetchUnemployExpireDate(userId);
   if (!expireDate) {
-    await interaction.reply({ content: '❌失業保険の購入履歴が見つかりません', ephemeral: true });
+    await interaction.reply({ content: 'Error: 失業保険の購入履歴が見つかりません', ephemeral: true });
     return;
   }
 
@@ -93,19 +89,18 @@ export async function execute(interaction, { client }) {
         userId,
         guildId: interaction.guildId,
         channelId: interaction.channelId,
-        expireAt: expireDate.getTime(),
-        notified: false
+        expireAt: expireDate.getTime()
       }
     },
     { upsert: true }
   );
 
   await interaction.reply({
-    content: `${targetUser} の失業保険は ${expireDate.toLocaleString()} に期限切れになります`
+    content: `失業保険リマインダーを設定しました\n${targetUser} の失業保険は ${expireDate.toLocaleString()} に期限切れになります`
   });
 }
 
-// Bot起動時に1分ごとチェック
+// Bot 起動時に1分ごとチェック
 export async function scheduleUnemployCheck(client) {
   setInterval(() => {
     checkUnemployTimers(client)
