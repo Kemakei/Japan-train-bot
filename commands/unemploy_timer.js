@@ -27,12 +27,13 @@ async function fetchUnemployExpireDate(userId) {
     throw new Error("takasumi bot側でエラーが発生しました");
   }
 
-  const history = Array.isArray(data) ? data : [];
+  // 配列が返る想定
+  const history = Array.isArray(data) ? data.slice(-1000) : []; // 最新1000件に絞る
+
   if (!history.length) return null;
 
-  // 「失業保険の購入」の最新履歴を取得（最後の1000件に絞る）
+  // 「失業保険の購入」の最新履歴を取得
   const latest = history
-    .slice(-1000)
     .filter(h => h.reason === "失業保険の購入")
     .sort((a, b) => new Date(b.tradedAt) - new Date(a.tradedAt))[0];
 
@@ -60,10 +61,8 @@ async function checkUnemployTimers(client) {
           `<@${doc.userId}> takasumi botでの失業保険が切れました`
         );
       }
-    } catch (err) {
-      console.error(`通知失敗: ${err}`);
     } finally {
-      // 通知後に MongoDB から削除
+      // 通知後に削除
       await col.deleteOne({ _id: doc._id });
     }
   }
@@ -73,15 +72,29 @@ export async function execute(interaction, { client }) {
   const targetUser = interaction.options.getUser('user') || interaction.user;
   const userId = targetUser.id;
 
+  const col = client.db.collection('unemploy_timers');
+
+  // 既に設定済みか確認
+  const existing = await col.findOne({ userId, guildId: interaction.guildId });
+  if (existing) {
+    await interaction.reply({
+      content: '❌ すでに失業保険リマインダーが設定されています',
+      ephemeral: true
+    });
+    return;
+  }
+
   // takasumi bot 履歴から7日後を取得
   const expireDate = await fetchUnemployExpireDate(userId);
   if (!expireDate) {
-    await interaction.reply({ content: 'Error: 失業保険の購入履歴が見つかりません', ephemeral: true });
+    await interaction.reply({
+      content: '❌ 失業保険の購入履歴が見つかりません',
+      ephemeral: true
+    });
     return;
   }
 
   // MongoDBに保存
-  const col = client.db.collection('unemploy_timers');
   await col.updateOne(
     { userId, guildId: interaction.guildId },
     {

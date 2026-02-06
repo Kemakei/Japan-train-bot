@@ -121,7 +121,7 @@ export async function execute(interaction, { client }) {
   const sendReminder = async () => {
     const content = messageText
       ? `${userMention} ${messageText}`
-      : `${userMention} リマインド時間になりました`;
+      : `${userMention} `;
 
     if (lastMessage) {
       try {
