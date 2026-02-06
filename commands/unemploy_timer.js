@@ -1,18 +1,12 @@
-import { SlashCommandBuilder } from "discord.js";
-import { request } from "undici";
+import { SlashCommandBuilder } from 'discord.js';
+import { request } from 'undici';
 
-/* ---------------- 共通 ---------------- */
-
-function resolveUserId(input, fallbackUserId) {
-  if (!input) return fallbackUserId;
-
-  const mention = input.match(/^<@!?(\d+)>$/);
-  if (mention) return mention[1];
-
-  if (/^\d+$/.test(input)) return input;
-
-  return fallbackUserId;
-}
+export const data = new SlashCommandBuilder()
+  .setName('unemploy_timer')
+  .setDescription('失業保険の期限切れリマインダーを設定')
+  .addUserOption(option =>
+    option.setName('user')
+      .setDescription('対象ユーザー'));
 
 async function fetchUnemployExpireDate(userId) {
   let res;
@@ -26,56 +20,77 @@ async function fetchUnemployExpireDate(userId) {
     throw new Error("takasumi bot側でエラーが発生しました");
   }
 
-  let history;
+  let data;
   try {
-    history = JSON.parse(await res.body.text());
+    data = JSON.parse(await res.body.text());
   } catch {
     throw new Error("takasumi bot側でエラーが発生しました");
   }
 
-  if (!Array.isArray(history)) return null;
+  // 直接配列が返る
+  const history = Array.isArray(data) ? data : [];
 
+  if (!history.length) return null;
+
+  // 「失業保険を購入」の最新履歴を取得
   const latest = history
-    .filter(h => h.action === "失業保険を購入")
-    .sort((a, b) => new Date(b.time) - new Date(a.time))[0];
+    .filter(h => h.reason === "失業保険を購入")
+    .sort((a, b) => new Date(b.tradedAt) - new Date(a.tradedAt))[0];
 
   if (!latest) return null;
 
-  return new Date(
-    new Date(latest.time).getTime() + 7 * 24 * 60 * 60 * 1000
-  );
+  // 7日後を計算
+  return new Date(new Date(latest.tradedAt).getTime() + 7 * 24 * 60 * 60 * 1000);
 }
 
-/* ---------------- Command ---------------- */
+async function checkUnemployTimers(client) {
+  const col = client.db.collection("unemploy_timers");
+  const now = Date.now();
 
-export const data = new SlashCommandBuilder()
-  .setName("unemploy_timer")
-  .setDescription("takasumi botの失業保険期限を設定します")
-  .addStringOption(opt =>
-    opt
-      .setName("user")
-      .setDescription("対象ユーザー（ID または メンション）")
-      .setRequired(false)
-  );
+  const expired = await col.find({
+    expireAt: { $lte: now },
+    notified: false
+  }).toArray();
+
+  for (const doc of expired) {
+    try {
+      const guild = await client.guilds.fetch(doc.guildId);
+      const channel = await guild.channels.fetch(doc.channelId);
+
+      if (channel) {
+        await channel.send(
+          `<@${doc.userId}> takasumi botでの失業保険が切れました`
+        );
+      }
+    } finally {
+      await col.updateOne(
+        { _id: doc._id },
+        { $set: { notified: true } }
+      );
+    }
+  }
+}
 
 export async function execute(interaction, { client }) {
-  await interaction.deferReply({ ephemeral: true });
+  const targetUser = interaction.options.getUser('user') || interaction.user;
+  const userId = targetUser.id;
 
-  const input = interaction.options.getString("user");
-  const userId = resolveUserId(input, interaction.user.id);
-
+  // takasumi bot 履歴から7日後を取得
   const expireDate = await fetchUnemployExpireDate(userId);
   if (!expireDate) {
-    throw new Error("失業保険の購入履歴が見つかりません");
+    await interaction.reply({ content: 'Error: 失業保険の購入履歴が見つかりません', ephemeral: true });
+    return;
   }
 
-  await client.db.collection("unemploy_timers").updateOne(
-    { guildId: interaction.guildId, userId },
+  // MongoDBに保存
+  const col = client.db.collection('unemploy_timers');
+  await col.updateOne(
+    { userId, guildId: interaction.guildId },
     {
       $set: {
+        userId,
         guildId: interaction.guildId,
         channelId: interaction.channelId,
-        userId,
         expireAt: expireDate.getTime(),
         notified: false
       }
@@ -83,7 +98,15 @@ export async function execute(interaction, { client }) {
     { upsert: true }
   );
 
-  await interaction.editReply(
-    `リマインダーを設定しました`
-  );
+  await interaction.reply({
+    content: `${targetUser} の失業保険は ${expireDate.toLocaleString()} に期限切れになります`
+  });
+}
+
+// Bot 起動時に1分ごとチェック
+export async function scheduleUnemployCheck(client) {
+  setInterval(() => {
+    checkUnemployTimers(client)
+      .catch(err => console.error("失業保険チェック失敗:", err));
+  }, 60 * 1000);
 }
