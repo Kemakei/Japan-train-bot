@@ -390,35 +390,6 @@ function scheduleTakarakujiUpdate() {
   }, nextHalfHour);
 }
 
-// --- 失業保険 ---
-async function checkUnemployTimers(client) {
-  const col = client.db.collection("unemploy_timers");
-  const now = Date.now();
-
-  const expired = await col.find({
-    expireAt: { $lte: now },
-    notified: false
-  }).toArray();
-
-  for (const doc of expired) {
-    try {
-      const guild = await client.guilds.fetch(doc.guildId);
-      const channel = await guild.channels.fetch(doc.channelId);
-
-      if (channel) {
-        await channel.send(
-          `<@${doc.userId}> takasumi botでの失業保険が切れました`
-        );
-      }
-    } finally {
-      await col.updateOne(
-        { _id: doc._id },
-        { $set: { notified: true } }
-      );
-    }
-  }
-}
-
 
 // --- データベースサニタイズ ---
 async function sanitizeDatabase() {
@@ -468,12 +439,6 @@ client.once(Events.ClientReady, async () => {
   scheduleTakarakujiUpdate();
   scheduleDailyLoanUpdate(client);
 
-// ---- 失業保険期限チェック（1分ごと） ----
-  setInterval(() => {
-  checkUnemployTimers(client)
-    .catch(err => console.error("失業保険チェック失敗:", err));
-  }, 60 * 1000);
-  
   console.log("🎰 宝くじ自動更新スケジュールが開始されました。");
   console.log("✅ 借金日次更新スケジュールが開始されました。");
 
