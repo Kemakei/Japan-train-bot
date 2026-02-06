@@ -166,13 +166,10 @@ export async function execute(interaction, { client }) {
 
         const active = client.reminders.get(reminderId);
         if (active) clearTimeout(active);
-
         client.reminders.delete(reminderId);
 
-        await remindersCol.updateOne(
-          { reminderId },
-          { $set: { active: false, updatedAt: new Date() } }
-        );
+        // MongoDB から削除
+        await remindersCol.deleteOne({ reminderId });
 
         await msg.edit({
           content: "スヌーズを停止しました",
@@ -183,16 +180,14 @@ export async function execute(interaction, { client }) {
       });
     }
 
-    /* ----- 再スケジュール ----- */
+    /* ----- 実行後スケジュール（スヌーズなしは終了） ----- */
     if (!isDatetime && snooze && client.reminders.has(reminderId)) {
       const t = setTimeout(sendReminder, delayMs);
       client.reminders.set(reminderId, t);
     } else {
       client.reminders.delete(reminderId);
-      await remindersCol.updateOne(
-        { reminderId },
-        { $set: { active: false, updatedAt: new Date() } }
-      );
+      // MongoDB から削除
+      await remindersCol.deleteOne({ reminderId });
     }
   };
 
@@ -223,7 +218,7 @@ export async function execute(interaction, { client }) {
   });
 
   await interaction.reply({
-    content: `リマインダーをセットしました（${timezone}, snooze=${snooze}）`,
+    content: `リマインダーをセットしました（${timezone}, スヌーズ:${snooze}）`,
     flags: 64
   });
 }
