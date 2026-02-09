@@ -438,6 +438,7 @@ client.once(Events.ClientReady, async () => {
   await loadLatestTakarakuji();
   scheduleTakarakujiUpdate();
   scheduleDailyLoanUpdate(client);
+  scheduleUnemployCheck(client);
 
   console.log("🎰 宝くじ自動更新スケジュールが開始されました。");
   console.log("✅ 借金日次更新スケジュールが開始されました。");
