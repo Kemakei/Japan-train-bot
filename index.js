@@ -17,6 +17,8 @@ import {
 import { MongoClient } from "mongodb";
 import { scheduleDailyLoanUpdate } from './utils/dailyLoanUpdater.js';
 import { getLatestDrawId } from "./utils/draw.js";
+import { scheduleUnemployCheck } from './commands/unemploy_timer.js';
+
 // -------------------- Webサーバー設定 --------------------
 const app = express();
 const PORT = process.env.PORT || 3000;
