@@ -49,7 +49,56 @@ export async function execute(interaction) {
       .setLabel("強制終了")
       .setStyle(ButtonStyle.Danger)
   );
+  
+  new ButtonBuilder()
+  .setCustomId("jinrou_config")
+  .setLabel("役職設定")
+  .setStyle(ButtonStyle.Secondary)
 
+  const roleSelect = new StringSelectMenuBuilder()
+  .setCustomId("jinrou_role_select")
+  .setPlaceholder("追加する役職を選択")
+  .setMinValues(0)
+  .setMaxValues(8)
+  .addOptions([
+    { label: "占い師", value: "占い師" },
+    { label: "騎士", value: "騎士" },
+    { label: "霊媒師", value: "霊媒師" },
+    { label: "猫又", value: "猫又" },
+    { label: "妖狐", value: "妖狐" },
+    { label: "怪盗", value: "怪盗" },
+    { label: "てるてる", value: "てるてる" },
+    { label: "自宅警備員", value: "自宅警備員" },
+    { label: "狂人", value: "狂人" }
+  ]);
+
+  function assignRoles(game) {
+  const playerCount = game.players.length;
+
+  const roles = [];
+
+  // 人狼は最低1
+  roles.push("人狼");
+
+  // カスタム役職を追加
+  for (const r of game.customRoles) {
+    roles.push(r);
+  }
+
+  // 残りは村人
+  while (roles.length < playerCount) {
+    roles.push("村人");
+  }
+
+  // 超過していたら切る
+  roles.splice(playerCount);
+
+  shuffle(game.players);
+
+  game.players.forEach((p, i) => {
+    game.roles[p] = roles[i];
+  });
+}
   return interaction.reply({
     embeds: [
       new EmbedBuilder()
