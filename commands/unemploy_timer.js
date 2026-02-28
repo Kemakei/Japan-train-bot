@@ -3,7 +3,7 @@ import { request } from 'undici';
 
 export const data = new SlashCommandBuilder()
   .setName('unemploy_timer')
-  .setDescription('失業保険の期限切れリマインダーを設定')
+  .setDescription('[takasumi bot用]失業保険の期限切れリマインダーを設定')
   .addUserOption(option =>
     option
       .setName('user')
