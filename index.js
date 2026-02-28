@@ -503,13 +503,6 @@ client.on(Events.InteractionCreate, async interaction => {
         }
        return;
       }
-    // ===== ボタンインタラクション対応（jinrou) =====
-    if (interaction.isStringSelectMenu()) {
-     const command = client.commands.get("jinrou");
-      if (command?.handleSelectMenu)
-      return command.handleSelectMenu(interaction);
-    }
-    
     // オートコンプリート処理
     if (interaction.isAutocomplete()) {
       const command = client.commands.get(interaction.commandName);
