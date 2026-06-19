@@ -160,7 +160,7 @@ if (targetUser) {
 
   const embed =
     new EmbedBuilder()
-      .setTitle("会社分析")
+      .setTitle("個人分析")
       .addFields(
         {
           name: "ユーザー",
@@ -174,7 +174,7 @@ if (targetUser) {
           inline: true
         },
         {
-          name: "労働回数",
+          name: "働いた回数",
           value: String(
             userData.workCount
           ),
@@ -202,7 +202,7 @@ if (targetUser) {
         {
           name: "集計期間",
           value:
-            `${formatDate(startDate)}\n～\n${formatDate(endDate)}`
+            `${formatDate(startDate)}～\n${formatDate(endDate)}`
         }
       )
       .setColor(0x00AEFF)
@@ -223,16 +223,16 @@ const ranking =
     .slice(0, 10);
 
 const medals = [
-  "1",
-  "2",
-  "3",
-  "4",
-  "5",
-  "6",
-  "7",
-  "8",
-  "9",
-  "10"
+  "1位",
+  "2位",
+  "3位",
+  "4位",
+  "5位",
+  "6位",
+  "7位",
+  "8位",
+  "9位",
+  "10位"
 ];
 
 const description =
