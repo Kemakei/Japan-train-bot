@@ -23,44 +23,50 @@ timeZone: "Asia/Tokyo"
 });
 }
 
+async function fetchCompanyData(companyId) {
+let res;
+
+try {
+res = await request(
+`https://api.takasumibot.com/v3/company/history/${companyId}`
+);
+} catch {
+throw new Error("API取得に失敗しました");
+}
+
+if (res.statusCode !== 200) {
+throw new Error("APIエラーが発生しました");
+}
+
+let data;
+
+try {
+data = JSON.parse(await res.body.text());
+} catch {
+throw new Error("JSON解析に失敗しました");
+}
+
+return Array.isArray(data) ? data : [];
+}
+
 export async function execute(interaction) {
 await interaction.deferReply();
 
-const companyId = interaction.options.getString("companyid");
-const targetUser = interaction.options.getUser("user");
+const companyId =
+interaction.options.getString("companyid");
+
+const targetUser =
+interaction.options.getUser("user");
 
 try {
-async function fetchCompanyData(companyId) {
-  let res;
-
-  try {
-    res = await request(
-      `https://api.takasumibot.com/v3/company/history/${companyId}`
-    );
-  } catch {
-    throw new Error("API取得に失敗しました");
-  }
-
-  if (res.statusCode !== 200) {
-    throw new Error("APIエラーが発生しました");
-  }
-
-  let data;
-
-  try {
-    data = JSON.parse(await res.body.text());
-  } catch {
-    throw new Error("JSON解析に失敗しました");
-  }
-
-  return Array.isArray(data) ? data : [];
-};
-
+const data =
+await fetchCompanyData(companyId);
 
 const rewards = data
   .filter(
     r =>
-      r.companyId === companyId &&
+      String(r.companyId) ===
+        String(companyId) &&
       typeof r.reason === "string" &&
       r.reason.startsWith("仕事の報酬")
   )
@@ -72,15 +78,19 @@ if (!rewards.length) {
   );
 }
 
-const startDate = new Date(rewards[0].tradedAt);
-const endDate = new Date(rewards[rewards.length - 1].tradedAt);
+const startDate = new Date(
+  rewards[0].tradedAt
+);
 
-const days =
-  Math.max(
-    1,
-    (endDate - startDate) /
-      (1000 * 60 * 60 * 24)
-  );
+const endDate = new Date(
+  rewards[rewards.length - 1].tradedAt
+);
+
+const days = Math.max(
+  1,
+  (endDate - startDate) /
+    (1000 * 60 * 60 * 24)
+);
 
 const users = new Map();
 
@@ -101,7 +111,9 @@ for (const record of rewards) {
   user.totalIncome += record.amount;
   user.workCount++;
 
-  const workDate = new Date(record.tradedAt);
+  const workDate = new Date(
+    record.tradedAt
+  );
 
   if (
     !user.lastWorkDate ||
@@ -111,28 +123,34 @@ for (const record of rewards) {
   }
 }
 
-for (const user of users.values()) {
-  user.dailyAverage = Math.round(
-    user.totalIncome / days
-  );
+await Promise.all(
+  [...users.values()].map(
+    async user => {
+      user.dailyAverage =
+        Math.round(
+          user.totalIncome / days
+        );
 
-  try {
-    const discordUser =
-      await interaction.client.users.fetch(
-        user.userId
-      );
+      try {
+        const discordUser =
+          await interaction.client.users.fetch(
+            user.userId
+          );
 
-    user.username =
-      discordUser.globalName ||
-      discordUser.username;
-  } catch {
-    user.username = user.userId;
-  }
-}
+        user.username =
+          discordUser.globalName ??
+          discordUser.username;
+      } catch {
+        user.username =
+          user.userId;
+      }
+    }
+  )
+);
 
-// 個人表示
 if (targetUser) {
-  const userData = users.get(targetUser.id);
+  const userData =
+    users.get(targetUser.id);
 
   if (!userData) {
     return interaction.editReply(
@@ -140,40 +158,110 @@ if (targetUser) {
     );
   }
 
-  const embed = new EmbedBuilder()
+  const embed =
+    new EmbedBuilder()
+      .setTitle("会社分析")
+      .addFields(
+        {
+          name: "ユーザー",
+          value:
+            userData.username,
+          inline: true
+        },
+        {
+          name: "会社ID",
+          value: companyId,
+          inline: true
+        },
+        {
+          name: "労働回数",
+          value: String(
+            userData.workCount
+          ),
+          inline: true
+        },
+        {
+          name: "総収益",
+          value:
+            userData.totalIncome.toLocaleString(),
+          inline: true
+        },
+        {
+          name: "平均収益/日",
+          value:
+            userData.dailyAverage.toLocaleString(),
+          inline: true
+        },
+        {
+          name: "最後に働いた日",
+          value: formatDate(
+            userData.lastWorkDate
+          ),
+          inline: true
+        },
+        {
+          name: "集計期間",
+          value:
+            `${formatDate(startDate)}\n～\n${formatDate(endDate)}`
+        }
+      )
+      .setColor(0x00AEFF)
+      .setTimestamp();
+
+  return interaction.editReply({
+    embeds: [embed]
+  });
+}
+
+const ranking =
+  [...users.values()]
+    .sort(
+      (a, b) =>
+        b.totalIncome -
+        a.totalIncome
+    )
+    .slice(0, 10);
+
+const medals = [
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10"
+];
+
+const description =
+  ranking
+    .map(
+      (user, index) =>
+        `${medals[index]} **${user.username}**\n` +
+        `総収益: ${user.totalIncome.toLocaleString()}\n` +
+        `平均収益/日: ${user.dailyAverage.toLocaleString()}\n` +
+        `最後に働いた日: ${formatDate(user.lastWorkDate)}`
+    )
+    .join("\n\n");
+
+const embed =
+  new EmbedBuilder()
     .setTitle("会社分析")
+    .setDescription(
+      description
+    )
     .addFields(
-      {
-        name: "ユーザー",
-        value: userData.username,
-        inline: true
-      },
       {
         name: "会社ID",
         value: companyId,
         inline: true
       },
       {
-        name: "労働回数",
-        value: String(userData.workCount),
-        inline: true
-      },
-      {
-        name: "総収益",
-        value: userData.totalIncome.toLocaleString(),
-        inline: true
-      },
-      {
-        name: "平均収益/日",
+        name: "対象データ",
         value:
-          userData.dailyAverage.toLocaleString(),
-        inline: true
-      },
-      {
-        name: "最後に働いた日",
-        value: formatDate(
-          userData.lastWorkDate
-        ),
+          "直近50件の仕事報酬",
         inline: true
       },
       {
@@ -182,76 +270,22 @@ if (targetUser) {
           `${formatDate(startDate)}\n～\n${formatDate(endDate)}`
       }
     )
-    .setColor(0x00AEFF)
+    .setColor(0x2ECC71)
     .setTimestamp();
-
-  return interaction.editReply({
-    embeds: [embed]
-  });
-}
-
-// ランキング
-const ranking = [...users.values()]
-  .sort(
-    (a, b) =>
-      b.totalIncome - a.totalIncome
-  )
-  .slice(0, 10);
-
-const medals = [
-  "1",
-  "2",
-  "3",
-  "4️",
-  "5️",
-  "6️",
-  "7️",
-  "8️",
-  "9️",
-  "10"
-];
-
-const description = ranking
-  .map(
-    (user, index) =>
-      `${medals[index]} **${user.username}**\n` +
-      `総収益: ${user.totalIncome.toLocaleString()}\n` +
-      `平均収益/日: ${user.dailyAverage.toLocaleString()}\n` +
-      `最後に働いた日: ${formatDate(user.lastWorkDate)}`
-  )
-  .join("\n\n");
-
-const embed = new EmbedBuilder()
-  .setTitle("会社分析")
-  .setDescription(description)
-  .addFields(
-    {
-      name: "会社ID",
-      value: companyId,
-      inline: true
-    },
-    {
-      name: "対象データ",
-      value: "直近50件の仕事報酬",
-      inline: true
-    },
-    {
-      name: "集計期間",
-      value:
-        `${formatDate(startDate)}\n～\n${formatDate(endDate)}`
-    }
-  )
-  .setColor(0x2ECC71)
-  .setTimestamp();
 
 await interaction.editReply({
   embeds: [embed]
 });
 
+
 } catch (err) {
 console.error(err);
+
 
 await interaction.editReply(
   "❌ 会社分析中にエラーが発生しました"
 );
-}}
+
+
+}
+}
