@@ -521,7 +521,8 @@ for (const file of commandFiles) {
     console.warn(`⚠️ Skipped invalid command file: ${file}`);
   }
 }
-
+   client.takasumiCommandsJSON = takasumiCommandsJSON;
+   client.globalCommandsJSON = globalCommandsJSON;
 // ----------------------------------------------------------------------
 client.on(Events.InteractionCreate, async interaction => {
   try {
