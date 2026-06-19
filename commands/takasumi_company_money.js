@@ -28,7 +28,7 @@ let res;
 
 try {
 res = await request(
-`https://api.takasumibot.com/v3/company/history/${companyId}`
+`https://api.takasumibot.com/v3/companyHistory/${companyId}`
 );
 } catch {
 throw new Error("API取得に失敗しました");
