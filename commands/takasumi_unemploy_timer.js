@@ -2,7 +2,7 @@ import { SlashCommandBuilder } from 'discord.js';
 import { request } from 'undici';
 
 export const data = new SlashCommandBuilder()
-  .setName('unemploy_timer')
+  .setName('takasumi_unemploy_timer')
   .setDescription('[takasumi bot用]失業保険の期限切れリマインダーを設定')
   .addUserOption(option =>
     option
@@ -12,8 +12,11 @@ export const data = new SlashCommandBuilder()
 
 async function fetchUnemployExpireDate(userId) {
   let res;
+
   try {
-    res = await request(`https://api.takasumibot.com/v3/history/${userId}`);
+    res = await request(
+      `https://api.takasumibot.com/v3/history/${userId}`
+    );
   } catch {
     throw new Error('takasumi bot側でエラーが発生しました');
   }
@@ -23,6 +26,7 @@ async function fetchUnemployExpireDate(userId) {
   }
 
   let data;
+
   try {
     data = JSON.parse(await res.body.text());
   } catch {
@@ -30,16 +34,22 @@ async function fetchUnemployExpireDate(userId) {
   }
 
   const history = Array.isArray(data) ? data.slice(-1000) : [];
+
   if (!history.length) return null;
 
   const latest = history
     .filter(h => h.reason === '失業保険の購入')
-    .sort((a, b) => new Date(b.tradedAt) - new Date(a.tradedAt))[0];
+    .sort(
+      (a, b) =>
+        new Date(b.tradedAt).getTime() -
+        new Date(a.tradedAt).getTime()
+    )[0];
 
   if (!latest) return null;
 
   return new Date(
-    new Date(latest.tradedAt).getTime() + 7 * 24 * 60 * 60 * 1000
+    new Date(latest.tradedAt).getTime() +
+      7 * 24 * 60 * 60 * 1000
   );
 }
 
@@ -70,16 +80,21 @@ async function checkUnemployTimers(client) {
 }
 
 export async function execute(interaction, { client }) {
-  // DM 実行を禁止
-  if (!interaction.inGuild()) {
-    await interaction.reply({
-      content: 'このコマンドはサーバー内でのみ使用できます',
+  if (!interaction.deferred && !interaction.replied) {
+    await interaction.deferReply({
       ephemeral: true
     });
-    return;
   }
 
-  const targetUser = interaction.options.getUser('user') || interaction.user;
+  if (!interaction.inGuild()) {
+    return interaction.editReply({
+      content: 'このコマンドはサーバー内でのみ使用できます'
+    });
+  }
+
+  const targetUser =
+    interaction.options.getUser('user') ?? interaction.user;
+
   const userId = targetUser.id;
 
   const col = client.db.collection('unemploy_timers');
@@ -90,24 +105,33 @@ export async function execute(interaction, { client }) {
   });
 
   if (existing) {
-    await interaction.reply({
-      content: '❌ すでに失業保険リマインダーが設定されています',
-      ephemeral: true
+    return interaction.editReply({
+      content:
+        '❌ すでに失業保険リマインダーが設定されています'
     });
-    return;
   }
 
-  const expireDate = await fetchUnemployExpireDate(userId);
-  if (!expireDate) {
-    await interaction.reply({
-      content: '❌ 失業保険の購入履歴が見つかりません',
-      ephemeral: true
+  let expireDate;
+
+  try {
+    expireDate = await fetchUnemployExpireDate(userId);
+  } catch (err) {
+    return interaction.editReply({
+      content: err.message
     });
-    return;
+  }
+
+  if (!expireDate) {
+    return interaction.editReply({
+      content: '❌ 失業保険の購入履歴が見つかりません'
+    });
   }
 
   await col.updateOne(
-    { userId, guildId: interaction.guildId },
+    {
+      userId,
+      guildId: interaction.guildId
+    },
     {
       $set: {
         userId,
@@ -116,20 +140,22 @@ export async function execute(interaction, { client }) {
         expireAt: expireDate.getTime()
       }
     },
-    { upsert: true }
+    {
+      upsert: true
+    }
   );
 
-  await interaction.reply({
+  await interaction.editReply({
     content:
       `失業保険リマインダーを設定しました\n` +
       `${targetUser} の失業保険は ${expireDate.toLocaleString()} に期限切れになります`
   });
 }
 
-// 1分ごとに期限チェック
 export async function scheduleUnemployCheck(client) {
   setInterval(() => {
-    checkUnemployTimers(client)
-      .catch(err => console.error('失業保険チェック失敗:', err));
+    checkUnemployTimers(client).catch(err => {
+      console.error('失業保険チェック失敗:', err);
+    });
   }, 60 * 1000);
 }

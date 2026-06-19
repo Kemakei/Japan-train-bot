@@ -9,7 +9,6 @@ import {
   Client,
   GatewayIntentBits,
   Collection,
-  Events,
   REST,
   Routes,
   EmbedBuilder,
@@ -17,7 +16,7 @@ import {
 import { MongoClient } from "mongodb";
 import { scheduleDailyLoanUpdate } from './utils/dailyLoanUpdater.js';
 import { getLatestDrawId } from "./utils/draw.js";
-import { scheduleUnemployCheck } from './commands/unemploy_timer.js';
+import { scheduleUnemployCheck } from './commands/takasumi_unemploy_timer.js';
 
 // -------------------- Webサーバー設定 --------------------
 const app = express();
@@ -67,6 +66,7 @@ const client = new Client({
   ],
 });
 
+
 // ★ Discordクライアントにくっつける
 client.coinsCol = coinsCol;
 client.hedgeCol = hedgeCol;
@@ -78,6 +78,7 @@ client.reminders = new Map();
 client.commands = new Collection();
 client.lotteryTickets = client.db.collection("lotteryTickets");
 client.stockHistoryCol = client.db.collection("stock_history");
+
 
 // -------------------- コイン・株管理（MongoDB版 + VIPCoins追加） --------------------
 
@@ -447,9 +448,33 @@ client.once(Events.ClientReady, async () => {
 
   // スラッシュコマンド登録
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
+  
   try {
-    await rest.put(Routes.applicationCommands(client.user.id), { body: commandsJSON });
-    console.log('✅ スラッシュコマンドを登録しました');
+      await rest.put(
+       Routes.applicationCommands(client.user.id),
+       { body: globalCommandsJSON }
+      );
+    console.log('✅ グローバルコマンドを登録しました');
+      const enabledGuilds = await client.db
+     .collection("takasumi_advance")
+     .find({ enabled: true })
+     .toArray();
+
+    for (const guild of enabledGuilds) {
+     await rest.put(
+       Routes.applicationGuildCommands(
+         client.user.id,
+         guild.guildId
+       ),
+       {
+         body: client.takasumiCommandsJSON
+       }
+     );
+
+     console.log(
+       `✅ ${guild.guildId} に takasumi 拡張コマンドを登録しました`
+     );
+   }
   } catch (err) {
     console.error('❌ コマンド登録失敗:', err);
   }
@@ -457,7 +482,16 @@ client.once(Events.ClientReady, async () => {
 
 // ------------------ 🔁 ./commands/*.js を安全に自動読み込み --------------------
 import { pathToFileURL } from 'url';
-const commandsJSON = [];
+
+const globalCommandsJSON = [];
+const takasumiCommandsJSON = [];
+
+const TAKASUMI_COMMANDS = new Set([
+  "takasumi_unemploy_timer",
+  "takasumi_stock_data",
+  "takasumi_company_money"
+]);
+
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'));
 
@@ -474,8 +508,14 @@ for (const file of commandFiles) {
     }
 
     client.commands.set(name, commandModule);
-    commandsJSON.push(commandModule.data.toJSON());
-    console.log(`✅ Loaded command: ${name} (file: ${file})`);
+    
+      if (TAKASUMI_COMMANDS.has(name)) {
+    takasumiCommandsJSON.push(commandModule.data.toJSON());
+  } else {
+    globalCommandsJSON.push(commandModule.data.toJSON());
+  }
+
+    console.log(`✅ Loaded command: commandsJSON.push(commandModule.data.toJSON());${name} (file: ${file})`);
   } else {
     console.warn(`⚠️ Skipped invalid command file: ${file}`);
   }
