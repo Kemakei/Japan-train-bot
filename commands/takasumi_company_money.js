@@ -267,7 +267,7 @@ const embed =
       {
         name: "集計期間",
         value:
-          `${formatDate(startDate)}\n～\n${formatDate(endDate)}`
+          `${formatDate(startDate)}～\n${formatDate(endDate)}`
       }
     )
     .setColor(0x2ECC71)
