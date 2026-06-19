@@ -12,6 +12,7 @@ import {
   REST,
   Routes,
   EmbedBuilder,
+  Events
 } from 'discord.js';
 import { MongoClient } from "mongodb";
 import { scheduleDailyLoanUpdate } from './utils/dailyLoanUpdater.js';
