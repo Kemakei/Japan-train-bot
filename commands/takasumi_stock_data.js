@@ -442,7 +442,7 @@ export async function execute(interaction) {
           },
           {
             name:
-              "予測信頼度",
+              "予測価格安定度",
             value:
               `${confidence}%`,
             inline:
