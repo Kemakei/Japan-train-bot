@@ -56,11 +56,6 @@ async function fetchCompanyData(companyId) {
   return Array.isArray(data) ? data : [];
 };
 
-if (!response.ok) {
-  return interaction.editReply("❌ データ取得に失敗しました");
-}
-
-const data = await response.json();
 
 const rewards = data
   .filter(

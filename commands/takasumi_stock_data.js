@@ -15,11 +15,6 @@ export async function handleAutocomplete(interaction) {
   try {
     const focused = interaction.options.getFocused().toLowerCase();
 
-    const response = await fetch(process.env.STOCK_API_URL);
-    if (!response.ok) return interaction.respond([]);
-
-    const stocks = await response.json();
-
     const choices = stocks
       .filter(stock =>
         stock.name?.toLowerCase().includes(focused) ||
@@ -71,8 +66,6 @@ export async function execute(interaction) {
 
   return Array.isArray(data) ? data : [];
 }
-
-    const stocks = await response.json();
 
     const stock = stocks.find(s =>
       s.id?.toLowerCase() === companyInput.toLowerCase() ||
