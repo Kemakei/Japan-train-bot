@@ -46,11 +46,31 @@ export async function execute(interaction) {
   const companyInput = interaction.options.getString("company");
 
   try {
-    const response = await fetch(process.env.STOCK_API_URL);
+  async function fetchCompanyData(companyId) {
+  let res;
 
-    if (!response.ok) {
-      return interaction.editReply("❌ API取得に失敗しました");
-    }
+  try {
+    res = await request(
+      `https://api.takasumibot.com/v3/company/history/${companyId}`
+    );
+  } catch {
+    throw new Error("API取得に失敗しました");
+  }
+
+  if (res.statusCode !== 200) {
+    throw new Error("APIエラーが発生しました");
+  }
+
+  let data;
+
+  try {
+    data = JSON.parse(await res.body.text());
+  } catch {
+    throw new Error("JSON解析に失敗しました");
+  }
+
+  return Array.isArray(data) ? data : [];
+}
 
     const stocks = await response.json();
 
