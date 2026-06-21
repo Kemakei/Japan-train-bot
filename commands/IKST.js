@@ -1,7 +1,7 @@
 import { SlashCommandBuilder } from "discord.js";
 
 export const data = new SlashCommandBuilder()
-  .setName("IKST")
+  .setName("ikst")
   .setDescription("IKSTの発車メロディーを自動的に選出します");
 
 export async function execute(interaction) {
