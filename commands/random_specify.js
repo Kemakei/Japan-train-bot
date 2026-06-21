@@ -33,7 +33,7 @@ function normalize(str) {
 
 export const data = new SlashCommandBuilder()
   .setName("random_specify")
-  .setDescription("指定した文字列が入っている路線からランダムに駅を選びます。")
+  .setDescription("指定した文字列が入っている路線からランダムに駅を選びます。（現在北海道のみ実装済み）")
   .addStringOption(option =>
     option
       .setName("line")
