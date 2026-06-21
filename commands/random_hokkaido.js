@@ -15,15 +15,15 @@ function loadRows() {
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-  // ヘッダーを削除
-  rows.shift();
+  return rows
+    .slice(0, 416) // Excelの1～416行目
+    .filter(row => {
+      const a = String(row[0] ?? "").trim();
+      const b = String(row[1] ?? "").trim();
 
-  // A列・B列が両方空欄の行は除外
-  return rows.filter(row => {
-    const a = String(row[0] ?? "").trim();
-    const b = String(row[1] ?? "").trim();
-    return a !== "" || b !== "";
-  });
+      // A列またはB列が空欄なら除外
+      return a !== "" && b !== "";
+    });
 }
 
 export const data = new SlashCommandBuilder()
@@ -47,11 +47,7 @@ export async function execute(interaction) {
   const a = String(randomRow[0] ?? "").trim();
   const b = String(randomRow[1] ?? "").trim();
 
-  // A列とB列を結合
-  const output = [a, b].filter(v => v !== "").join(" ");
-
   await interaction.reply({
-    content: output,
+    content: `${a} ${b}`,
   });
 }
-
