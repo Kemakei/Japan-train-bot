@@ -6,7 +6,7 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   const arr = ["新浜松","第一通り","遠州病院","八幡","助信","曳馬","上島","自動車学校前","さぎの宮","積志","遠州西ヶ崎","遠州小松","浜北","美薗中央公園","遠州小林","遠州芝本","遠州岩水寺","西鹿島"];
-  const weight = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,];
+  const weight = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
   let result = "";
 
   let totalWeight = 0;
