@@ -16,7 +16,7 @@ function loadRows() {
   const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
   return rows
-    .slice(0, 1409) //excelデータをスライス
+    .slice(420, 1409) //excelデータをスライス
     .filter(row => {
       const a = String(row[0] ?? "").trim();
       const b = String(row[1] ?? "").trim();
