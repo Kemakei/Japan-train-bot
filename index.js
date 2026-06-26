@@ -593,84 +593,69 @@ client.on(Events.MessageCreate, async message => {
 
   const channelId = message.channel.id;
   const monitoredMessageId = client.monitoredMessages.get(channelId);
-
   if (!monitoredMessageId) return;
 
-  // タイマーリセット
+  // 前回の更新予約をキャンセル
   if (client.updateTimers.has(channelId)) {
     clearTimeout(client.updateTimers.get(channelId));
   }
 
-  client.updateTimers.set(channelId, setTimeout(async () => {
-    try {
-      const monitoredMessage = await message.channel.messages
-        .fetch(monitoredMessageId)
-        .catch(() => null);
+  client.updateTimers.set(
+    channelId,
+    setTimeout(async () => {
+      try {
+        const monitoredMessage = await message.channel.messages.fetch(monitoredMessageId);
 
-      if (!monitoredMessage) return;
+        // 前回の固定Embedを削除
+        const lastCopyId = client.lastSentCopies.get(channelId);
 
-      // 既存コピー削除
-      const lastCopyId = client.lastSentCopies.get(channelId);
+        if (lastCopyId) {
+          try {
+            const oldMessage = await message.channel.messages.fetch(lastCopyId);
+            await oldMessage.delete();
+          } catch {}
 
-      if (lastCopyId) {
-        try {
-          const old = await message.channel.messages.fetch(lastCopyId);
-          if (old) await old.delete();
-        } catch {}
-
-        client.lastSentCopies.delete(channelId);
-      }
-
-      const attachments = [...monitoredMessage.attachments.values()];
-      const firstImage = attachments[0];
-
-      const originalEmbeds = monitoredMessage.embeds;
-
-      let embedDescription = '';
-
-      if (monitoredMessage.content) {
-        embedDescription += monitoredMessage.content + '\n\n';
-      }
-
-      for (const e of originalEmbeds) {
-        if (e.title) embedDescription += `**${e.title}**\n`;
-        if (e.description) embedDescription += `${e.description}\n\n`;
-        if (e.fields?.length) {
-          for (const f of e.fields) {
-            embedDescription += `**${f.name}**: ${f.value}\n`;
-          }
+          client.lastSentCopies.delete(channelId);
         }
+
+        let description = monitoredMessage.content || "";
+
+        const files = [];
+        for (const attachment of monitoredMessage.attachments.values()) {
+          files.push({
+            attachment: attachment.url,
+            name: attachment.name
+          });
+        }
+
+        if (description) description += "\n";
+
+        const embed = new EmbedBuilder()
+          .setAuthor({
+            name: monitoredMessage.author.tag,
+            iconURL: monitoredMessage.author.displayAvatarURL()
+          })
+          .setDescription(description.trim())
+          .setColor("#00AAFF");
+
+        if (files.length) {
+          embed.setImage(`attachment://${files[0].name}`);
+        }
+
+        const sent = await message.channel.send({
+          embeds: [embed],
+          files
+        });
+
+        client.lastSentCopies.set(channelId, sent.id);
+
+      } catch (err) {
+        console.error(err);
+      } finally {
+        client.updateTimers.delete(channelId);
       }
-
-      const embed = new EmbedBuilder()
-        .setAuthor({
-          name: monitoredMessage.author.tag,
-          iconURL: monitoredMessage.author.displayAvatarURL()
-        })
-        .setDescription(
-          embedDescription.trim() || '📌 このメッセージに内容がありません。'
-        )
-        .setColor('#00AAFF')
-        .setTimestamp();
-
-      // 画像をEmbedに表示
-      if (firstImage && firstImage.contentType?.startsWith('image')) {
-        embed.setImage(firstImage.url);
-      }
-
-      const sent = await message.channel.send({
-        embeds: [embed],
-        allowedMentions: { parse: [] }
-      });
-
-      client.lastSentCopies.set(channelId, sent.id);
-
-    } catch (err) {
-      console.error(err);
-    } finally {
-      client.updateTimers.delete(channelId);
-    }
-  }, 100));
+    }, 100)
+  );
 });
 
 client.login(process.env.DISCORD_BOT_TOKEN)

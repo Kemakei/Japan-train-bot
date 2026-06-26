@@ -1,4 +1,4 @@
-import { ContextMenuCommandBuilder, ApplicationCommandType } from 'discord.js';
+import { ContextMenuCommandBuilder, ApplicationCommandType, EmbedBuilder } from 'discord.js';
 
 export const data = new ContextMenuCommandBuilder()
   .setName('常に下に表示')
@@ -9,29 +9,16 @@ export async function execute(interaction) {
   const channel = interaction.channel;
 
   if (!channel) {
-    return interaction.reply({
+    await interaction.reply({
       content: '⚠️ チャンネル情報が取得できません。',
-      flags: 64,
+      flags: 64
     });
+    return;
   }
 
   const channelId = channel.id;
   const targetMessage = await channel.messages.fetch(interaction.targetId);
 
-  // ❗ 空チェック（追加部分）
-  const isEmpty =
-    !targetMessage.content &&
-    targetMessage.embeds.length === 0 &&
-    targetMessage.attachments.size === 0;
-
-  if (isEmpty) {
-    return interaction.reply({
-      content: '⚠️ このメッセージには表示できる内容がありません。',
-      flags: 64,
-    });
-  }
-
-  // Botが送信したEmbed付きメッセージなら固定解除
   const isBotEmbed =
     targetMessage.author.id === client.user.id &&
     targetMessage.embeds.length > 0;
@@ -51,24 +38,33 @@ export async function execute(interaction) {
       client.monitoredMessages.delete(channelId);
       client.lastSentCopies.delete(channelId);
 
-      return interaction.reply({
+      await interaction.reply({
         content: '✅ 固定を解除しました。',
-        flags: 64,
+        flags: 64
+      });
+    } else {
+      await interaction.reply({
+        content: '⚠️ このメッセージは現在固定されていません。',
+        flags: 64
       });
     }
-
-    return interaction.reply({
-      content: '⚠️ このメッセージは現在固定されていません。',
-      flags: 64,
-    });
+    return;
   }
 
-  // 監視登録
-  client.monitoredMessages.set(channelId, targetMessage.id);
+  // 内容チェック
+  if (
+    targetMessage.content.trim().length === 0 &&
+    targetMessage.attachments.size === 0
+  ) {
+    await interaction.reply({
+      content: '⚠️ このメッセージには表示する内容がありません。',
+      flags: 64
+    });
+    return;
+  }
 
-  // 古いコピー削除
+  // 以前の固定を削除
   const oldCopyId = client.lastSentCopies.get(channelId);
-
   if (oldCopyId) {
     try {
       const oldMsg = await channel.messages.fetch(oldCopyId);
@@ -78,21 +74,43 @@ export async function execute(interaction) {
     client.lastSentCopies.delete(channelId);
   }
 
-  // 再送信
-  const sentMessage = await channel.send({
-    content: targetMessage.content || undefined,
-    embeds: targetMessage.embeds,
-    components: targetMessage.components,
-    files: [...targetMessage.attachments.values()],
-    allowedMentions: {
-      parse: [],
-    },
+  // 監視登録
+  client.monitoredMessages.set(channelId, targetMessage.id);
+
+  // Embed作成
+  let description = targetMessage.content || "";
+
+  const files = [];
+  for (const attachment of targetMessage.attachments.values()) {
+    files.push({
+      attachment: attachment.url,
+      name: attachment.name
+    });
+  }
+
+  if (description) description += "\n";
+
+  const embed = new EmbedBuilder()
+    .setAuthor({
+      name: targetMessage.author.tag,
+      iconURL: targetMessage.author.displayAvatarURL()
+    })
+    .setDescription(description.trim())
+    .setColor("#00AAFF");
+
+  if (files.length) {
+    embed.setImage(`attachment://${files[0].name}`);
+  }
+
+  const sent = await channel.send({
+    embeds: [embed],
+    files
   });
 
-  client.lastSentCopies.set(channelId, sentMessage.id);
+  client.lastSentCopies.set(channelId, sent.id);
 
   await interaction.reply({
     content: '📌 このメッセージを常に下に表示するようにしました。',
-    flags: 64,
+    flags: 64
   });
 }
