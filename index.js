@@ -586,46 +586,70 @@ client.on(Events.GuildMemberAdd, async member => {
 });
 
 // -------------------- メッセージ監視 --------------------
+client.updateTimers ??= new Map();
 client.on(Events.MessageCreate, async message => {
   if (message.author.bot) return;
+
   const channelId = message.channel.id;
   const monitoredMessageId = client.monitoredMessages.get(channelId);
   if (!monitoredMessageId) return;
 
-  try {
-    const monitoredMessage = await message.channel.messages.fetch(monitoredMessageId);
-    if (!monitoredMessage) return;
-
-    const lastCopyId = client.lastSentCopies.get(channelId);
-    if (lastCopyId) {
-      try {
-        const lastCopyMsg = await message.channel.messages.fetch(lastCopyId);
-        if (lastCopyMsg) await lastCopyMsg.delete();
-      } catch {}
-      client.lastSentCopies.delete(channelId);
-    }
-
-    let description = monitoredMessage.content || '';
-    const files = [];
-    if (monitoredMessage.attachments.size > 0) {
-      for (const attachment of monitoredMessage.attachments.values()) {
-        files.push({ attachment: attachment.url, name: attachment.name });
-      }
-    }
-    if (description) description += '\n';
-
-    const embed = new EmbedBuilder()
-      .setAuthor({ name: monitoredMessage.author.tag, iconURL: monitoredMessage.author.displayAvatarURL() })
-      .setDescription(description.trim() || '📌 このメッセージに内容がありません。')
-      .setColor('#00AAFF');
-
-    if (files.length > 0) embed.setImage(files[0].attachment);
-
-    const sentMessage = await message.channel.send({ embeds: [embed], files });
-    client.lastSentCopies.set(channelId, sentMessage.id);
-  } catch (err) {
-    console.error('監視中メッセージ再送信エラー:', err);
+  // 前の予約をキャンセル
+  if (client.updateTimers.has(channelId)) {
+    clearTimeout(client.updateTimers.get(channelId));
   }
+
+  client.updateTimers.set(channelId, setTimeout(async () => {
+    try {
+      const monitoredMessage = await message.channel.messages.fetch(monitoredMessageId);
+      if (!monitoredMessage) return;
+
+      const lastCopyId = client.lastSentCopies.get(channelId);
+
+      if (lastCopyId) {
+        try {
+          const msg = await message.channel.messages.fetch(lastCopyId);
+          if (msg) await msg.delete();
+        } catch {}
+
+        client.lastSentCopies.delete(channelId);
+      }
+
+      let description = monitoredMessage.content || '';
+
+      const files = [];
+      for (const attachment of monitoredMessage.attachments.values()) {
+        files.push({
+          attachment: attachment.url,
+          name: attachment.name
+        });
+      }
+
+      if (description) description += '\n';
+
+      const embed = new EmbedBuilder()
+        .setAuthor({
+          name: monitoredMessage.author.tag,
+          iconURL: monitoredMessage.author.displayAvatarURL()
+        })
+        .setDescription(description.trim() || '📌 このメッセージに内容がありません。')
+        .setColor('#00AAFF');
+
+      if (files.length) {
+        embed.setImage(`attachment://${files[0].name}`);
+      }
+
+      const sent = await message.channel.send({
+        embeds: [embed],
+        files
+      });
+
+      client.lastSentCopies.set(channelId, sent.id);
+
+    } catch (err) {
+      console.error(err);
+    }
+  }, 200)); 
 });
 
 client.login(process.env.DISCORD_BOT_TOKEN)

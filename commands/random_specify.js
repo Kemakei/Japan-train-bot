@@ -33,7 +33,7 @@ function normalize(str) {
 
 export const data = new SlashCommandBuilder()
   .setName("random_specify")
-  .setDescription("指定した文字列が入っている路線からランダムに駅を選びます。（現在北海道のみ実装済み）")
+  .setDescription("指定した文字列が入っている路線からランダムに駅を選びます。（現在一部のみ実装済み）")
   .addStringOption(option =>
     option
       .setName("line")
@@ -67,7 +67,7 @@ export async function execute(interaction) {
     if (matched.length === 0) {
       await interaction.reply({
         content:
-          "見つかりませんでした。形式が違っている可能性があります。",
+          "見つかりませんでした。形式が違っている可能性があります。路線名の正式名称を入力してみてください。",
         ephemeral: true,
       });
       return;
