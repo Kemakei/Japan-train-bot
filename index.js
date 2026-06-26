@@ -587,11 +587,13 @@ client.on(Events.GuildMemberAdd, async member => {
 
 // -------------------- メッセージ監視 --------------------
 client.updateTimers ??= new Map();
+
 client.on(Events.MessageCreate, async message => {
   if (message.author.bot) return;
 
   const channelId = message.channel.id;
   const monitoredMessageId = client.monitoredMessages.get(channelId);
+
   if (!monitoredMessageId) return;
 
   // 前の予約をキャンセル
@@ -601,55 +603,45 @@ client.on(Events.MessageCreate, async message => {
 
   client.updateTimers.set(channelId, setTimeout(async () => {
     try {
-      const monitoredMessage = await message.channel.messages.fetch(monitoredMessageId);
+      const monitoredMessage = await message.channel.messages.fetch(monitoredMessageId).catch(() => null);
       if (!monitoredMessage) return;
 
+      // 前回送信したコピーを削除
       const lastCopyId = client.lastSentCopies.get(channelId);
 
       if (lastCopyId) {
         try {
-          const msg = await message.channel.messages.fetch(lastCopyId);
-          if (msg) await msg.delete();
+          const lastCopy = await message.channel.messages.fetch(lastCopyId);
+          if (lastCopy) await lastCopy.delete();
         } catch {}
 
         client.lastSentCopies.delete(channelId);
       }
 
-      let description = monitoredMessage.content || '';
+      // 添付ファイル
+      const files = [...monitoredMessage.attachments.values()];
 
-      const files = [];
-      for (const attachment of monitoredMessage.attachments.values()) {
-        files.push({
-          attachment: attachment.url,
-          name: attachment.name
-        });
-      }
-
-      if (description) description += '\n';
-
-      const embed = new EmbedBuilder()
-        .setAuthor({
-          name: monitoredMessage.author.tag,
-          iconURL: monitoredMessage.author.displayAvatarURL()
-        })
-        .setDescription(description.trim() || '📌 このメッセージに内容がありません。')
-        .setColor('#00AAFF');
-
-      if (files.length) {
-        embed.setImage(`attachment://${files[0].name}`);
-      }
-
+      // 元メッセージをそのまま再送信
       const sent = await message.channel.send({
-        embeds: [embed],
-        files
+        content: monitoredMessage.content || undefined,
+        embeds: monitoredMessage.embeds,
+        components: monitoredMessage.components,
+        files,
+        stickers: monitoredMessage.stickers.map(sticker => sticker.id),
+        allowedMentions: {
+          parse: []
+        }
       });
 
+      // コピーしたメッセージを保存
       client.lastSentCopies.set(channelId, sent.id);
 
     } catch (err) {
       console.error(err);
+    } finally {
+      client.updateTimers.delete(channelId);
     }
-  }, 200)); 
+  }, 100));
 });
 
 client.login(process.env.DISCORD_BOT_TOKEN)
