@@ -654,7 +654,7 @@ client.on(Events.MessageCreate, async message => {
       } finally {
         client.updateTimers.delete(channelId);
       }
-    }, 100)
+    }, 150)
   );
 });
 
