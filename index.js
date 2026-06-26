@@ -596,44 +596,73 @@ client.on(Events.MessageCreate, async message => {
 
   if (!monitoredMessageId) return;
 
-  // 前の予約をキャンセル
+  // タイマーリセット
   if (client.updateTimers.has(channelId)) {
     clearTimeout(client.updateTimers.get(channelId));
   }
 
   client.updateTimers.set(channelId, setTimeout(async () => {
     try {
-      const monitoredMessage = await message.channel.messages.fetch(monitoredMessageId).catch(() => null);
+      const monitoredMessage = await message.channel.messages
+        .fetch(monitoredMessageId)
+        .catch(() => null);
+
       if (!monitoredMessage) return;
 
-      // 前回送信したコピーを削除
+      // 既存コピー削除
       const lastCopyId = client.lastSentCopies.get(channelId);
 
       if (lastCopyId) {
         try {
-          const lastCopy = await message.channel.messages.fetch(lastCopyId);
-          if (lastCopy) await lastCopy.delete();
+          const old = await message.channel.messages.fetch(lastCopyId);
+          if (old) await old.delete();
         } catch {}
 
         client.lastSentCopies.delete(channelId);
       }
 
-      // 添付ファイル
-      const files = [...monitoredMessage.attachments.values()];
+      const attachments = [...monitoredMessage.attachments.values()];
+      const firstImage = attachments[0];
 
-      // 元メッセージをそのまま再送信
-      const sent = await message.channel.send({
-        content: monitoredMessage.content || undefined,
-        embeds: monitoredMessage.embeds,
-        components: monitoredMessage.components,
-        files,
-        stickers: monitoredMessage.stickers.map(sticker => sticker.id),
-        allowedMentions: {
-          parse: []
+      const originalEmbeds = monitoredMessage.embeds;
+
+      let embedDescription = '';
+
+      if (monitoredMessage.content) {
+        embedDescription += monitoredMessage.content + '\n\n';
+      }
+
+      for (const e of originalEmbeds) {
+        if (e.title) embedDescription += `**${e.title}**\n`;
+        if (e.description) embedDescription += `${e.description}\n\n`;
+        if (e.fields?.length) {
+          for (const f of e.fields) {
+            embedDescription += `**${f.name}**: ${f.value}\n`;
+          }
         }
+      }
+
+      const embed = new EmbedBuilder()
+        .setAuthor({
+          name: monitoredMessage.author.tag,
+          iconURL: monitoredMessage.author.displayAvatarURL()
+        })
+        .setDescription(
+          embedDescription.trim() || '📌 このメッセージに内容がありません。'
+        )
+        .setColor('#00AAFF')
+        .setTimestamp();
+
+      // 画像をEmbedに表示
+      if (firstImage && firstImage.contentType?.startsWith('image')) {
+        embed.setImage(firstImage.url);
+      }
+
+      const sent = await message.channel.send({
+        embeds: [embed],
+        allowedMentions: { parse: [] }
       });
 
-      // コピーしたメッセージを保存
       client.lastSentCopies.set(channelId, sent.id);
 
     } catch (err) {
