@@ -2,7 +2,7 @@ import { SlashCommandBuilder } from "discord.js";
 
 export const data = new SlashCommandBuilder()
   .setName("ikst")
-  .setDescription("IKSTの発車メロディーを自動的に選出します");
+  .setDescription("IKSTの発車メロディーを自動的に選出します(2026/6/27現在更新済み)");
 
 export async function execute(interaction) {
   const arr = [
