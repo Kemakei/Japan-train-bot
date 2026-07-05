@@ -16,7 +16,7 @@ function loadRows() {
   const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
   return rows
-    .slice(1818, 2047) //excelデータをスライス
+    .slice(2049, 2385) //excelデータをスライス
     .filter(row => {
       const a = String(row[0] ?? "").trim();
       const b = String(row[1] ?? "").trim();
@@ -27,8 +27,8 @@ function loadRows() {
 }
 
 export const data = new SlashCommandBuilder()
-  .setName("saitama")
-  .setDescription("埼玉県の駅を自動的に選出します");
+  .setName("chiba")
+  .setDescription("千葉県の駅を自動的に選出します");
 
 export async function execute(interaction) {
   const rows = loadRows();
