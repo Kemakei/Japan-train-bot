@@ -1,11 +1,11 @@
-const {
+import{
     SlashCommandBuilder,
     EmbedBuilder,
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
     ComponentType
-} = require("discord.js");
+} from "discord.js";
 
 const pages = [
     {
@@ -102,7 +102,7 @@ const pages = [
     }
 ];
 
-module.exports = {
+export default {
     data: new SlashCommandBuilder()
         .setName("faq")
         .setDescription("FAQを表示します。"),
