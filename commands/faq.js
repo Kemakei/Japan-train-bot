@@ -102,13 +102,11 @@ const pages = [
     }
 ];
 
-export default {
-    data: new SlashCommandBuilder()
-        .setName("faq")
-        .setDescription("FAQを表示します。"),
+export const data = new SlashCommandBuilder()
+    .setName("faq")
+    .setDescription("FAQを表示します。");
 
-    async execute(interaction) {
-
+export async function execute(interaction) {
         let page = 0;
 
         const createEmbed = () => {
@@ -188,5 +186,4 @@ export default {
             }).catch(() => {});
         });
 
-    }
 };
