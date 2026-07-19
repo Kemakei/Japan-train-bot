@@ -24,6 +24,7 @@ export async function execute(interaction) {
   let totalPrize = 0;
   let winCount = 0;
   const publicLines = [];
+  const lowRankWins = {};
   const remainingPurchases = [];
   let deleteOps = [];
 
@@ -36,19 +37,30 @@ export async function execute(interaction) {
       continue;
     }
 
-    if (p.isWin && !p.claimed) {
-      totalPrize += p.prize;
-      winCount++;
+if (p.isWin && !p.claimed) {
+  totalPrize += p.prize;
+  winCount++;
 
-      const line = `🎟 ${p.number}${p.letter} → 🏆 ${p.rank}等 💰 ${p.prize.toLocaleString()}コイン獲得！`;
+  if (p.rank <= 3) {
+    const line = `🎟 ${p.number}${p.letter} → 🏆 ${p.rank}等 💰 ${p.prize.toLocaleString()}コイン獲得！`;
 
-      if (publicLines.length < 100) {
-        publicLines.push(line);
-      } else if (publicLines.length === 100) {
-        publicLines.push("他省略");
-      }
+    if (publicLines.length < 100) {
+      publicLines.push(line);
+    } else if (publicLines.length === 100) {
+      publicLines.push("他省略");
+    }
+  } else {
+    if (!lowRankWins[p.rank]) {
+      lowRankWins[p.rank] = {
+        count: 0,
+        prize: p.prize
+      };
+    }
 
-      deleteOps.push({ deleteOne: { filter: { _id: p._id } } });
+    lowRankWins[p.rank].count++;
+  }
+
+  deleteOps.push({ deleteOne: { filter: { _id: p._id } } });
     } else if (!p.isWin) {
       deleteOps.push({ deleteOne: { filter: { _id: p._id } } });
     } else {
@@ -86,7 +98,17 @@ export async function execute(interaction) {
   }
 
   const coins = await getCoins(userId);
-  const embedList = [];
+
+// 4〜9等を集計表示
+for (const rank of Object.keys(lowRankWins).sort((a, b) => a - b)) {
+  const data = lowRankWins[rank];
+
+  publicLines.push(
+    `🏆 ${rank}等: ${data.count.toLocaleString()}枚 × ${data.prize.toLocaleString()}コイン`
+  );
+}
+
+const embedList = [];
 
   // --- 結果メッセージ生成 ---
   if (publicLines.length > 0) {
