@@ -79,7 +79,7 @@ client.reminders = new Map();
 client.commands = new Collection();
 client.lotteryTickets = client.db.collection("lotteryTickets");
 client.stockHistoryCol = client.db.collection("stock_history");
-
+client.lotterySummary = client.db.collection("lotterySummary");
 
 // -------------------- コイン・株管理（MongoDB版 + VIPCoins追加） --------------------
 
