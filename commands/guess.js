@@ -28,17 +28,22 @@ export async function execute(interaction) {
 
     let coins = await client.getCoins(userId) || 0;
 
-    // --- 先にチェックして即終了（ephemeral） ---
+    // 最低掛け金チェック
     if (bet < 100) {
-      return await interaction.reply({ content: "❌ 最低掛け金は100です！", flags: 64 });
+      return await interaction.reply({
+        content: "❌ 最低掛け金は100です！",
+        flags: 64
+      });
     }
 
-    if (coins < bet * 1.5) {
-      const maxBet = Math.floor(bet * 1.5);
-      return await interaction.reply({ content: `❌ 最大 **${maxBet}** コインまで賭けられます！`, flags: 64 });
+    // 所持金不足チェック
+    if (bet > coins) {
+      return await interaction.reply({
+        content: `❌ 所持金不足です！（所持金: ${coins}コイン）`,
+        flags: 64
+      });
     }
 
-    // 正常時のみ deferReply（公開メッセージ）
     await interaction.deferReply();
 
     const answer = Math.floor(Math.random() * 3) + 1;
@@ -46,29 +51,63 @@ export async function execute(interaction) {
     const embed = new EmbedBuilder()
       .setTitle("数字予想ゲーム")
       .addFields(
-        { name: "選んだ数字", value: `${guess}`, inline: true },
-        { name: "正解", value: `${answer}`, inline: true }
+        {
+          name: "選んだ数字",
+          value: `${guess}`,
+          inline: true
+        },
+        {
+          name: "正解",
+          value: `${answer}`,
+          inline: true
+        }
       );
 
     if (guess === answer) {
       const win = Math.ceil(bet * 2.8);
+
       await client.updateCoins(userId, win);
+
       coins = await client.getCoins(userId);
-      embed.setDescription(`✅ 当たり！ **${win}コイン** 獲得！\n現在のコイン: ${coins}`).setColor("#00FF00");
+
+      embed
+        .setDescription(
+          `✅ 当たり！ **${win}コイン** 獲得！\n` +
+          `現在のコイン: ${coins}`
+        )
+        .setColor("#00FF00");
+
     } else {
       const loss = Math.ceil(bet * 1.5);
+
       await client.updateCoins(userId, -loss);
+
       coins = await client.getCoins(userId);
-      embed.setDescription(`外れ… **${loss}コイン** 失いました\n現在のコイン: ${coins}`).setColor("#FF0000");
+
+      embed
+        .setDescription(
+          `外れ… **${loss}コイン** 失いました\n` +
+          `現在のコイン: ${coins}`
+        )
+        .setColor("#FF0000");
     }
 
-    await interaction.editReply({ embeds: [embed] });
+    await interaction.editReply({
+      embeds: [embed]
+    });
+
   } catch (err) {
     console.error(err);
+
     if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: "❌ コマンド実行中にエラーが発生しました。", flags: 64 });
+      await interaction.reply({
+        content: "❌ コマンド実行中にエラーが発生しました。",
+        flags: 64
+      });
     } else {
-      await interaction.editReply({ content: "❌ コマンド実行中にエラーが発生しました。" });
+      await interaction.editReply({
+        content: "❌ コマンド実行中にエラーが発生しました。"
+      });
     }
   }
 }

@@ -103,10 +103,21 @@ client.setCoins = async (userId, amount) => {
   );
 };
 client.updateCoins = async (userId, delta) => {
+  const user = await coinsCol.findOne({ userId });
+
+  const currentCoins = user?.coins || 0;
+  const newCoins = Math.max(0, currentCoins + delta);
+
   await coinsCol.updateOne(
     { userId },
-    { $inc: { coins: delta } },
-    { upsert: true }
+    {
+      $set: {
+        coins: newCoins
+      }
+    },
+    {
+      upsert: true
+    }
   );
 };
 
