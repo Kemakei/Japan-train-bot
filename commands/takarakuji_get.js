@@ -46,7 +46,6 @@ export async function execute(interaction) {
 
   for await (const p of cursor) {
     hasPurchase = true;
-    const isUnpublished = !p.drawId || !publishedDrawIds.has(p.drawId);
 
     if (isUnpublished) {
       remainingPurchases.push(p);
