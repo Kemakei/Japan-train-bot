@@ -3,16 +3,51 @@ import { getNextDrawId } from "../utils/draw.js";
 
 // 当選判定（賞金と等級を返す）
 function judgeTicket(ticketNumber, ticketLetter, drawNumber, drawLetter) {
-  if (ticketNumber === drawNumber && ticketLetter === drawLetter) return { prize: 1000000000, rank: 1 };
-  if (ticketNumber === drawNumber) return { prize: 500000000, rank: 2 };
-  if (ticketNumber.slice(1) === drawNumber.slice(1) && ticketLetter === drawLetter) return { prize: 100000000, rank: 3 };
-  if (ticketNumber.slice(1) === drawNumber.slice(1)) return { prize: 10000000, rank: 4 };
-  if (ticketNumber.slice(2) === drawNumber.slice(2) && ticketLetter === drawLetter) return { prize: 1000000, rank: 5 };
-  if (ticketNumber.slice(2) === drawNumber.slice(2)) return { prize: 100000, rank: 6 };
-  if (ticketNumber.slice(3) === drawNumber.slice(3) && ticketLetter === drawLetter) return { prize: 10000, rank: 7 };
-  if (ticketNumber.slice(3) === drawNumber.slice(3)) return { prize: 5000, rank: 8 };
-  if (ticketLetter === drawLetter) return { prize: 2000, rank: 9 };
-  if (ticketNumber.slice(4) === drawNumber.slice(4)) return { prize: 500, rank: 10 };
+  // 1等: 番号5桁 + 文字一致 10億コイン
+  if (ticketNumber === drawNumber && ticketLetter === drawLetter) {
+    return { prize: 1000000000, rank: 1 };
+  }
+
+  // 2等: 番号5桁一致 1000万コイン
+  if (ticketNumber === drawNumber) {
+    return { prize: 10000000, rank: 2 };
+  }
+
+  // 3等: 下4桁 + 文字一致 200万コイン
+  if (ticketNumber.slice(1) === drawNumber.slice(1) && ticketLetter === drawLetter) {
+    return { prize: 2000000, rank: 3 };
+  }
+
+  // 4等: 下4桁一致 20万コイン
+  if (ticketNumber.slice(1) === drawNumber.slice(1)) {
+    return { prize: 200000, rank: 4 };
+  }
+
+  // 5等: 下3桁 + 文字一致 10万コイン
+  if (ticketNumber.slice(2) === drawNumber.slice(2) && ticketLetter === drawLetter) {
+    return { prize: 100000, rank: 5 };
+  }
+
+  // 6等: 下3桁一致 1万コイン
+  if (ticketNumber.slice(2) === drawNumber.slice(2)) {
+    return { prize: 10000, rank: 6 };
+  }
+
+  // 7等: 下2桁 + 文字一致 1000コイン
+  if (ticketNumber.slice(3) === drawNumber.slice(3) && ticketLetter === drawLetter) {
+    return { prize: 1000, rank: 7 };
+  }
+
+  // 8等: 下2桁一致 500コイン
+  if (ticketNumber.slice(3) === drawNumber.slice(3)) {
+    return { prize: 500, rank: 8 };
+  }
+
+  // 9等: 文字一致 200コイン
+  if (ticketLetter === drawLetter) {
+    return { prize: 200, rank: 9 };
+  }
+
   return { prize: 0, rank: null };
 }
 
@@ -59,7 +94,7 @@ export async function execute(interaction, { client }) {
     }
 
     // --- コイン支払い ---
-    const costPerTicket = 750;
+    const costPerTicket = 1000;
     const totalCost = tickets.length * costPerTicket;
     const coins = await client.getCoins(userId);
 

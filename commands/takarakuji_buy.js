@@ -98,7 +98,7 @@ export async function execute(interaction, { client }) {
     });
   }
 
-  const costPerTicket = 750;
+  const costPerTicket = 1000;
   const totalCost = tickets.length * costPerTicket;
   const coins = await client.getCoins(userId);
 
