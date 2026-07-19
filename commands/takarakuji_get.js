@@ -12,21 +12,37 @@ export async function execute(interaction) {
   await interaction.deferReply();
 
   // --- 公開済み抽選IDだけ取得 ---
-  const publishedDrawIds = new Set(
-    (await db.collection("drawResults").find({}, { projection: { drawId: 1 } }).toArray())
-      .map(r => r.drawId)
-  );
+  drawId: {
+    $lte: latestDrawId
+  }
 
   // --- 購入履歴をストリームで取得 ---
-  const cursor = lotteryTickets.find({ userId }).batchSize(5000);
+  const cursor = lotteryTickets.find({
+    userId,
+    claimed: false
+},
+    {
+        projection: {
+            number: 1,
+            letter: 1,
+            prize: 1,
+            rank: 1,
+            drawId: 1,
+            isWin: 1,
+            claimed: 1
+        }
+    }
+).batchSize(5000);
+
 
   let hasPurchase = false; 
   let totalPrize = 0;
   let winCount = 0;
   const publicLines = [];
   const lowRankWins = {};
-  const remainingPurchases = [];
+  let unpublishedCount = 0;
   let deleteOps = [];
+  const deleteIds = [];
 
   for await (const p of cursor) {
     hasPurchase = true;
@@ -60,18 +76,21 @@ if (p.isWin && !p.claimed) {
     lowRankWins[p.rank].count++;
   }
 
-  deleteOps.push({ deleteOne: { filter: { _id: p._id } } });
+  deleteIds.push(p._id);({ deleteOne: { filter: { _id: p._id } } });
     } else if (!p.isWin) {
-      deleteOps.push({ deleteOne: { filter: { _id: p._id } } });
+      deleteIds.push(p._id);({ deleteOne: { filter: { _id: p._id } } });
     } else {
       remainingPurchases.push(p);
     }
 
     // 🔹 2万件ごとに一括削除
-    if (deleteOps.length >= 20000) {
-      await lotteryTickets.bulkWrite(deleteOps);
-      deleteOps = [];
-    }
+    if (deleteIds.length) {
+    await lotteryTickets.deleteMany({
+        _id: {
+            $in: deleteIds
+        }
+    });
+}
   }
 
   // --- 「購入履歴なし」の場合ここでリターン ---
@@ -141,14 +160,17 @@ const embedList = [];
     p => !p.drawId || !publishedDrawIds.has(p.drawId)
   ).length;
 
-  if (unpublishedCount > 0 && publicLines.length === 0) {
+  if (isUnpublished) {
+    unpublishedCount++;
+    continue;
+  }
     embedList.push(
       new EmbedBuilder()
         .setTitle("⏳ 未公開の抽選")
         .setDescription(`未公開チケット: ${unpublishedCount.toLocaleString()}枚`)
         .setColor(0xaaaaaa)
     );
-  }
+
 
   if (publicLines.length === 0 && unpublishedCount === 0) {
     embedList.push(

@@ -71,16 +71,19 @@ export async function execute(interaction, { client }) {
   try {
     const drawNumber = client.takarakuji.number;
     const drawLetter = client.takarakuji.letter;
+    const now = new Date();
     const drawId = getNextDrawId(new Date());
 
     // --- チケット生成 ---
-    const tickets = [];
-    for (let i = 0; i < count; i++) {
-      const number = String(Math.floor(Math.random() * 100000)).padStart(5, "0");
-      const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+    const tickets = new Array(count);
 
-      const { prize, rank } = judgeTicket(number, letter, drawNumber, drawLetter);
-      tickets.push({
+for (let i = 0; i < count; i++) {
+    const number = String(Math.floor(Math.random() * 100000)).padStart(5, "0");
+    const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+
+    const { prize, rank } = judgeTicket(number, letter, drawNumber, drawLetter);
+
+    tickets[i] = {
         userId,
         number,
         letter,
@@ -89,9 +92,9 @@ export async function execute(interaction, { client }) {
         prize,
         rank,
         claimed: false,
-        createdAt: new Date()
-      });
-    }
+        createdAt: now
+    };
+}
 
     // --- コイン支払い ---
     const costPerTicket = 1000;
@@ -105,11 +108,9 @@ export async function execute(interaction, { client }) {
     await client.updateCoins(userId, -totalCost);
 
     // --- MongoDBへ保存（1000件ずつ） ---
-    const batchSize = 1000;
-    for (let i = 0; i < tickets.length; i += batchSize) {
-      const batch = tickets.slice(i, i + batchSize);
-      await client.lotteryTickets.insertMany(batch);
-    }
+    await client.lotteryTickets.insertMany(tickets, {
+    ordered: false
+});
 
     // --- Embed返信 ---
     const embed = new EmbedBuilder()
