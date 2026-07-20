@@ -13,10 +13,10 @@ export const data = new SlashCommandBuilder()
       .setDescription("購入する会社を選択")
       .setRequired(true)
       .addChoices(
-        { name: "tootle株式会社", value: "A" },
+        { name: "株式会社ネットフリーズ", value: "A" },
         { name: "ハイシロソフト株式会社", value: "B" },
-        { name: "バナナ株式会社", value: "C" },
-        { name: "ネムーイ株式会社", value: "D" },
+        { name: "バンザイテンショク株式会社", value: "C" },
+        { name: "ニホンゴデハナソ株式会社", value: "D" },
         { name: "ナニイッテンノー株式会社", value: "E" },
         { name: "ダカラナニー株式会社", value: "F" },
         { name: "ホシーブックス株式会社", value: "G" },

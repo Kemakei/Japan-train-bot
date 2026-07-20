@@ -2,10 +2,10 @@ import { SlashCommandBuilder } from "discord.js";
 
 // 株マスタ（8社固定）
 const STOCKS = [
-  { id: "A", name: "tootle株式会社" },
+  { id: "A", name: "株式会社ネットフリーズ" },
   { id: "B", name: "ハイシロソフト株式会社" },
-  { id: "C", name: "バナナ株式会社" },
-  { id: "D", name: "ネムーイ株式会社" },
+  { id: "C", name: "バンザイテンショク株式会社" },
+  { id: "D", name: "ニホンゴデハナソ株式会社" },
   { id: "E", name: "ナニイッテンノー株式会社" },
   { id: "F", name: "ダカラナニー株式会社" },
   { id: "G", name: "ホシーブックス株式会社" },

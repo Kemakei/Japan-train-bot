@@ -10,33 +10,50 @@ export const data = new SlashCommandBuilder()
   );
 
 // -------------------- 数字フォーマット --------------------
-function formatCoins(amount) {
-  let result = '';
-  if (amount >= 1_0000_0000_0000) {
-    const cho = Math.floor(amount / 1_0000_0000_0000);
-    amount %= 1_0000_0000_0000;
-    result += `${cho}兆`;
+function formatCoins(amount){
+  let result='';
+
+  if(amount>=1_0000_0000_0000_0000_0000){
+    const gai=Math.floor(amount/1_0000_0000_0000_0000_0000);
+    amount%=1_0000_0000_0000_0000_0000;
+    result+=`${gai}垓`;
   }
-  if (amount >= 1_0000_0000) {
-    const oku = Math.floor(amount / 1_0000_0000);
-    amount %= 1_0000_0000;
-    result += `${oku}億`;
+
+  if(amount>=1_0000_0000_0000_0000){
+    const kei=Math.floor(amount/1_0000_0000_0000_0000);
+    amount%=1_0000_0000_0000_0000;
+    result+=`${kei}京`;
   }
-  if (amount >= 1_0000) {
-    const man = Math.floor(amount / 1_0000);
-    amount %= 1_0000;
-    result += `${man}万`;
+
+  if(amount>=1_0000_0000_0000){
+    const cho=Math.floor(amount/1_0000_0000_0000);
+    amount%=1_0000_0000_0000;
+    result+=`${cho}兆`;
   }
-  if (amount > 0 || result === '') result += `${amount}`;
-  return result + 'コイン';
+
+  if(amount>=1_0000_0000){
+    const oku=Math.floor(amount/1_0000_0000);
+    amount%=1_0000_0000;
+    result+=`${oku}億`;
+  }
+
+  if(amount>=1_0000){
+    const man=Math.floor(amount/1_0000);
+    amount%=1_0000;
+    result+=`${man}万`;
+  }
+
+  if(amount>0||result==='')result+=`${amount}`;
+
+  return result+'コイン';
 }
 
 // -------------------- 株マスタ --------------------
 const STOCKS = [
-  { id: "A", name: "tootle株式会社" },
+  { id: "A", name: "株式会社ネットフリーズ" },
   { id: "B", name: "ハイシロソフト株式会社" },
-  { id: "C", name: "バナナ株式会社" },
-  { id: "D", name: "ネムーイ株式会社" },
+  { id: "C", name: "バンザイテンショク株式会社" },
+  { id: "D", name: "ニホンゴデハナソ株式会社" },
   { id: "E", name: "ナニイッテンノー株式会社" },
   { id: "F", name: "ダカラナニー株式会社" },
   { id: "G", name: "ホシーブックス株式会社" },
@@ -85,9 +102,7 @@ export async function execute(interaction) {
     stockLines.length > 0 ? stockLines.join('\n') : 'なし';
 
   // -------------------- 宝くじ --------------------
-  const tickets = await client.lotteryTickets
-    .find({ userId })
-    .toArray();
+  const ticketCount=await client.lotteryTickets.countDocuments({userId});
 
   // -------------------- 総資産 --------------------
   const totalAssets = coins + stockTotalValue;
@@ -158,7 +173,7 @@ export async function execute(interaction) {
       `**株評価額合計:** ${formatCoins(stockTotalValue)}\n` +
       `**総資産:** ${formatCoins(totalAssets)}\n\n` +
 
-      `**宝くじ保有枚数:** ${tickets.length} 枚\n\n`+
+      `**宝くじ保有枚数:** ${ticketCount} 枚\n\n`+
       `**職業:** ${jobName}\n` +
       `**熟練度:** ${skill}\n` +
       `**才能:** ${talent}\n` +
