@@ -5,7 +5,7 @@ const buyCooldown = new Map(); // userId => timestamp
 const COOLDOWN_TIME = 5 * 60 * 1000; // 5分
 
 export const data = new SlashCommandBuilder()
-  .setName("trade_buy")
+  .setName("stock_buy")
   .setDescription("株を購入します")
   .addStringOption(option =>
     option

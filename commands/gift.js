@@ -48,11 +48,21 @@ export async function execute(interaction) {
       });
     }
 
+    // --- 手数料計算（20%、切り上げ） ---
+    const fee = Math.ceil(amount * 0.2);
+    const totalCost = amount + fee;
+
     // --- 送信者の所持金チェック ---
     const senderCoins = await client.getCoins(senderId);
-    if (senderCoins < amount) {
+
+    if (senderCoins < totalCost) {
+      const maxAmount = Math.floor(senderCoins / 1.2);
+
       return await interaction.reply({
-        content: `❌ コインが足りません！（所持: ${senderCoins}, 必要: ${amount}）`,
+        content:
+          `❌ コインが足りません！\n` +
+          `手数料: **${fee}**\n` +
+          `現在送れる最大金額: **${maxAmount} コイン**`,
         flags: 64
       });
     }
@@ -66,7 +76,7 @@ export async function execute(interaction) {
       });
     }
 
-    // --- Botに送れない（自分のBot + 他Botすべて） ---
+    // --- Botに送れない ---
     if (targetUser.bot) {
       return await interaction.reply({
         content: "❌ Botにコインを送ることはできません。",
@@ -75,14 +85,19 @@ export async function execute(interaction) {
     }
 
     // --- コイン移動 ---
-    await client.updateCoins(senderId, -amount);
+    await client.updateCoins(senderId, -totalCost);
     await client.updateCoins(targetId, amount);
 
     const remaining = await client.getCoins(senderId);
+    const receiverCoins = await client.getCoins(targetId);
 
-    // --- 成功メッセージ（公開） ---
+    // --- 成功メッセージ ---
     await interaction.reply({
-      content: `🎁 <@${senderId}> が <@${targetId}> に **${amount} コイン** を贈りました！\n💰 送信者の残りコイン: ${remaining}`,
+      content:
+        `<@${senderId}> が <@${targetId}> に **${amount} コイン** を贈りました！\n` +
+        `手数料: **${fee} コイン**\n` +
+        `<@${senderId}> の所持金: **${remaining}**\n` +
+        `<@${targetId}> の所持金: **${receiverCoins}**`,
       ephemeral: false
     });
 

@@ -1,7 +1,7 @@
 import { SlashCommandBuilder } from "discord.js";
 
 export const data = new SlashCommandBuilder()
-  .setName("leverage")
+  .setName("debt")
   .setDescription("銀行からお金を借りたり返済します")
   .addSubcommand(sub =>
     sub.setName("borrow")

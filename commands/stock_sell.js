@@ -13,7 +13,7 @@ const STOCKS = [
 ];
 
 export const data = new SlashCommandBuilder()
-  .setName("trade_sell")
+  .setName("stock_sell")
   .setDescription("株を売却します")
   .addStringOption(opt =>
     opt.setName("stock")

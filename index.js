@@ -18,6 +18,7 @@ import { MongoClient } from "mongodb";
 import { scheduleDailyLoanUpdate } from './utils/dailyLoanUpdater.js';
 import { getLatestDrawId } from "./utils/draw.js";
 import { scheduleUnemployCheck } from './commands/takasumi_unemploy_timer.js';
+import { scheduleDailyStockDividend } from "./utils/dailyStockDividend.js";
 
 // -------------------- Webサーバー設定 --------------------
 const app = express();
@@ -151,18 +152,18 @@ client.updateVIPCoins = async (userId, delta) => {
   );
 };
 
-
 // -------------------- 株価管理（MongoDB版） --------------------
-// ===== 株マスタ（固定8社 + 上限/下限設定）=====
+
+// ===== 株マスタ（基準価格 + ソフトレンジ）=====
 const STOCKS = [
-  { id: "A", name: "tootle株式会社",        base: 1000, min: 700,  max: 1300 },
-  { id: "B", name: "ハイシロソフト株式会社", base: 1500, min: 1000,  max: 2000 },
-  { id: "C", name: "バナナ株式会社",        base: 600,  min: 300,  max: 1000 },
-  { id: "D", name: "ネムーイ株式会社",      base: 200,  min: 50,  max: 500 },
-  { id: "E", name: "ナニイッテンノー株式会社", base: 3000, min: 1000, max: 5000 },
-  { id: "F", name: "ダカラナニー株式会社",  base: 1750,  min: 900,  max: 3000 },
-  { id: "G", name: "ホシーブックス株式会社", base: 9000, min: 2500,  max: 15000 },
-  { id: "H", name: "ランランルー株式会社",  base: 5000, min: 1500, max: 7000 },
+  { id: "A", name: "株式会社ネットフリーズ",        base: 1000, min: 700,  max: 1300 },
+  { id: "B", name: "ハイシロソフト株式会社",        base: 1500, min: 1000, max: 2000 },
+  { id: "C", name: "バンザイテンショク株式会社",    base: 600,  min: 300,  max: 1000 },
+  { id: "D", name: "ニホンゴデハナソ株式会社",      base: 200,  min: 50,   max: 500 },
+  { id: "E", name: "ナニイッテンノー株式会社",      base: 3000, min: 1000, max: 5000 },
+  { id: "F", name: "ダカラナニー株式会社",          base: 1750, min: 900,  max: 3000 },
+  { id: "G", name: "ホシーブックス株式会社",        base: 9000, min: 2500, max: 15000 },
+  { id: "H", name: "ランランルー株式会社",          base: 5000, min: 1500, max: 7000 },
 ];
 
 // MongoDBコレクション
@@ -170,72 +171,157 @@ client.stockHistoryCol = client.db.collection("stock_history");
 
 // ===== 株価取得 =====
 client.getStockPrice = async (stockId) => {
-  const stockDoc = await client.stockHistoryCol.findOne({ userId: `stock_price_${stockId}` });
-  return typeof stockDoc?.currentPrice === "number" ? stockDoc.currentPrice : STOCKS.find(s => s.id === stockId).base;
+  const stockDoc = await client.stockHistoryCol.findOne({
+    userId: `stock_price_${stockId}`
+  });
+
+  return typeof stockDoc?.currentPrice === "number"
+    ? stockDoc.currentPrice
+    : STOCKS.find(s => s.id === stockId).base;
 };
 
-// ===== 株価更新（delta反映 + 上下限 + 履歴保存） =====
+// ===== 株価更新（履歴保存）=====
 client.updateStockPrice = async (stockId, delta) => {
   const stock = STOCKS.find(s => s.id === stockId);
   if (!stock) return;
 
-  // 現在株価取得
-  const stockDoc = await client.stockHistoryCol.findOne({ userId: `stock_price_${stockId}` });
-  let price = (stockDoc?.currentPrice ?? stock.base) + delta;
+  const stockDoc = await client.stockHistoryCol.findOne({
+    userId: `stock_price_${stockId}`
+  });
 
-  // 上下限チェック
-  if (price < stock.min) price = stock.min;
-  if (price > stock.max) price = stock.max;
+  const price = (stockDoc?.currentPrice ?? stock.base) + delta;
 
-  // 株価保存
+  // 現在価格保存
   await client.stockHistoryCol.updateOne(
     { userId: `stock_price_${stockId}` },
-    { $set: { currentPrice: price } },
-    { upsert: true }
+    {
+      $set: {
+        currentPrice: price
+      }
+    },
+    {
+      upsert: true
+    }
   );
 
-  // 履歴追加
-  const historyDoc = await client.stockHistoryCol.findOne({ userId: `trade_history_${stockId}` });
-  const history = Array.isArray(historyDoc?.history) ? historyDoc.history : [];
-  history.push({ time: new Date().toISOString(), price });
-  if (history.length > 144) history.shift(); // 過去24時間分（10分ごと → 144個）
+  // 履歴保存
+  const historyDoc = await client.stockHistoryCol.findOne({
+    userId: `trade_history_${stockId}`
+  });
+
+  const history = Array.isArray(historyDoc?.history)
+    ? historyDoc.history
+    : [];
+
+  history.push({
+    time: new Date().toISOString(),
+    price
+  });
+
+  // 24時間分（10分×144件）
+  while (history.length > 144) history.shift();
 
   await client.stockHistoryCol.updateOne(
     { userId: `trade_history_${stockId}` },
-    { $set: { history } },
-    { upsert: true }
+    {
+      $set: {
+        history
+      }
+    },
+    {
+      upsert: true
+    }
   );
 };
 
-// ===== 自動株価変動（10分ごと） =====
+// ===== 自動株価変動（10分ごと）=====
 setInterval(async () => {
+
   for (const stock of STOCKS) {
+
     const currentPrice = await client.getStockPrice(stock.id);
 
-    // ±10%以内の変動幅を決定
-    let delta = Math.round((Math.random() - 0.5) * 0.2 * stock.base);
+    // 通常変動幅（±10%）
+    const amount = Math.max(
+      1,
+      Math.round(Math.random() * 0.1 * stock.base)
+    );
 
-    // 最低値に達していたら必ず上がる
-    if (currentPrice <= stock.min) {
-      delta = Math.max(1, Math.abs(delta)); // +1以上
+    // ソフトレンジ
+    const softMin = stock.min;
+    const softMax = stock.max;
+
+    // ハードレンジ
+    const hardMin = softMin - 300;
+    const hardMax = softMax + 2000;
+
+    let upChance = 0.5;
+
+    // 上限を超えるほど下落しやすい
+    if (currentPrice > softMax) {
+
+      const ratio = Math.min(
+        1,
+        (currentPrice - softMax) / (hardMax - softMax)
+      );
+
+      upChance = 0.5 * (1 - ratio);
     }
 
-    // 最高値に達していたら必ず下がる
-    if (currentPrice >= stock.max) {
-      delta = -Math.max(1, Math.abs(delta)); // -1以下
+    // 下限を下回るほど上昇しやすい
+    else if (currentPrice < softMin) {
+
+      const ratio = Math.min(
+        1,
+        (softMin - currentPrice) / (softMin - hardMin)
+      );
+
+      upChance = 0.5 + ratio * 0.5;
     }
 
-    // 0もあり得る
-    if (Math.random() < 0.1) delta = 0;
+    let delta;
 
-    // 株価更新
+    // ハード上限なら必ず下落
+    if (currentPrice >= hardMax) {
+
+      delta = -amount;
+
+    }
+
+    // ハード下限なら必ず上昇
+    else if (currentPrice <= hardMin) {
+
+      delta = amount;
+
+    }
+
+    // 通常判定
+    else {
+
+      if (Math.random() < upChance) {
+        delta = amount;
+      } else {
+        delta = -amount;
+      }
+
+      // 10%で変動なし
+      if (Math.random() < 0.1) {
+        delta = 0;
+      }
+    }
+
     await client.updateStockPrice(stock.id, delta);
 
-    const price = await client.getStockPrice(stock.id);
-    const sign = delta > 0 ? "+" : delta < 0 ? "-" : "0";
-    console.log(`株価自動変動: ${stock.name} ${sign}${Math.abs(delta)}, 現在株価: ${price}`);
+    const newPrice = await client.getStockPrice(stock.id);
+
+    console.log(
+      `株価自動変動: ${stock.name} ` +
+      `${delta >= 0 ? "+" : ""}${delta} ` +
+      `現在株価: ${newPrice}`
+    );
   }
-}, 10 * 60 * 1000); // 10分ごと
+
+}, 10 * 60 * 1000);
 
 
 // -------------------- 職業・才能スコア保存 --------------------
@@ -453,6 +539,7 @@ client.once(Events.ClientReady, async () => {
   await loadLatestTakarakuji();
   scheduleTakarakujiUpdate();
   scheduleDailyLoanUpdate(client);
+  scheduleDailyStockDividend(client);
   scheduleUnemployCheck(client);
 
   console.log("🎰 宝くじ自動更新スケジュールが開始されました。");
@@ -539,7 +626,7 @@ client.on(Events.InteractionCreate, async interaction => {
   try {
     // ===== ボタンインタラクション対応（trade_graph）=====
    if (interaction.isButton()) {
-     const command = client.commands.get("trade_graph");
+     const command = client.commands.get("stock_graph");
 
      if (command && typeof command.handleButton === "function") {
        try {

@@ -8,10 +8,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const STOCKS = [
-  { id: "A", name: "tootle株式会社", base: 1000 },
+  { id: "A", name: "株式会社ネットフリーズ", base: 1000 },
   { id: "B", name: "ハイシロソフト株式会社", base: 1200 },
-  { id: "C", name: "バナナ株式会社", base: 800 },
-  { id: "D", name: "ネムーイ株式会社", base: 600 },
+  { id: "C", name: "バンザイテンショク株式会社", base: 800 },
+  { id: "D", name: "ニホンゴデハナソ株式会社", base: 600 },
   { id: "E", name: "ナニイッテンノー株式会社", base: 1500 },
   { id: "F", name: "ダカラナニー株式会社", base: 900 },
   { id: "G", name: "ホシーブックス株式会社", base: 1100 },
@@ -21,7 +21,7 @@ const STOCKS = [
 const graphCache = new Map();
 
 export const data = new SlashCommandBuilder()
-  .setName("trade_graph")
+  .setName("stock_graph")
   .setDescription("株価グラフ");
 
 export async function execute(interaction, { client }) {
