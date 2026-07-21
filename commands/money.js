@@ -102,8 +102,9 @@ export async function execute(interaction) {
     stockLines.length > 0 ? stockLines.join('\n') : 'なし';
 
   // -------------------- 宝くじ --------------------
-  const ticketCount=await client.lotteryTickets.countDocuments({userId});
-
+  const upperticket=await client.lotteryTickets.countDocuments({userId});
+  const ticket=await client.lotterySummery.countDocuments({userId});
+  const ticketCount = ticket + upperticket
   // -------------------- 総資産 --------------------
   const totalAssets = coins + stockTotalValue;
 

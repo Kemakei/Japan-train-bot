@@ -5,29 +5,43 @@ export const data = new SlashCommandBuilder()
   .setDescription('サーバー内のコインランキングを表示します');
 
 // -------------------- 数字フォーマット関数 --------------------
-function formatCoins(amount) {
-  let result = '';
-  if (amount >= 1_0000_0000_0000) { 
-    const cho = Math.floor(amount / 1_0000_0000_0000);
+function formatCoins(amount){
+  let result='';
+
+  if(amount >= 1_0000_0000_0000_0000_0000){
+    const gai=Math.floor(amount / 1_0000_0000_0000_0000_0000);
+    amount %= 1_0000_0000_0000_0000_0000;
+    result += `${gai}垓`;
+  }
+
+  if(amount >= 1_0000_0000_0000_0000){
+    const kei=Math.floor(amount / 1_0000_0000_0000_0000);
+    amount %= 1_0000_0000_0000_0000;
+    result += `${kei}京`;
+  }
+
+  if(amount >= 1_0000_0000_0000){
+    const cho=Math.floor(amount / 1_0000_0000_0000);
     amount %= 1_0000_0000_0000;
     result += `${cho}兆`;
   }
-  if (amount >= 1_0000_0000) { 
-    const oku = Math.floor(amount / 1_0000_0000);
+
+  if(amount >= 1_0000_0000){
+    const oku=Math.floor(amount / 1_0000_0000);
     amount %= 1_0000_0000;
-    result += `${oku}億`;
+    result+=`${oku}億`;
   }
-  if (amount >= 1_0000) { 
-    const man = Math.floor(amount / 1_0000);
+
+  if(amount >= 1_0000){
+    const man=Math.floor(amount / 1_0000);
     amount %= 1_0000;
     result += `${man}万`;
   }
-  if (amount > 0) { 
-    result += `${amount}`;
-  }
-  return result + 'コイン';
-}
 
+  if(amount > 0||result==='')result += `${amount}`;
+
+  return result+'コイン';
+}
 export async function execute(interaction, { client }) {
   const guild = interaction.guild;
   if (!guild) return await interaction.reply({ content: '❌ ギルド情報が取得できません', flags: 64 });
