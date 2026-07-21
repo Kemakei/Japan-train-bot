@@ -102,9 +102,36 @@ export async function execute(interaction) {
     stockLines.length > 0 ? stockLines.join('\n') : 'なし';
 
   // -------------------- 宝くじ --------------------
-  const upperticket=await client.lotteryTickets.countDocuments({userId});
-  const ticket=await client.lotterySummary.countDocuments({userId});
-  const ticketCount = ticket + upperticket
+const upperTicket = await client.lotteryTickets.countDocuments({ userId });
+
+const [summary] = await client.lotterySummary.aggregate([
+  {
+    $match: { userId }
+  },
+  {
+    $project: {
+      total: {
+        $add: [
+          { $ifNull: ["$ranks.4.count", 0] },
+          { $ifNull: ["$ranks.5.count", 0] },
+          { $ifNull: ["$ranks.6.count", 0] },
+          { $ifNull: ["$ranks.7.count", 0] },
+          { $ifNull: ["$ranks.8.count", 0] },
+          { $ifNull: ["$ranks.9.count", 0] },
+          { $ifNull: ["$ranks.miss.count", 0] }
+        ]
+      }
+    }
+  },
+  {
+    $group: {
+      _id: null,
+      total: { $sum: "$total" }
+    }
+  }
+]).toArray();
+
+const ticketCount = upperTicket + (summary?.total ?? 0);
   // -------------------- 総資産 --------------------
   const totalAssets = coins + stockTotalValue;
 

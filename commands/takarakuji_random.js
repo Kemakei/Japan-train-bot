@@ -190,4 +190,4 @@ export async function execute(interaction, { client }) {
       content: "❌ 購入処理中にエラーが発生しました"
     });
   }
-}0
+}

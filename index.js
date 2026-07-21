@@ -433,7 +433,7 @@ async function updateTakarakujiNumber() {
     client.takarakuji = { number: newNumber, letter: newLetter };
 
     // 次回分も DB に保存しておく（drawId は次回のもの）
-    const nextDrawId = previousDrawId + 1; // getLatestDrawId のルールに合わせて適宜調整
+    const nextDrawId = getNextDrawId(now);
     await db.collection("drawResults").updateOne(
       { drawId: nextDrawId },
       { $set: { number: newNumber, letter: newLetter, drawId: nextDrawId, published: false } },
