@@ -103,7 +103,7 @@ export async function execute(interaction) {
 
   // -------------------- 宝くじ --------------------
   const upperticket=await client.lotteryTickets.countDocuments({userId});
-  const ticket=await client.lotterySummery.countDocuments({userId});
+  const ticket=await client.lotterySummary.countDocuments({userId});
   const ticketCount = ticket + upperticket
   // -------------------- 総資産 --------------------
   const totalAssets = coins + stockTotalValue;
