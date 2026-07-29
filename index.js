@@ -16,7 +16,7 @@ import {
 } from 'discord.js';
 import { MongoClient } from "mongodb";
 import { scheduleDailyLoanUpdate } from './utils/dailyLoanUpdater.js';
-import { getLatestDrawId } from "./utils/draw.js";
+import { getLatestDrawId, getNextDrawId } from "./utils/draw.js";
 import { scheduleUnemployCheck } from './commands/takasumi_unemploy_timer.js';
 import { scheduleDailyStockDividend } from "./utils/dailyStockDividend.js";
 
