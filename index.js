@@ -20,6 +20,10 @@ import { getLatestDrawId, getNextDrawId } from "./utils/draw.js";
 import { scheduleUnemployCheck } from './commands/takasumi_unemploy_timer.js';
 import { scheduleDailyStockDividend } from "./utils/dailyStockDividend.js";
 
+// ESMで__dirnameを使う
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 // -------------------- Webサーバー設定 --------------------
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -47,10 +51,6 @@ function trimQuotes(value) {
 
 const playlistId = trimQuotes(process.env.YOUTUBE_PLAYLIST_ID);
 const youtubeApiKey = trimQuotes(process.env.YOUTUBE_API_TOKEN);
-
-// ESMで__dirnameを使う
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // -------------------- MongoDB 接続 --------------------
 const mongoClient = new MongoClient(process.env.MONGO_URI);
