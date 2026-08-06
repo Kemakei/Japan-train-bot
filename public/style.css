@@ -5,8 +5,13 @@ html, body {
   overflow: hidden;
 }
 
+body {
+  background: #222;
+}
+
 canvas {
   display: block;
   width: 100vw;
   height: 100vh;
+  image-rendering: pixelated;
 }
