@@ -24,7 +24,7 @@ document.addEventListener("keyup",e=>{
 });
 
 async function loadGame(){
-  map=await fetch("assets/json/map.json")
+  map=await fetch("assets/map.json")
     .then(response=>response.json());
 
   tiles.grass=new Image();
