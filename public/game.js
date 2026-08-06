@@ -28,10 +28,10 @@ async function loadGame(){
     .then(response=>response.json());
 
   tiles.grass=new Image();
-  tiles.grass.src="assets/tiles/草.png";
+  tiles.grass.src="assets/tiles/草.tsx";
 
   tiles.dirt=new Image();
-  tiles.dirt.src="assets/tiles/土.png";
+  tiles.dirt.src="assets/tiles/土.tsx";
 
   tiles.grass.onload=()=>{
     requestAnimationFrame(gameLoop);
@@ -87,7 +87,6 @@ if(keys["ArrowRight"]||keys["d"]||joystick.x>0.3){
 player.x+=player.speed;
 }
 
-}
 }
 
 function drawPlayer(){
