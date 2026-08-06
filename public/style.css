@@ -1,40 +1,13 @@
-body{
-margin:0;
-background:#000;
-display:flex;
-justify-content:center;
-align-items:center;
-height:100vh;
+body {
+  margin: 0;
+  background-color: #222;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
 }
 
-canvas{
-image-rendering:pixelated;
-}
-#joystickToggle{
-position:fixed;
-bottom:20px;
-right:20px;
-z-index:10;
-}
-
-#joystick{
-position:fixed;
-left:40px;
-bottom:40px;
-width:120px;
-height:120px;
-border-radius:50%;
-background:rgba(255,255,255,0.2);
-display:block;
-touch-action:none;
-}
-
-#stick{
-position:absolute;
-left:40px;
-top:40px;
-width:40px;
-height:40px;
-border-radius:50%;
-background:rgba(255,255,255,0.5);
+canvas {
+  border: 2px solid #fff;
+  image-rendering: pixelated;
 }
