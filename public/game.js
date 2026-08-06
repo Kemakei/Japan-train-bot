@@ -97,7 +97,7 @@ ctx.drawImage(
     tileWidth * scaleX,
     tileHeight * scaleY
 );
-            );
+            
 
         });
 
