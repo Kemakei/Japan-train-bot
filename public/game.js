@@ -83,16 +83,20 @@ function drawMap() {
             const dx = (index % mapWidth) * tileWidth;
             const dy = Math.floor(index / mapWidth) * tileHeight;
 
-            ctx.drawImage(
-                ts.image,
-                sx,
-                sy,
-                tileWidth,
-                tileHeight,
-                dx,
-                dy,
-                tileWidth,
-                tileHeight
+            const scaleX = canvas.width / (mapData.width * tileWidth);
+const scaleY = canvas.height / (mapData.height * tileHeight);
+
+ctx.drawImage(
+    ts.image,
+    sx,
+    sy,
+    tileWidth,
+    tileHeight,
+    dx * scaleX,
+    dy * scaleY,
+    tileWidth * scaleX,
+    tileHeight * scaleY
+);
             );
 
         });
