@@ -24,12 +24,19 @@ import { scheduleDailyStockDividend } from "./utils/dailyStockDividend.js";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.get('/', (req, res) => res.send('Bot is alive!'));
-app.all('/', (req, res) => { 
-  console.log(`Received a ${req.method} request at '/'`);
-  res.sendStatus(200); 
+// publicフォルダを公開
+app.use(express.static(path.join(__dirname, "public")));
+
+// Botの生存確認API
+app.get("/api/status", (req, res) => {
+  res.json({
+    status: "online"
+  });
 });
-app.listen(PORT, () => console.log(`✅ Web server running on port ${PORT}`));
+
+app.listen(PORT, () => {
+  console.log(`✅ Web server running on port ${PORT}`);
+});
 
 // ------------------------------------------------------------------------
 // 共通関数
