@@ -75,13 +75,25 @@ app.get("/api/cookie/load/:id", async (req,res)=>{
 
 app.post("/api/cookie/save", async(req,res)=>{
 
-    const data=req.body;
+    const data = req.body;
+
+    delete data._id;
 
     await cookieGameCol.updateOne(
-        {playerId:data.playerId},
+        {
+            playerId:data.playerId
+        },
         {
             $set:{
-                ...data,
+                cookies:data.cookies,
+                totalCookies:data.totalCookies,
+
+                buildings:data.buildings,
+
+                upgrades:data.upgrades,
+
+                prestige:data.prestige,
+
                 updatedAt:new Date()
             }
         },
@@ -90,9 +102,11 @@ app.post("/api/cookie/save", async(req,res)=>{
         }
     );
 
+
     res.json({
         success:true
     });
+
 });
 
 app.listen(PORT, () => {
