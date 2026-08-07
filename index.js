@@ -121,8 +121,6 @@ try {
 }
 const coinsCol = db.collection("coins"); // coins + stocks + trade_history
 const hedgeCol = db.collection("hedges");
-const cookieGameCol = db.collection("cookieGame");
-client.cookieGameCol = cookieGameCol;
 
 // Discordクライアント初期化
 const client = new Client({
@@ -147,6 +145,8 @@ client.commands = new Collection();
 client.lotteryTickets = client.db.collection("lotteryTickets");
 client.stockHistoryCol = client.db.collection("stock_history");
 client.lotterySummary = client.db.collection("lotterySummary");
+const cookieGameCol = db.collection("cookieGame");
+client.cookieGameCol = cookieGameCol;
 
 // -------------------- コイン・株管理（MongoDB版 + VIPCoins追加） --------------------
 
