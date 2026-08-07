@@ -37,6 +37,63 @@ app.get("/api/status", (req, res) => {
     status: "online"
   });
 });
+app.use(express.json());
+
+app.get("/api/cookie/load/:id", async (req,res)=>{
+    const id=req.params.id;
+
+    let data=await cookieGameCol.findOne({
+        playerId:id
+    });
+
+    if(!data){
+        data={
+            playerId:id,
+            cookies:0,
+            totalCookies:0,
+            buildings:{
+                farm:0,
+                factory:0,
+                lab:0
+            },
+            upgrades:{
+                clickPower:1,
+                production:1
+            },
+            prestige:{
+                level:0,
+                points:0
+            }
+        };
+
+        await cookieGameCol.insertOne(data);
+    }
+
+    res.json(data);
+});
+
+
+app.post("/api/cookie/save", async(req,res)=>{
+
+    const data=req.body;
+
+    await cookieGameCol.updateOne(
+        {playerId:data.playerId},
+        {
+            $set:{
+                ...data,
+                updatedAt:new Date()
+            }
+        },
+        {
+            upsert:true
+        }
+    );
+
+    res.json({
+        success:true
+    });
+});
 
 app.listen(PORT, () => {
   console.log(`✅ Web server running on port ${PORT}`);
@@ -64,6 +121,8 @@ try {
 }
 const coinsCol = db.collection("coins"); // coins + stocks + trade_history
 const hedgeCol = db.collection("hedges");
+const cookieGameCol = db.collection("cookieGame");
+client.cookieGameCol = cookieGameCol;
 
 // Discordクライアント初期化
 const client = new Client({

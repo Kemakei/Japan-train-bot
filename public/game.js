@@ -1,108 +1,197 @@
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
+const playerId =
+  localStorage.playerId ?? crypto.randomUUID();
 
-function resizeCanvas() {
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+localStorage.playerId = playerId;
 
-window.addEventListener("resize", () => {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    drawMap();
-});
+let game = {
+  playerId,
+  cookies: 0,
+  totalCookies: 0,
+
+  buildings: {
+    farm: 0,
+    factory: 0,
+    lab: 0
+  },
+
+  upgrades: {
+    clickPower: 1,
+    production: 1
+  },
+
+  prestige: {
+    level: 0,
+    points: 0
+  }
+};
+
+
+const buildingData = {
+  farm: {
+    price: 50,
+    power: 1
+  },
+
+  factory: {
+    price: 500,
+    power: 10
+  },
+
+  lab: {
+    price: 5000,
+    power: 100
+  }
+};
+
+
+async function load() {
+  const res = await fetch(
+    `/api/cookie/load/${playerId}`
+  );
+
+  game = await res.json();
+  update();
 }
 
-resizeCanvas();
-window.addEventListener("resize", resizeCanvas);
 
-let mapData;
+async function save() {
+  await fetch(
+    "/api/cookie/save",
+    {
+      method: "POST",
 
-const tilesets = [];
+      headers: {
+        "Content-Type": "application/json"
+      },
 
-async function loadMap() {
-    const response = await fetch("assets/map.json");
-    mapData = await response.json();
-
-    // imageを持つタイルセットだけ読み込む
-    const promises = mapData.tilesets
-        .filter(ts => ts.image)
-        .map(ts => {
-            return new Promise(resolve => {
-                const img = new Image();
-                img.src = "assets/" + ts.image;
-
-                img.onload = () => {
-                    tilesets.push({
-                        firstgid: ts.firstgid,
-                        columns: ts.columns,
-                        tilewidth: ts.tilewidth,
-                        tileheight: ts.tileheight,
-                        image: img
-                    });
-                    resolve();
-                };
-            });
-        });
-
-    await Promise.all(promises);
-
-    // firstgid順に並べる
-    tilesets.sort((a, b) => a.firstgid - b.firstgid);
-
-    drawMap();
+      body: JSON.stringify(game)
+    }
+  );
 }
 
-function drawMap() {
 
-    const tileWidth = mapData.tilewidth;
-    const tileHeight = mapData.tileheight;
-    const mapWidth = mapData.width;
+function clickCookie() {
+  const power = game.upgrades.clickPower;
 
-    mapData.layers.forEach(layer => {
+  game.cookies += power;
+  game.totalCookies += power;
 
-        if (layer.type !== "tilelayer") return;
-
-        layer.data.forEach((gid, index) => {
-
-            if (gid === 0) return;
-
-            // 使用するタイルセットを探す
-            let ts = tilesets[0];
-
-            for (let i = 0; i < tilesets.length; i++) {
-                if (gid >= tilesets[i].firstgid) {
-                    ts = tilesets[i];
-                }
-            }
-
-            const localId = gid - ts.firstgid;
-
-            const sx = (localId % ts.columns) * tileWidth;
-            const sy = Math.floor(localId / ts.columns) * tileHeight;
-
-            const dx = (index % mapWidth) * tileWidth;
-            const dy = Math.floor(index / mapWidth) * tileHeight;
-
-            const scaleX = canvas.width / (mapData.width * tileWidth);
-const scaleY = canvas.height / (mapData.height * tileHeight);
-
-ctx.drawImage(
-    ts.image,
-    sx,
-    sy,
-    tileWidth,
-    tileHeight,
-    dx * scaleX,
-    dy * scaleY,
-    tileWidth * scaleX,
-    tileHeight * scaleY
-);
-            
-
-        });
-
-    });
-
+  update();
+  save();
 }
 
-loadMap();
+
+function production() {
+  const base =
+    game.buildings.farm * 1 +
+    game.buildings.factory * 10 +
+    game.buildings.lab * 100;
+
+  const boost =
+    1 +
+    game.upgrades.production * 0.1 +
+    game.prestige.points * 0.1;
+
+  return Math.floor(base * boost);
+}
+
+
+setInterval(() => {
+  const gain = production();
+
+  game.cookies += gain;
+  game.totalCookies += gain;
+
+  update();
+  save();
+
+}, 1000);
+
+
+function buyBuilding(type) {
+  const data = buildingData[type];
+
+  if (game.cookies >= data.price) {
+    game.cookies -= data.price;
+    game.buildings[type]++;
+
+    update();
+    save();
+  }
+}
+
+
+function buyUpgrade(type) {
+  if (type === "click") {
+    if (game.cookies >= 100) {
+      game.cookies -= 100;
+      game.upgrades.clickPower++;
+    }
+  }
+
+  if (type === "production") {
+    if (game.cookies >= 1000) {
+      game.cookies -= 1000;
+      game.upgrades.production++;
+    }
+  }
+
+  update();
+  save();
+}
+
+
+function rebirth() {
+  if (game.cookies < 100000) {
+    return;
+  }
+
+  game.cookies = 0;
+
+  game.buildings = {
+    farm: 0,
+    factory: 0,
+    lab: 0
+  };
+
+  game.upgrades = {
+    clickPower: 1,
+    production: 1
+  };
+
+  game.prestige.points++;
+  game.prestige.level++;
+
+  save();
+  update();
+}
+
+
+function update() {
+  document.getElementById("cookies").textContent =
+    `${Math.floor(game.cookies)} Cookie`;
+
+  document.getElementById("production").textContent =
+    `毎秒生産: ${production()}`;
+
+  document.getElementById("buildings").textContent =
+    `農場:${game.buildings.farm}
+工場:${game.buildings.factory}
+研究所:${game.buildings.lab}`;
+
+  document.getElementById("upgrades").textContent =
+    `クリックLv:${game.upgrades.clickPower}
+生産Lv:${game.upgrades.production}`;
+
+  document.getElementById("prestige").textContent =
+    `転生:${game.prestige.level}
+ポイント:${game.prestige.points}`;
+}
+
+
+document
+  .getElementById("cookieButton")
+  .onclick = clickCookie;
+
+
+load();
