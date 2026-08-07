@@ -1,81 +1,24 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
-<title>Cookie Factory</title>
-<link rel="stylesheet" href="style.css">
-</head>
-
-<body>
-
-<h1>🍪 Cookie Factory</h1>
-
-<div class="box">
-<h2 id="cookies">0 Cookie</h2>
-<p id="production">毎秒生産: 0</p>
-
-<button id="cookieButton">
-🍪 クリック
+<a href="/auth/discord">
+<button>
+Discordでログイン
 </button>
-</div>
+</a>
 
+<p id="user"></p>
 
-<div class="box">
+<script>
 
-<h2>施設</h2>
+fetch("/api/user")
+.then(r=>r.json())
+.then(data=>{
 
-<button onclick="buyBuilding('farm')">
-農場購入 (50)
-</button>
+if(data.logged){
 
-<button onclick="buyBuilding('factory')">
-工場購入 (500)
-</button>
+document.getElementById("user").textContent =
+data.user.username+"でログイン中";
 
-<button onclick="buyBuilding('lab')">
-研究所購入 (5000)
-</button>
+}
 
-<p id="buildings"></p>
+});
 
-</div>
-
-
-<div class="box">
-
-<h2>アップグレード</h2>
-
-<button onclick="buyUpgrade('click')">
-クリック強化 (100)
-</button>
-
-<button onclick="buyUpgrade('production')">
-生産強化 (1000)
-</button>
-
-<p id="upgrades"></p>
-
-</div>
-
-
-<div class="box">
-
-<h2>転生</h2>
-
-<p>
-必要: 100000 Cookie
-</p>
-
-<button onclick="rebirth()">
-転生する
-</button>
-
-<p id="prestige"></p>
-
-</div>
-
-
-<script src="game.js"></script>
-
-</body>
-</html>
+</script>

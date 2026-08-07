@@ -1,6 +1,10 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+import session from "express-session";
+import passport from "passport";
+import { Strategy as DiscordStrategy } from "passport-discord";
+
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
@@ -31,6 +35,15 @@ const PORT = process.env.PORT || 3000;
 // publicフォルダを公開
 app.use(express.static(path.join(__dirname, "public")));
 
+app.use(session({
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
+
 // Botの生存確認API
 app.get("/api/status", (req, res) => {
   res.json({
@@ -39,78 +52,51 @@ app.get("/api/status", (req, res) => {
 });
 app.use(express.json());
 
-app.get("/api/cookie/load/:id", async (req,res)=>{
-    const id=req.params.id;
-
-    let data=await cookieGameCol.findOne({
-        playerId:id
-    });
-
-    if(!data){
-        data={
-            playerId:id,
-            cookies:0,
-            totalCookies:0,
-            buildings:{
-                farm:0,
-                factory:0,
-                lab:0
-            },
-            upgrades:{
-                clickPower:1,
-                production:1
-            },
-            prestige:{
-                level:0,
-                points:0
-            }
-        };
-
-        await cookieGameCol.insertOne(data);
-    }
-
-    res.json(data);
-});
-
-
-app.post("/api/cookie/save", async(req,res)=>{
-
-    const data = req.body;
-
-    delete data._id;
-
-    await cookieGameCol.updateOne(
-        {
-            playerId:data.playerId
-        },
-        {
-            $set:{
-                cookies:data.cookies,
-                totalCookies:data.totalCookies,
-
-                buildings:data.buildings,
-
-                upgrades:data.upgrades,
-
-                prestige:data.prestige,
-
-                updatedAt:new Date()
-            }
-        },
-        {
-            upsert:true
-        }
-    );
-
-
-    res.json({
-        success:true
-    });
-
-});
-
 app.listen(PORT, () => {
   console.log(`✅ Web server running on port ${PORT}`);
+});
+
+app.get(
+"/auth/discord",
+passport.authenticate("discord")
+);
+
+
+app.get(
+"/auth/discord/callback",
+
+passport.authenticate(
+"discord",
+{
+failureRedirect:"/"
+}
+),
+
+(req,res)=>{
+
+res.redirect("/");
+
+});
+
+app.get("/api/user",(req,res)=>{
+
+if(!req.user){
+
+return res.json({
+logged:false
+});
+
+}
+
+
+res.json({
+
+logged:true,
+
+user:req.user
+
+});
+
 });
 
 // ------------------------------------------------------------------------
@@ -159,9 +145,60 @@ client.commands = new Collection();
 client.lotteryTickets = client.db.collection("lotteryTickets");
 client.stockHistoryCol = client.db.collection("stock_history");
 client.lotterySummary = client.db.collection("lotterySummary");
-const cookieGameCol = db.collection("cookieGame");
-client.cookieGameCol = cookieGameCol;
 
+// -------------------- oauth --------------------
+passport.use(
+    new DiscordStrategy(
+        {
+            clientID: process.env.DISCORD_CLIENT_ID,
+            clientSecret: process.env.DISCORD_CLIENT_SECRET,
+            callbackURL: process.env.DISCORD_CALLBACK_URL,
+            scope: ["identify"]
+        },
+
+        async (accessToken, refreshToken, profile, done)=>{
+
+            const user = {
+                discordId: profile.id,
+                username: profile.username,
+                avatar: profile.avatar
+            };
+
+
+            await db.collection("cookieGameUsers")
+            .updateOne(
+                {
+                    discordId: profile.id
+                },
+                {
+                    $set:{
+                        username:profile.username,
+                        avatar:profile.avatar,
+                        updatedAt:new Date()
+                    }
+                },
+                {
+                    upsert:true
+                }
+            );
+
+
+            done(null,user);
+        }
+    )
+);
+
+
+passport.serializeUser(
+(user,done)=>{
+    done(null,user);
+});
+
+
+passport.deserializeUser(
+(user,done)=>{
+    done(null,user);
+});
 // -------------------- コイン・株管理（MongoDB版 + VIPCoins追加） --------------------
 
 // 既存: ユーザーデータ取得
