@@ -1,6 +1,10 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+import session from "express-session";
+import passport from "passport";
+import { Strategy as DiscordStrategy } from "passport-discord";
+
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
@@ -16,20 +20,85 @@ import {
 } from 'discord.js';
 import { MongoClient } from "mongodb";
 import { scheduleDailyLoanUpdate } from './utils/dailyLoanUpdater.js';
-import { getLatestDrawId } from "./utils/draw.js";
+import { getLatestDrawId, getNextDrawId } from "./utils/draw.js";
 import { scheduleUnemployCheck } from './commands/takasumi_unemploy_timer.js';
 import { scheduleDailyStockDividend } from "./utils/dailyStockDividend.js";
+
+// ESMで__dirnameを使う
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // -------------------- Webサーバー設定 ---------------------
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.get('/', (req, res) => res.send('Bot is alive!'));
-app.all('/', (req, res) => { 
-  console.log(`Received a ${req.method} request at '/'`);
-  res.sendStatus(200); 
+// publicフォルダを公開
+app.use(express.static(path.join(__dirname, "public")));
+
+app.use(session({
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Botの生存確認API
+app.get("/api/status", (req, res) => {
+  res.json({
+    status: "online"
+  });
 });
-app.listen(PORT, () => console.log(`✅ Web server running on port ${PORT}`));
+app.use(express.json());
+
+app.listen(PORT, () => {
+  console.log(`✅ Web server running on port ${PORT}`);
+});
+
+app.get(
+"/auth/discord",
+passport.authenticate("discord")
+);
+
+
+app.get(
+"/auth/discord/callback",
+
+passport.authenticate(
+"discord",
+{
+failureRedirect:"/"
+}
+),
+
+(req,res)=>{
+
+res.redirect("/");
+
+});
+
+app.get("/api/user",(req,res)=>{
+
+if(!req.user){
+
+return res.json({
+logged:false
+});
+
+}
+
+
+res.json({
+
+logged:true,
+
+user:req.user
+
+});
+
+});
+
 
 // ------------------------------------------------------------------------
 // 共通関数
@@ -40,10 +109,6 @@ function trimQuotes(value) {
 
 const playlistId = trimQuotes(process.env.YOUTUBE_PLAYLIST_ID);
 const youtubeApiKey = trimQuotes(process.env.YOUTUBE_API_TOKEN);
-
-// ESMで__dirnameを使う
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // -------------------- MongoDB 接続 --------------------
 const mongoClient = new MongoClient(process.env.MONGO_URI);
@@ -82,6 +147,59 @@ client.lotteryTickets = client.db.collection("lotteryTickets");
 client.stockHistoryCol = client.db.collection("stock_history");
 client.lotterySummary = client.db.collection("lotterySummary");
 
+// -------------------- oauth --------------------
+passport.use(
+    new DiscordStrategy(
+        {
+            clientID: process.env.DISCORD_CLIENT_ID,
+            clientSecret: process.env.DISCORD_CLIENT_SECRET,
+            callbackURL: process.env.DISCORD_CALLBACK_URL,
+            scope: ["identify"]
+        },
+
+        async (accessToken, refreshToken, profile, done)=>{
+
+            const user = {
+                discordId: profile.id,
+                username: profile.username,
+                avatar: profile.avatar
+            };
+
+
+            await db.collection("cookieGameUsers")
+            .updateOne(
+                {
+                    discordId: profile.id
+                },
+                {
+                    $set:{
+                        username:profile.username,
+                        avatar:profile.avatar,
+                        updatedAt:new Date()
+                    }
+                },
+                {
+                    upsert:true
+                }
+            );
+
+
+            done(null,user);
+        }
+    )
+);
+
+
+passport.serializeUser(
+(user,done)=>{
+    done(null,user);
+});
+
+
+passport.deserializeUser(
+(user,done)=>{
+    done(null,user);
+});
 // -------------------- コイン・株管理（MongoDB版 + VIPCoins追加） --------------------
 
 // 既存: ユーザーデータ取得
