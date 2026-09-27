@@ -20,7 +20,7 @@ import { getLatestDrawId } from "./utils/draw.js";
 import { scheduleUnemployCheck } from './commands/takasumi_unemploy_timer.js';
 import { scheduleDailyStockDividend } from "./utils/dailyStockDividend.js";
 
-// -------------------- Webサーバー設定 --------------------
+// -------------------- Webサーバー設定 ---------------------
 const app = express();
 const PORT = process.env.PORT || 3000;
 
