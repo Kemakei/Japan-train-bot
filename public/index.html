@@ -10,7 +10,7 @@
 
     <title>Railway Map Editor</title>
 
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
@@ -35,14 +35,14 @@
 
         <button
             id="saveButton"
-            class="primary-button"
+            class="btn btn-primary primary-button"
         >
             保存
         </button>
 
         <button
             id="newMapButton"
-            class="secondary-button"
+            class="btn secondary-button"
         >
             新規作成
         </button>
@@ -61,7 +61,7 @@
      MAIN
 ========================================================= -->
 
-<main class="app-main">
+<main class="app-layout app-main">
 
     <!-- =====================================================
          SIDEBAR
@@ -94,7 +94,7 @@
 
                 <button
                     id="loadMapsButton"
-                    class="secondary-button"
+                    class="btn secondary-button"
                 >
                     保存済みを表示
                 </button>
@@ -181,7 +181,7 @@
 
             <button
                 id="addStationButton"
-                class="primary-button full-width"
+                class="btn btn-primary btn-block primary-button full-width"
             >
                 駅を追加
             </button>
@@ -238,7 +238,7 @@
 
             <button
                 id="addLineButton"
-                class="primary-button full-width"
+                class="btn btn-primary btn-block primary-button full-width"
             >
                 路線を追加
             </button>
@@ -295,7 +295,7 @@
 
             <button
                 id="addTrainTypeButton"
-                class="primary-button full-width"
+                class="btn btn-primary btn-block primary-button full-width"
             >
                 種別を追加
             </button>
@@ -413,7 +413,7 @@
 
                 <button
                     id="applyLineSettingsButton"
-                    class="primary-button"
+                    class="btn btn-primary primary-button"
                 >
                     適用
                 </button>
@@ -438,14 +438,14 @@
 
                 <button
                     id="addBreakButton"
-                    class="secondary-button"
+                    class="btn secondary-button"
                 >
                     区切りを追加
                 </button>
 
                 <button
                     id="addBendButton"
-                    class="secondary-button"
+                    class="btn secondary-button"
                 >
                     折れ曲がりを追加
                 </button>
@@ -463,13 +463,13 @@
 
     <section class="workspace">
 
-        <div class="workspace-toolbar">
+        <div class="map-toolbar workspace-toolbar">
 
-            <div class="toolbar-left">
+            <div class="map-toolbar-group toolbar-left">
 
                 <button
                     id="zoomOutButton"
-                    class="icon-button"
+                    class="btn btn-icon icon-button"
                     title="縮小"
                 >
                     −
@@ -477,7 +477,7 @@
 
                 <button
                     id="zoomResetButton"
-                    class="icon-button"
+                    class="btn btn-icon icon-button"
                     title="100%"
                 >
                     100%
@@ -485,7 +485,7 @@
 
                 <button
                     id="zoomInButton"
-                    class="icon-button"
+                    class="btn btn-icon icon-button"
                     title="拡大"
                 >
                     ＋
@@ -493,7 +493,7 @@
 
                 <button
                     id="fitButton"
-                    class="secondary-button"
+                    class="btn secondary-button"
                 >
                     全体表示
                 </button>
@@ -501,18 +501,18 @@
             </div>
 
 
-            <div class="toolbar-right">
+            <div class="map-toolbar-group toolbar-right">
 
                 <button
                     id="toggleGridButton"
-                    class="secondary-button"
+                    class="btn secondary-button"
                 >
                     グリッド
                 </button>
 
                 <button
                     id="toggleDragModeButton"
-                    class="secondary-button"
+                    class="btn secondary-button"
                 >
                     駅移動
                 </button>
@@ -528,12 +528,12 @@
 
         <div
             id="mapViewport"
-            class="map-viewport"
+            class="map-area map-viewport"
         >
 
             <svg
                 id="railwayMap"
-                class="railway-map"
+                class="map-svg railway-map"
                 viewBox="0 0 1600 1000"
                 preserveAspectRatio="xMidYMid meet"
             >
@@ -610,7 +610,7 @@
 
         <div
             id="statusBar"
-            class="status-bar"
+            class="save-status status-bar"
         >
             準備完了
         </div>
@@ -1024,14 +1024,14 @@
 
                 <button
                     id="cancelStationModalButton"
-                    class="secondary-button"
+                    class="btn secondary-button"
                 >
                     キャンセル
                 </button>
 
                 <button
                     id="saveStationDetailButton"
-                    class="primary-button"
+                    class="btn btn-primary primary-button"
                 >
                     適用
                 </button>
@@ -1155,14 +1155,14 @@
 
                 <button
                     id="cancelLineModalButton"
-                    class="secondary-button"
+                    class="btn secondary-button"
                 >
                     キャンセル
                 </button>
 
                 <button
                     id="saveLineDetailButton"
-                    class="primary-button"
+                    class="btn btn-primary primary-button"
                 >
                     適用
                 </button>
@@ -1308,14 +1308,14 @@
 
                 <button
                     id="cancelTrainTypeModalButton"
-                    class="secondary-button"
+                    class="btn secondary-button"
                 >
                     キャンセル
                 </button>
 
                 <button
                     id="saveTrainTypeDetailButton"
-                    class="primary-button"
+                    class="btn btn-primary primary-button"
                 >
                     適用
                 </button>
@@ -5887,3 +5887,4 @@ loadUser();
 </script>
 
 </body>
+</html>
