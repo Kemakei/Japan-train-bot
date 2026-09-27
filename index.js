@@ -18,7 +18,7 @@ import {
   EmbedBuilder,
   Events
 } from 'discord.js';
-import { MongoClient } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 import { scheduleDailyLoanUpdate } from './utils/dailyLoanUpdater.js';
 import { getLatestDrawId, getNextDrawId } from "./utils/draw.js";
 import { scheduleUnemployCheck } from './commands/takasumi_unemploy_timer.js';
@@ -35,6 +35,8 @@ const PORT = process.env.PORT || 3000;
 // publicフォルダを公開
 app.use(express.static(path.join(__dirname, "public")));
 
+app.use(express.json({ limit: "5mb" }));
+
 app.use(session({
     secret: process.env.SESSION_SECRET,
     resave: false,
@@ -50,7 +52,6 @@ app.get("/api/status", (req, res) => {
     status: "online"
   });
 });
-app.use(express.json());
 
 app.listen(PORT, () => {
   console.log(`✅ Web server running on port ${PORT}`);
@@ -99,7 +100,6 @@ user:req.user
 
 });
 
-
 // ------------------------------------------------------------------------
 // 共通関数
 function trimQuotes(value) {
@@ -122,6 +122,7 @@ try {
 }
 const coinsCol = db.collection("coins"); // coins + stocks + trade_history
 const hedgeCol = db.collection("hedges");
+const railwayMaps = db.collection("railway_maps");
 
 // Discordクライアント初期化
 const client = new Client({
@@ -200,6 +201,240 @@ passport.deserializeUser(
 (user,done)=>{
     done(null,user);
 });
+
+app.get("/logout", (req, res) => {
+    req.logout(() => {
+        req.session.destroy(() => {
+            res.redirect("/");
+        });
+    });
+});
+
+// ===============================
+// Railway Map API
+// ===============================
+
+function requireLogin(req, res, next) {
+    if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({
+            error: "ログインが必要です"
+        });
+    }
+
+    next();
+}
+
+
+// 保存されている自分の路線図一覧
+app.get("/api/railway/maps", requireLogin, async (req, res) => {
+    try {
+        const maps = await railwayMaps
+            .find({
+                ownerId: req.user.discordId
+            })
+            .sort({
+                updatedAt: -1
+            })
+            .project({
+                data: 0
+            })
+            .toArray();
+
+        res.json(maps);
+    } catch (error) {
+        console.error("Railway map list error:", error);
+
+        res.status(500).json({
+            error: "路線図一覧の取得に失敗しました"
+        });
+    }
+});
+
+
+// 路線図1件取得
+app.get("/api/railway/maps/:id", requireLogin, async (req, res) => {
+    try {
+        if (!ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({
+                error: "不正なIDです"
+            });
+        }
+
+        const map = await railwayMaps.findOne({
+            _id: new ObjectId(req.params.id),
+            ownerId: req.user.discordId
+        });
+
+        if (!map) {
+            return res.status(404).json({
+                error: "路線図が見つかりません"
+            });
+        }
+
+        res.json({
+            id: map._id.toString(),
+            name: map.name,
+            data: map.data,
+            createdAt: map.createdAt,
+            updatedAt: map.updatedAt
+        });
+    } catch (error) {
+        console.error("Railway map get error:", error);
+
+        res.status(500).json({
+            error: "路線図の取得に失敗しました"
+        });
+    }
+});
+
+
+// 新しい路線図を作成
+app.post("/api/railway/maps", requireLogin, async (req, res) => {
+    try {
+        const { name, data } = req.body;
+
+        if (!name || !data) {
+            return res.status(400).json({
+                error: "路線図名とデータが必要です"
+            });
+        }
+
+        const now = new Date();
+
+        const document = {
+            ownerId: req.user.discordId,
+
+            name: String(name).slice(0, 100),
+
+            data: {
+                stations: Array.isArray(data.stations)
+                    ? data.stations
+                    : [],
+
+                lines: Array.isArray(data.lines)
+                    ? data.lines
+                    : [],
+
+                trainTypes: Array.isArray(data.trainTypes)
+                    ? data.trainTypes
+                    : []
+            },
+
+            createdAt: now,
+            updatedAt: now
+        };
+
+        const result = await railwayMaps.insertOne(document);
+
+        res.json({
+            id: result.insertedId.toString()
+        });
+    } catch (error) {
+        console.error("Railway map create error:", error);
+
+        res.status(500).json({
+            error: "路線図の保存に失敗しました"
+        });
+    }
+});
+
+
+// 路線図を更新
+app.put("/api/railway/maps/:id", requireLogin, async (req, res) => {
+    try {
+        if (!ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({
+                error: "不正なIDです"
+            });
+        }
+
+        const { name, data } = req.body;
+
+        if (!name || !data) {
+            return res.status(400).json({
+                error: "路線図名とデータが必要です"
+            });
+        }
+
+        const result = await railwayMaps.updateOne(
+            {
+                _id: new ObjectId(req.params.id),
+                ownerId: req.user.discordId
+            },
+            {
+                $set: {
+                    name: String(name).slice(0, 100),
+
+                    data: {
+                        stations: Array.isArray(data.stations)
+                            ? data.stations
+                            : [],
+
+                        lines: Array.isArray(data.lines)
+                            ? data.lines
+                            : [],
+
+                        trainTypes: Array.isArray(data.trainTypes)
+                            ? data.trainTypes
+                            : []
+                    },
+
+                    updatedAt: new Date()
+                }
+            }
+        );
+
+        if (result.matchedCount === 0) {
+            return res.status(404).json({
+                error: "路線図が見つかりません"
+            });
+        }
+
+        res.json({
+            success: true
+        });
+    } catch (error) {
+        console.error("Railway map update error:", error);
+
+        res.status(500).json({
+            error: "路線図の更新に失敗しました"
+        });
+    }
+});
+
+
+// 路線図を削除
+app.delete("/api/railway/maps/:id", requireLogin, async (req, res) => {
+    try {
+        if (!ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({
+                error: "不正なIDです"
+            });
+        }
+
+        const result = await railwayMaps.deleteOne({
+            _id: new ObjectId(req.params.id),
+            ownerId: req.user.discordId
+        });
+
+        if (result.deletedCount === 0) {
+            return res.status(404).json({
+                error: "路線図が見つかりません"
+            });
+        }
+
+        res.json({
+            success: true
+        });
+    } catch (error) {
+        console.error("Railway map delete error:", error);
+
+        res.status(500).json({
+            error: "路線図の削除に失敗しました"
+        });
+    }
+});
+
 // -------------------- コイン・株管理（MongoDB版 + VIPCoins追加） --------------------
 
 // 既存: ユーザーデータ取得
