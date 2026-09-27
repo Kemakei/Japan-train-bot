@@ -2770,8 +2770,11 @@ summary:focus-visible {
 .editor-list-item .list-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 4px;
+  flex-wrap: wrap;
   flex-shrink: 0;
+  min-width: 0;
 }
 
 .line-station-editor {
@@ -2974,3 +2977,16 @@ textarea { resize: vertical; overflow-wrap: anywhere; }
 .modal-body input, .modal-body select, .modal-body textarea { width: 100%; max-width: 100%; }
 
 .bend-point { pointer-events: none; }
+
+
+.station-inline-editor { overflow: visible; }
+.station-inline-editor-box { background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px; box-shadow: 0 3px 10px rgba(15,23,42,.12); font: 11px sans-serif; }
+.station-inline-row { display:flex; align-items:center; gap:6px; margin-bottom:4px; }
+.station-inline-row label { width:42px; color:#475569; }
+.station-inline-row input { width:70px; min-width:0; box-sizing:border-box; padding:3px 4px; }
+.station-inline-checks { display:flex; gap:8px; white-space:nowrap; }
+.station-inline-checks label { color:#475569; }
+.station-inline-checks input { margin:0 3px 0 0; }
+.map-line-hit { pointer-events: stroke; cursor: pointer; }
+.station-transfer-line { pointer-events:none; }
+.station-transfer-box { pointer-events:none; }
