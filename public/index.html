@@ -437,13 +437,6 @@
             <div class="button-row">
 
                 <button
-                    id="addBreakButton"
-                    class="btn secondary-button"
-                >
-                    区切りを追加
-                </button>
-
-                <button
                     id="addBendButton"
                     class="btn secondary-button"
                 >
@@ -587,11 +580,6 @@
                 <!-- 線 -->
 
                 <g id="lineLayer"></g>
-
-
-                <!-- 区切り -->
-
-                <g id="breakLayer"></g>
 
 
                 <!-- 駅 -->
@@ -1124,20 +1112,6 @@
             ></div>
 
 
-            <hr>
-
-
-            <h3>
-                列車種別
-            </h3>
-
-
-            <div
-                id="lineTrainTypeSettings"
-                class="check-list"
-            ></div>
-
-
 
         </div>
 
@@ -1447,7 +1421,7 @@ const stationLayer = $("stationLayer");
 
 const lineLayer = $("lineLayer");
 
-const breakLayer = $("breakLayer");
+
 
 const selectionLayer = $("selectionLayer");
 
@@ -1935,104 +1909,89 @@ function drawStationText(group, station) {
     const name = station.name || "";
     const roman = station.roman || "";
 
-    if (largeStation) {
+    const makeTextGroup = (kind) => createSvgElement("g", {
+        transform: `translate(${Number(display[`${kind}OffsetX`]) || 0} ${Number(display[`${kind}OffsetY`]) || 0}) rotate(${Number(display[`${kind}Rotation`]) || 0} ${centerX} ${centerY})`
+    });
 
-        if (name) {
-
-            const nameGroup = createSvgElement("g", {
-                transform: `translate(${display.nameOffsetX || 0} ${display.nameOffsetY || 0}) rotate(${display.nameRotation || 0} ${centerX} ${centerY})`
-            });
-
-            const nameText = createSvgElement("text", {
-                x: centerX,
-                y: centerY - Math.max(12, display.nameSize),
-                "font-size": display.nameSize,
+    const appendVerticalText = (target, value, x, y, size) => {
+        [...String(value)].forEach((char, index) => {
+            const text = createSvgElement("text", {
+                x,
+                y: y + index * size * 1.12,
+                "font-size": size,
                 "text-anchor": "middle",
                 "dominant-baseline": "middle"
             });
+            text.textContent = char;
+            target.appendChild(text);
+        });
+    };
 
-            nameText.textContent = name;
-            nameGroup.appendChild(nameText);
+    if (largeStation) {
+        if (name) {
+            const nameGroup = makeTextGroup("name");
+            if (display.nameDirection === "vertical") {
+                appendVerticalText(nameGroup, name, centerX, centerY - (([...name].length - 1) * display.nameSize * 1.12) / 2, display.nameSize);
+            } else {
+                const text = createSvgElement("text", {
+                    x: centerX,
+                    y: centerY - Math.max(12, display.nameSize),
+                    "font-size": display.nameSize,
+                    "text-anchor": "middle",
+                    "dominant-baseline": "middle"
+                });
+                text.textContent = name;
+                nameGroup.appendChild(text);
+            }
             group.appendChild(nameGroup);
             makeDraggableText(nameGroup, station, "name");
-
         }
 
         if (roman) {
-
-            const romanGroup = createSvgElement("g", {
-                transform: `translate(${display.romanOffsetX || 0} ${display.romanOffsetY || 0}) rotate(${display.romanRotation || 0} ${centerX} ${centerY})`
-            });
-
-            const romanText = createSvgElement("text", {
-                x: centerX,
-                y: centerY + Math.max(12, display.romanSize),
-                "font-size": display.romanSize,
-                "text-anchor": "middle",
-                "dominant-baseline": "middle"
-            });
-
-            romanText.textContent = roman;
-            romanGroup.appendChild(romanText);
-            group.appendChild(romanGroup);
-            makeDraggableText(romanGroup, station, "roman");
-
-        }
-
-        return;
-
-    }
-
-    if (name) {
-
-        const nameGroup = createSvgElement("g", {
-            transform: `translate(${display.nameOffsetX || 0} ${display.nameOffsetY || 0}) rotate(${display.nameRotation || 0} ${centerX} ${centerY})`
-        });
-
-        const nameText = createSvgElement("text", {
-            x: centerX,
-            y: centerY + 28,
-            "font-size": display.nameSize,
-            "text-anchor": "middle",
-            "dominant-baseline": "hanging"
-        });
-
-        nameText.textContent = name;
-        nameGroup.appendChild(nameText);
-        group.appendChild(nameGroup);
-        makeDraggableText(nameGroup, station, "name");
-
-    }
-
-    if (roman) {
-
-        const romanGroup = createSvgElement("g", {
-            transform: `translate(${display.romanOffsetX || 0} ${display.romanOffsetY || 0}) rotate(${display.romanRotation || 0} ${centerX} ${centerY})`
-        });
-
-        if (display.romanDirection === "vertical") {
-
-            const chars = [...roman];
-            let y = centerY + 28;
-
-            for (const char of chars) {
-
+            const romanGroup = makeTextGroup("roman");
+            if (display.romanDirection === "vertical") {
+                appendVerticalText(romanGroup, roman, centerX + box.width / 2 + 12, centerY - (([...roman].length - 1) * display.romanSize * 1.12) / 2, display.romanSize);
+            } else {
                 const text = createSvgElement("text", {
-                    x: centerX + box.width / 2 + 12,
-                    y,
+                    x: centerX,
+                    y: centerY + Math.max(12, display.romanSize),
                     "font-size": display.romanSize,
                     "text-anchor": "middle",
                     "dominant-baseline": "middle"
                 });
-
-                text.textContent = char;
+                text.textContent = roman;
                 romanGroup.appendChild(text);
-                y += display.romanSize * 1.1;
-
             }
+            group.appendChild(romanGroup);
+            makeDraggableText(romanGroup, station, "roman");
+        }
+        return;
+    }
 
+    if (name) {
+        const nameGroup = makeTextGroup("name");
+        if (display.nameDirection === "vertical") {
+            appendVerticalText(nameGroup, name, centerX, centerY + 28, display.nameSize);
         } else {
+            const text = createSvgElement("text", {
+                x: centerX,
+                y: centerY + 28,
+                "font-size": display.nameSize,
+                "text-anchor": "middle",
+                "dominant-baseline": "hanging"
+            });
+            text.textContent = name;
+            nameGroup.appendChild(text);
+        }
+        group.appendChild(nameGroup);
+        makeDraggableText(nameGroup, station, "name");
+    }
 
+    if (roman) {
+        const romanGroup = makeTextGroup("roman");
+        if (display.romanDirection === "vertical") {
+            appendVerticalText(romanGroup, roman, centerX + box.width / 2 + 12, centerY + 28, display.romanSize);
+        } else {
             const text = createSvgElement("text", {
                 x: centerX,
                 y: centerY + box.height / 2 + display.romanSize + 8,
@@ -2040,17 +1999,12 @@ function drawStationText(group, station) {
                 "text-anchor": "middle",
                 "dominant-baseline": "middle"
             });
-
             text.textContent = roman;
             romanGroup.appendChild(text);
-
         }
-
         group.appendChild(romanGroup);
         makeDraggableText(romanGroup, station, "roman");
-
     }
-
 }
 
 /* =========================================================
@@ -2088,302 +2042,94 @@ function renderTrainTypeLine(
     line,
     trainType
 ) {
+    const setting = line.trainTypes.find(item => item.trainTypeId === trainType.id);
+    if (!setting) return;
 
-    const setting =
-        line.trainTypes.find(
-            item =>
-                item.trainTypeId ===
-                trainType.id
-        );
+    const stations = (setting.stationIds || [])
+        .map(getStation)
+        .filter(Boolean)
+        .filter(station => station.visible);
 
+    if (stations.length < 2) return;
 
-    if (!setting) {
-        return;
+    const width = Number(trainType.lineWidth) || 5;
+    const baseOffset = Number(trainType.lineOffset) || 0;
+
+    // 複数種別を同じ駅間に描く場合は、自動的に上下へずらして重なりを防ぐ。
+    const activeTypes = (line.trainTypes || [])
+        .map(ts => getTrainType(ts.trainTypeId))
+        .filter(Boolean)
+        .filter(type => (line.trainTypes.find(ts => ts.trainTypeId === type.id)?.stationIds || []).length >= 2);
+    const laneIndex = Math.max(0, activeTypes.findIndex(type => type.id === trainType.id));
+    const laneSpacing = Math.max(width + 4, 10);
+    const laneOffset = (laneIndex - (Math.max(activeTypes.length, 1) - 1) / 2) * laneSpacing;
+    const offset = baseOffset + laneOffset;
+
+    const stationPairs = [];
+    for (let i = 0; i < stations.length - 1; i++) {
+        stationPairs.push([stations[i], stations[i + 1]]);
     }
 
-
-    const stationIds =
-        setting.stationIds || [];
-
-
-    const stations =
-        stationIds
-            .map(getStation)
-            .filter(Boolean)
-            .filter(
-                station =>
-                    station.visible
-            );
-
-
-    if (
-        stations.length === 0
-    ) {
-        return;
-    }
-
-
-    const first =
-        stations[0];
-
-    const last =
-        stations[
-            stations.length - 1
+    for (const [a, b] of stationPairs) {
+        const route = [
+            {x: a.x, y: a.y + offset},
+            ...getBendPoints(line, a.id, b.id),
+            {x: b.x, y: b.y + offset}
         ];
 
-
-    const lineLength =
-        Number(
-            trainType.lineLength
-        ) || 1000;
-
-
-    const offset =
-        Number(
-            trainType.lineOffset
-        ) || 0;
-
-
-    const width =
-        Number(
-            trainType.lineWidth
-        ) || 5;
-
-
-    /*
-       種別ごとに独立した線を作る。
-       駅間は実際の駅位置を使用する。
-    */
-
-
-    const points = [];
-
-
-    const firstX =
-        first.x -
-        lineLength / 2;
-
-
-    const lastX =
-        first.x +
-        lineLength / 2;
-
-
-    for (
-        const station
-        of stations
-    ) {
-
-        points.push({
-            x: station.x,
-            y:
-                station.y +
-                offset
-        });
-
-    }
-
-
-    /*
-       駅間は各駅を直接結ぶ直線だけを描画する。
-       旧データの segments は表示に使用しない。
-    */
-
-    for (
-        let i = 0;
-        i < points.length - 1;
-        i++
-    ) {
-
-        const a = points[i];
-
-        const b = points[i + 1];
-
-
-        const segment =
-            createSvgElement(
-                "line",
-                {
-                    x1: a.x,
-                    y1: a.y,
-                    x2: b.x,
-                    y2: b.y,
-                    stroke:
-                        trainType.color,
-                    "stroke-width":
-                        width,
-                    "stroke-linecap":
-                        "round"
-                }
-            );
-
-
-        lineLayer.appendChild(
-            segment
-        );
-
-    }
-
-
-    /*
-       種別の線の始端・終端を
-       個別の長さ設定に合わせる
-    */
-
-    const startLine =
-        createSvgElement(
-            "line",
-            {
-                x1:
-                    first.x -
-                    lineLength / 2,
-                y1:
-                    first.y +
-                    offset,
-                x2:
-                    first.x,
-                y2:
-                    first.y +
-                    offset,
-                stroke:
-                    trainType.color,
-                "stroke-width":
-                    width,
-                "stroke-linecap":
-                    "round"
-            }
-        );
-
-
-    const endLine =
-        createSvgElement(
-            "line",
-            {
-                x1:
-                    last.x,
-                y1:
-                    last.y +
-                    offset,
-                x2:
-                    last.x +
-                    lineLength / 2,
-                y2:
-                    last.y +
-                    offset,
-                stroke:
-                    trainType.color,
-                "stroke-width":
-                    width,
-                "stroke-linecap":
-                    "round"
-            }
-        );
-
-
-    lineLayer.appendChild(
-        startLine
-    );
-
-    lineLayer.appendChild(
-        endLine
-    );
-
-
-    /*
-       1種別だけ停車する駅は
-       「線が途切れる」ようにする。
-    */
-
-    for (
-        const station
-        of stations
-    ) {
-
-        const stopCount =
-            line.trainTypes.filter(
-                typeSetting =>
-                    typeSetting.stationIds
-                        ?.includes(
-                            station.id
-                        )
-            ).length;
-
-
-        if (stopCount === 1 && getStationStopCount(station.id) < 2) {
-
-            const radius = 8;
-
-            const gap = 5;
-
-
-            const left =
-                createSvgElement(
-                    "line",
-                    {
-                        x1:
-                            station.x -
-                            radius -
-                            gap -
-                            20,
-                        y1:
-                            station.y +
-                            offset,
-                        x2:
-                            station.x -
-                            radius -
-                            gap,
-                        y2:
-                            station.y +
-                            offset,
-                        stroke:
-                            trainType.color,
-                        "stroke-width":
-                            width
-                    }
-                );
-
-
-            const right =
-                createSvgElement(
-                    "line",
-                    {
-                        x1:
-                            station.x +
-                            radius +
-                            gap,
-                        y1:
-                            station.y +
-                            offset,
-                        x2:
-                            station.x +
-                            radius +
-                            gap +
-                            20,
-                        y2:
-                            station.y +
-                            offset,
-                        stroke:
-                            trainType.color,
-                        "stroke-width":
-                            width
-                    }
-                );
-
-
-            lineLayer.appendChild(
-                left
-            );
-
-            lineLayer.appendChild(
-                right
-            );
-
+        if (route.length === 2) {
+            lineLayer.appendChild(createSvgElement("line", {
+                x1: route[0].x, y1: route[0].y,
+                x2: route[1].x, y2: route[1].y,
+                stroke: trainType.color,
+                "stroke-width": width,
+                "stroke-linecap": "round",
+                class: "map-line"
+            }));
+        } else {
+            lineLayer.appendChild(createSvgElement("polyline", {
+                points: route.map(p => `${p.x},${p.y}`).join(" "),
+                fill: "none",
+                stroke: trainType.color,
+                "stroke-width": width,
+                "stroke-linecap": "round",
+                "stroke-linejoin": "round",
+                class: "map-line"
+            }));
         }
-
     }
-
 }
 
+function getBendPoints(line, fromId, toId) {
+    const item = (line.segments || []).find(segment =>
+        segment.fromStationId === fromId && segment.toStationId === toId
+    );
+    if (!item || !Array.isArray(item.points)) return [];
+    return item.points.map(p => ({x: Number(p.x), y: Number(p.y)})).filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
+}
+
+function nearestLineStationPair(line, point) {
+    const ids = line.stationIds || [];
+    let best = null;
+    let bestDistance = Infinity;
+    for (let i = 0; i < ids.length - 1; i++) {
+        const a = getStation(ids[i]);
+        const b = getStation(ids[i + 1]);
+        if (!a || !b) continue;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const len2 = dx * dx + dy * dy || 1;
+        const t = Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / len2));
+        const px = a.x + dx * t;
+        const py = a.y + dy * t;
+        const d2 = (point.x - px) ** 2 + (point.y - py) ** 2;
+        if (d2 < bestDistance) {
+            bestDistance = d2;
+            best = {fromStationId: a.id, toStationId: b.id};
+        }
+    }
+    return best;
+}
 
 /* =========================================================
    DRAW STATIONS
@@ -2403,7 +2149,7 @@ function renderStation(
             "g",
             {
                 class:
-                    "station-node"
+                    "station-node station-group"
             }
         );
 
@@ -2605,25 +2351,13 @@ function renderStation(
                 );
 
 
-            station.x =
-                clamp(
-                    point.x +
-                    state.dragOffsetX,
-                    20,
-                    1580
-                );
-
-
-            station.y =
-                clamp(
-                    point.y +
-                    state.dragOffsetY,
-                    20,
-                    980
-                );
-
-
-            renderMap();
+            const newX = clamp(point.x + state.dragOffsetX, 20, 50000);
+            const newY = clamp(point.y + state.dragOffsetY, 20, 980);
+            const dx = newX - station.x;
+            const dy = newY - station.y;
+            group.setAttribute("transform", `translate(${dx} ${dy})`);
+            group.dataset.dragX = String(newX);
+            group.dataset.dragY = String(newY);
 
         }
     );
@@ -2638,8 +2372,14 @@ function renderStation(
                 station
             ) {
 
-                state.draggingStation =
-                    null;
+                const newX = Number(group.dataset.dragX);
+                const newY = Number(group.dataset.dragY);
+                if (Number.isFinite(newX) && Number.isFinite(newY)) {
+                    station.x = newX;
+                    station.y = newY;
+                }
+                state.draggingStation = null;
+                renderMap();
 
                 try {
 
@@ -2714,8 +2454,6 @@ function renderMap() {
 
     lineLayer.innerHTML = "";
 
-    breakLayer.innerHTML = "";
-
     selectionLayer.innerHTML = "";
 
 
@@ -2744,13 +2482,6 @@ function renderMap() {
 
 
     /*
-       区切り・折れ曲がり
-    */
-
-    renderBreaks();
-
-
-    /*
        最後に駅BOX
     */
 
@@ -2774,55 +2505,6 @@ function renderMap() {
 /* =========================================================
    BREAKS
 ========================================================= */
-
-function renderBreaks() {
-
-    for (
-        const item
-        of state.map.breaks
-    ) {
-
-        if (
-            !item.points ||
-            item.points.length < 2
-        ) {
-            continue;
-        }
-
-
-        const points =
-            item.points
-                .map(
-                    point =>
-                        `${point.x},${point.y}`
-                )
-                .join(" ");
-
-
-        const polyline =
-            createSvgElement(
-                "polyline",
-                {
-                    points,
-                    fill:
-                        "none",
-                    stroke:
-                        "#333",
-                    "stroke-width":
-                        3,
-                    "stroke-dasharray":
-                        "8 8"
-                }
-            );
-
-
-        breakLayer.appendChild(
-            polyline
-        );
-
-    }
-
-}
 
 
 /* =========================================================
@@ -3755,10 +3437,10 @@ $("addStationButton")
                     romanSize: 11,
 
                     nameDirection:
-                        "horizontal",
+                        "vertical",
 
                     romanDirection:
-                        "vertical",
+                        "horizontal",
 
                     nameRotation: 0,
 
@@ -4192,7 +3874,12 @@ $("saveStationDetailButton")
                     Number(
                         $("detailBoxHeight")
                             .value
-                    )
+                    ),
+
+                nameOffsetX: Number(station.display.nameOffsetX) || 0,
+                nameOffsetY: Number(station.display.nameOffsetY) || 0,
+                romanOffsetX: Number(station.display.romanOffsetX) || 0,
+                romanOffsetY: Number(station.display.romanOffsetY) || 0
 
             };
 
@@ -4359,10 +4046,6 @@ function openLineModal(
         line
     );
 
-    renderLineModalTrainTypes(
-        line
-    );
-
     $("lineModal")
         .classList.remove(
             "hidden"
@@ -4484,131 +4167,6 @@ function renderLineModalStations(line) {
 
     }
 
-}
-
-function renderLineModalTrainTypes(
-    line
-) {
-
-    const container =
-        $("lineTrainTypeSettings");
-
-    container.innerHTML = "";
-
-
-    for (
-        const type
-        of state.map.trainTypes
-    ) {
-
-        let setting =
-            line.trainTypes.find(
-                item =>
-                    item.trainTypeId ===
-                    type.id
-            );
-
-
-        const label =
-            document.createElement(
-                "label"
-            );
-
-        label.className =
-            "checkbox-row";
-
-
-        const checkbox =
-            document.createElement(
-                "input"
-            );
-
-        checkbox.type =
-            "checkbox";
-
-        checkbox.checked =
-            Boolean(setting);
-
-
-        checkbox.addEventListener(
-            "change",
-            () => {
-
-                if (
-                    checkbox.checked
-                ) {
-
-                    if (!setting) {
-
-                        line.trainTypes.push({
-
-                            trainTypeId:
-                                type.id,
-
-                            stationIds: []
-
-                        });
-
-                    }
-
-                } else {
-
-                    line.trainTypes =
-                        line.trainTypes.filter(
-                            item =>
-                                item.trainTypeId !==
-                                type.id
-                        );
-
-                }
-
-
-                renderLineModalTrainStations(
-                    line
-                );
-
-                renderMap();
-
-            }
-        );
-
-
-        label.appendChild(
-            checkbox
-        );
-
-
-        const span =
-            document.createElement(
-                "span"
-            );
-
-        span.textContent =
-            type.name;
-
-        span.style.borderLeft =
-            `5px solid ${type.color}`;
-
-        span.style.paddingLeft =
-            "8px";
-
-
-        label.appendChild(
-            span
-        );
-
-
-        container.appendChild(
-            label
-        );
-
-    }
-
-}
-
-
-function renderLineModalTrainStations(line) {
-    renderLineModalStations(line);
 }
 
 
@@ -4978,93 +4536,52 @@ $("toggleDragModeButton")
     );
 
 
-/* =========================================================
-   BREAK
-========================================================= */
-
-$("addBreakButton")
-    .addEventListener(
-        "click",
-        () => {
-
-            state.map.breaks.push({
-
-                id:
-                    uid("break"),
-
-                points: [
-
-                    {
-                        x: 300,
-                        y: 200
-                    },
-
-                    {
-                        x: 500,
-                        y: 300
-                    }
-
-                ]
-
-            });
-
-
-            renderMap();
-
-        }
-    );
-
-
 $("addBendButton")
     .addEventListener(
         "click",
         () => {
-
             state.bendMode = !state.bendMode;
-
-            $("addBendButton").textContent =
-                state.bendMode
-                    ? "折れ点追加：ON"
-                    : "折れ曲がりを追加";
-
-            showToast(
-                state.bendMode
-                    ? "折れ点を追加する位置をクリックしてください"
-                    : "折れ点追加モードを終了しました"
-            );
-
+            $("addBendButton").textContent = state.bendMode ? "折れ点追加：ON" : "折れ曲がりを追加";
+            showToast(state.bendMode ? "駅間をクリックして折れ点を追加してください" : "折れ点追加モードを終了しました");
         }
     );
 
-
 svg.addEventListener("pointerdown", event => {
-
-    if (!state.bendMode || state.bendPointerActive) {
+    if (!state.bendMode || state.bendPointerActive) return;
+    if (event.target.closest(".station-node")) return;
+    const line = getLine(state.selectedLineId);
+    if (!line) {
+        showToast("折れ点を追加する路線を選択してください");
         return;
     }
 
-    if (event.target.closest(".station-node")) {
+    const point = svgPointFromEvent(event);
+    const pair = nearestLineStationPair(line, point);
+    if (!pair) {
+        showToast("駅が2つ以上ある路線を選択してください");
         return;
     }
 
     state.bendPointerActive = true;
-
-    const point = svgPointFromEvent(event);
-    const line = getLine(state.selectedLineId);
-
-    if (line) {
-
-        line.segments ??= [];
-
-        line.segments.push({
-            id: uid("segment"),
-            points: [point]
-        });
-
-        renderMap();
-
+    line.segments ??= [];
+    let segment = line.segments.find(item => item.fromStationId === pair.fromStationId && item.toStationId === pair.toStationId);
+    if (!segment) {
+        segment = {id: uid("segment"), fromStationId: pair.fromStationId, toStationId: pair.toStationId, points: []};
+        line.segments.push(segment);
     }
+    segment.points.push({x: point.x, y: point.y});
 
+    const a = getStation(pair.fromStationId);
+    const b = getStation(pair.toStationId);
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len2 = dx * dx + dy * dy || 1;
+    segment.points.sort((p, q) => {
+        const tp = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2;
+        const tq = ((q.x - a.x) * dx + (q.y - a.y) * dy) / len2;
+        return tp - tq;
+    });
+    renderMap();
 });
 
 svg.addEventListener("pointerup", () => {
