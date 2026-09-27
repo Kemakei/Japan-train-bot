@@ -1,66 +1,3597 @@
-<a href="/auth/discord">
-<button>
-Discordでログイン
-</button>
-</a>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<p id="user"></p>
+  <title>Railway Map Editor</title>
 
-<script>
-
-fetch("/api/user")
-.then(r=>r.json())
-.then(data=>{
-
-if(data.logged){
-
-document.getElementById("user").textContent =
-data.user.username+"でログイン中";
-
-}
-
-});
-
-</script>
+  <link rel="stylesheet" href="/style.css">
+</head>
 
 <body>
 
-<div id="game">
+<header>
+  <div class="logo">
+    Railway Map Editor
+  </div>
 
-<h1>Cookie Battle</h1>
+  <div class="header-right">
+    <div id="userInfo" class="user-info">
+      <img id="userAvatar" src="" alt="">
+      <span id="userName"></span>
+      <button id="logoutButton" class="logout-button">
+        ログアウト
+      </button>
+    </div>
 
-<div id="user"></div>
+    <button id="loginButton" class="login-button">
+      Discordでログイン
+    </button>
+  </div>
+</header>
+
+<div class="app">
+
+  <!-- =========================
+       Sidebar
+  ========================== -->
+
+  <aside class="sidebar">
+
+    <!-- Maps -->
+
+    <div class="panel">
+      <div class="panel-header">
+        路線図
+      </div>
+
+      <div class="panel-body">
+
+        <div class="field">
+          <label for="mapNameInput">
+            路線図名
+          </label>
+
+          <input
+            id="mapNameInput"
+            type="text"
+            placeholder="例：神戸線 路線図"
+          >
+        </div>
+
+        <div class="button-row">
+          <button
+            id="newMapButton"
+            class="btn btn-primary"
+          >
+            新規作成
+          </button>
+
+          <button
+            id="saveMapButton"
+            class="btn btn-success"
+          >
+            保存
+          </button>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="section-title">
+          保存済み路線図
+        </div>
+
+        <div id="mapList" class="list">
+          <div class="empty">
+            読み込み中...
+          </div>
+        </div>
+
+      </div>
+    </div>
 
 
-<div id="battle">
+    <!-- Stations -->
 
-<img id="boss"
-src="/assets/boss01.png">
+    <div class="panel">
+      <div class="panel-header">
+        駅
+      </div>
+
+      <div class="panel-body">
+
+        <div class="field">
+          <label for="stationNameInput">
+            駅名
+          </label>
+
+          <input
+            id="stationNameInput"
+            type="text"
+            placeholder="例：梅田"
+          >
+        </div>
+
+        <div class="field">
+          <label for="stationCodeInput">
+            駅コード
+          </label>
+
+          <input
+            id="stationCodeInput"
+            type="text"
+            placeholder="例：HK01"
+          >
+        </div>
+
+        <div class="button-row">
+
+          <button
+            id="addStationButton"
+            class="btn btn-primary"
+          >
+            駅を追加
+          </button>
+
+          <button
+            id="updateStationButton"
+            class="btn"
+          >
+            更新
+          </button>
+
+          <button
+            id="deleteStationButton"
+            class="btn btn-danger"
+          >
+            削除
+          </button>
+
+        </div>
+
+        <div style="height:12px"></div>
+
+        <div class="section-title">
+          駅一覧
+        </div>
+
+        <div id="stationList" class="list">
+          <div class="empty">
+            駅がありません
+          </div>
+        </div>
+
+      </div>
+    </div>
 
 
-<div>
-HP:
-<span id="bossHP">
-1000
-</span>
+    <!-- Lines -->
+
+    <div class="panel">
+      <div class="panel-header">
+        路線
+      </div>
+
+      <div class="panel-body">
+
+        <div class="field">
+          <label for="lineNameInput">
+            路線名
+          </label>
+
+          <input
+            id="lineNameInput"
+            type="text"
+            placeholder="例：神戸線"
+          >
+        </div>
+
+        <div class="field">
+
+          <label>
+            路線カラー
+          </label>
+
+          <input
+            id="lineColorInput"
+            type="color"
+            value="#0088cc"
+          >
+
+        </div>
+
+        <div class="button-row">
+
+          <button
+            id="addLineButton"
+            class="btn btn-primary"
+          >
+            路線を追加
+          </button>
+
+          <button
+            id="updateLineButton"
+            class="btn"
+          >
+            更新
+          </button>
+
+          <button
+            id="deleteLineButton"
+            class="btn btn-danger"
+          >
+            削除
+          </button>
+
+        </div>
+
+        <div style="height:12px"></div>
+
+        <div class="section-title">
+          路線一覧
+        </div>
+
+        <div id="lineList" class="list">
+          <div class="empty">
+            路線がありません
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+
+    <!-- Line station order -->
+
+    <div class="panel">
+      <div class="panel-header">
+        路線の駅
+      </div>
+
+      <div class="panel-body">
+
+        <div class="section-title">
+          選択中の路線
+        </div>
+
+        <select id="lineSelect">
+          <option value="">
+            路線を選択
+          </option>
+        </select>
+
+        <div style="height:10px"></div>
+
+        <div class="section-title">
+          駅の並び順
+        </div>
+
+        <div
+          id="lineStationList"
+          class="list"
+        >
+          <div class="empty">
+            路線を選択してください
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+
+    <!-- Train types -->
+
+    <div class="panel">
+      <div class="panel-header">
+        列車種別
+      </div>
+
+      <div class="panel-body">
+
+        <div class="field">
+          <label for="trainTypeNameInput">
+            種別名
+          </label>
+
+          <input
+            id="trainTypeNameInput"
+            type="text"
+            placeholder="例：特急"
+          >
+        </div>
+
+        <div class="field">
+          <label for="trainTypeColorInput">
+            表示カラー
+          </label>
+
+          <input
+            id="trainTypeColorInput"
+            type="color"
+            value="#e63946"
+          >
+        </div>
+
+        <div class="button-row">
+
+          <button
+            id="addTrainTypeButton"
+            class="btn btn-primary"
+          >
+            種別を追加
+          </button>
+
+          <button
+            id="updateTrainTypeButton"
+            class="btn"
+          >
+            更新
+          </button>
+
+          <button
+            id="deleteTrainTypeButton"
+            class="btn btn-danger"
+          >
+            削除
+          </button>
+
+        </div>
+
+        <div style="height:12px"></div>
+
+        <div class="section-title">
+          種別一覧
+        </div>
+
+        <div id="trainTypeList" class="list">
+          <div class="empty">
+            種別がありません
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+
+    <!-- Stop pattern -->
+
+    <div class="panel">
+      <div class="panel-header">
+        停車駅設定
+      </div>
+
+      <div class="panel-body">
+
+        <div class="section-title">
+          種別
+        </div>
+
+        <select id="trainTypeSelect">
+          <option value="">
+            種別を選択
+          </option>
+        </select>
+
+        <div style="height:10px"></div>
+
+        <div class="section-title">
+          停車駅
+        </div>
+
+        <div
+          id="stopStationList"
+          class="station-checkboxes"
+        >
+          <div class="empty">
+            種別を選択してください
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button
+          id="saveStopPatternButton"
+          class="btn btn-primary"
+        >
+          停車駅を保存
+        </button>
+
+      </div>
+    </div>
+
+  </aside>
+
+
+  <!-- =========================
+       Workspace
+  ========================== -->
+
+  <main class="workspace">
+
+    <div class="map-wrapper">
+
+      <div class="map-toolbar">
+
+        <div>
+          <div
+            id="currentMapName"
+            class="map-name"
+          >
+            新しい路線図
+          </div>
+
+          <div
+            id="saveStatus"
+            class="save-status"
+          >
+            未保存
+          </div>
+        </div>
+
+        <div class="button-row">
+
+          <button
+            id="fitMapButton"
+            class="btn"
+          >
+            表示を初期化
+          </button>
+
+          <button
+            id="clearMapButton"
+            class="btn btn-danger"
+          >
+            全データ削除
+          </button>
+
+        </div>
+
+      </div>
+
+
+      <div class="svg-container">
+
+        <svg
+          id="mapSvg"
+          viewBox="0 0 1400 850"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+
+          <g id="lineLayer"></g>
+
+          <g id="stationLayer"></g>
+
+        </svg>
+
+      </div>
+
+    </div>
+
+  </main>
+
 </div>
 
 
-<img id="player"
-src="/assets/player.png">
+<!-- =========================
+     Login
+========================== -->
 
+<div id="loginRequired">
 
-<button id="attack">
-🏹 攻撃
-</button>
+  <div class="login-card">
 
+    <h2>
+      Discordログインが必要です
+    </h2>
+
+    <p>
+      路線図を保存するには<br>
+      Discordアカウントでログインしてください。
+    </p>
+
+    <button
+      id="loginRequiredButton"
+      class="login-button"
+    >
+      Discordでログイン
+    </button>
+
+  </div>
 
 </div>
 
 
-</div>
+<!-- =========================
+     Toast
+========================== -->
+
+<div id="toastContainer"></div>
 
 
-<script src="game.js"></script>
+<script>
+/* =========================================================
+   Railway Map Editor
+========================================================= */
+
+(() => {
+
+  "use strict";
+
+
+  /* =======================================================
+     State
+  ======================================================= */
+
+  const state = {
+
+    user: null,
+
+    currentMapId: null,
+
+    map: {
+      name: "新しい路線図",
+
+      stations: [],
+
+      lines: [],
+
+      trainTypes: []
+    },
+
+    selectedStationId: null,
+
+    selectedLineId: null,
+
+    selectedTrainTypeId: null,
+
+    draggingStationId: null,
+
+    dragOffsetX: 0,
+
+    dragOffsetY: 0
+  };
+
+
+  /* =======================================================
+     DOM
+  ======================================================= */
+
+  const $ = (id) => document.getElementById(id);
+
+  const mapSvg = $("mapSvg");
+
+  const lineLayer = $("lineLayer");
+
+  const stationLayer = $("stationLayer");
+
+
+  /* =======================================================
+     Utility
+  ======================================================= */
+
+  function createId(prefix = "id") {
+
+    return (
+      prefix +
+      "_" +
+      Date.now().toString(36) +
+      "_" +
+      Math.random()
+        .toString(36)
+        .substring(2, 9)
+    );
+  }
+
+
+  function escapeHtml(value) {
+
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+
+  function showToast(message, type = "") {
+
+    const container = $("toastContainer");
+
+    const toast = document.createElement("div");
+
+    toast.className = "toast " + type;
+
+    toast.textContent = message;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.remove();
+    }, 3000);
+  }
+
+
+  function markUnsaved() {
+
+    $("saveStatus").textContent = "未保存";
+  }
+
+
+  function markSaved() {
+
+    $("saveStatus").textContent = "保存済み";
+  }
+
+
+  function normalizeMap(data) {
+
+    return {
+
+      name:
+        typeof data?.name === "string"
+          ? data.name
+          : "新しい路線図",
+
+      stations:
+        Array.isArray(data?.stations)
+          ? data.stations
+          : [],
+
+      lines:
+        Array.isArray(data?.lines)
+          ? data.lines
+          : [],
+
+      trainTypes:
+        Array.isArray(data?.trainTypes)
+          ? data.trainTypes
+          : []
+    };
+  }
+
+
+  /* =======================================================
+     API
+  ======================================================= */
+
+  async function api(url, options = {}) {
+
+    const response = await fetch(url, {
+
+      credentials: "include",
+
+      ...options,
+
+      headers: {
+
+        "Content-Type": "application/json",
+
+        ...(options.headers || {})
+      }
+
+    });
+
+
+    let data = null;
+
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
+
+
+    if (!response.ok) {
+
+      throw new Error(
+        data?.error ||
+        "サーバーとの通信に失敗しました"
+      );
+    }
+
+
+    return data;
+  }
+
+
+  /* =======================================================
+     Login
+  ======================================================= */
+
+  async function checkLogin() {
+
+    try {
+
+      const data = await api(
+        "/api/user"
+      );
+
+      if (data?.user) {
+
+        state.user = data.user;
+
+        updateUserUI();
+
+        await loadMapList();
+
+      } else {
+
+        state.user = null;
+
+        updateUserUI();
+
+      }
+
+    } catch (error) {
+
+      console.error(error);
+
+      state.user = null;
+
+      updateUserUI();
+    }
+  }
+
+
+  function updateUserUI() {
+
+    const userInfo = $("userInfo");
+
+    const loginButton = $("loginButton");
+
+    if (state.user) {
+
+      userInfo.style.display = "flex";
+
+      loginButton.style.display = "none";
+
+      $("userName").textContent =
+        state.user.username || "Discord User";
+
+
+      if (state.user.avatar) {
+
+        $("userAvatar").src =
+          state.user.avatar;
+
+      } else {
+
+        $("userAvatar").style.display =
+          "none";
+      }
+
+    } else {
+
+      userInfo.style.display = "none";
+
+      loginButton.style.display = "block";
+    }
+  }
+
+
+  function goToLogin() {
+
+    window.location.href =
+      "/auth/discord";
+  }
+
+
+  /* =======================================================
+     Map list
+  ======================================================= */
+
+  async function loadMapList() {
+
+    if (!state.user) {
+      return;
+    }
+
+
+    const list = $("mapList");
+
+    list.innerHTML =
+      `<div class="empty">読み込み中...</div>`;
+
+
+    try {
+
+      const data =
+        await api("/api/railway/maps");
+
+
+      const maps =
+        Array.isArray(data)
+          ? data
+          : data.maps || [];
+
+
+      renderMapList(maps);
+
+    } catch (error) {
+
+      console.error(error);
+
+      list.innerHTML =
+        `<div class="empty">
+          路線図を読み込めませんでした
+        </div>`;
+
+      showToast(
+        error.message,
+        "error"
+      );
+    }
+  }
+
+
+  function renderMapList(maps) {
+
+    const list = $("mapList");
+
+    if (!maps.length) {
+
+      list.innerHTML =
+        `<div class="empty">
+          保存された路線図はありません
+        </div>`;
+
+      return;
+    }
+
+
+    list.innerHTML = "";
+
+
+    for (const map of maps) {
+
+      const item =
+        document.createElement("div");
+
+      item.className =
+        "list-item" +
+        (
+          state.currentMapId === map.id
+            ? " active"
+            : ""
+        );
+
+
+      const main =
+        document.createElement("div");
+
+      main.className =
+        "list-item-main";
+
+      main.style.cursor = "pointer";
+
+      main.innerHTML = `
+
+        <div class="list-item-title">
+          ${escapeHtml(
+            map.name || "名称未設定"
+          )}
+        </div>
+
+        <div class="list-item-sub">
+          ${map.updatedAt
+            ? new Date(map.updatedAt)
+                .toLocaleString()
+            : ""
+          }
+        </div>
+      `;
+
+
+      main.addEventListener(
+        "click",
+        () => {
+          loadMap(map.id);
+        }
+      );
+
+
+      const deleteButton =
+        document.createElement("button");
+
+      deleteButton.className =
+        "btn btn-danger btn-small";
+
+      deleteButton.textContent =
+        "削除";
+
+
+      deleteButton.addEventListener(
+        "click",
+        async (event) => {
+
+          event.stopPropagation();
+
+          await deleteMap(map.id);
+        }
+      );
+
+
+      item.appendChild(main);
+
+      item.appendChild(deleteButton);
+
+      list.appendChild(item);
+    }
+  }
+
+
+  /* =======================================================
+     New map
+  ======================================================= */
+
+  function createNewMap() {
+
+    if (
+      state.map.stations.length ||
+      state.map.lines.length ||
+      state.map.trainTypes.length
+    ) {
+
+      const confirmed =
+        confirm(
+          "現在の編集内容を破棄して、新しい路線図を作成しますか？"
+        );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+
+    state.currentMapId = null;
+
+    state.map = {
+
+      name: "新しい路線図",
+
+      stations: [],
+
+      lines: [],
+
+      trainTypes: []
+    };
+
+
+    state.selectedStationId = null;
+
+    state.selectedLineId = null;
+
+    state.selectedTrainTypeId = null;
+
+
+    $("mapNameInput").value =
+      state.map.name;
+
+    $("currentMapName").textContent =
+      state.map.name;
+
+
+    renderAll();
+
+    markUnsaved();
+
+    showToast(
+      "新しい路線図を作成しました",
+      "success"
+    );
+  }
+
+
+  /* =======================================================
+     Save map
+  ======================================================= */
+
+  async function saveMap() {
+
+    if (!state.user) {
+
+      $("loginRequired").style.display =
+        "flex";
+
+      return;
+    }
+
+
+    const name =
+      $("mapNameInput").value.trim();
+
+
+    if (!name) {
+
+      showToast(
+        "路線図名を入力してください",
+        "error"
+      );
+
+      return;
+    }
+
+
+    state.map.name = name;
+
+
+    try {
+
+      let result;
+
+
+      if (state.currentMapId) {
+
+        result =
+          await api(
+            `/api/railway/maps/${encodeURIComponent(
+              state.currentMapId
+            )}`,
+            {
+              method: "PUT",
+
+              body: JSON.stringify({
+                name: state.map.name,
+                data: state.map
+              })
+            }
+          );
+
+      } else {
+
+        result =
+          await api(
+            "/api/railway/maps",
+            {
+              method: "POST",
+
+              body: JSON.stringify({
+                name: state.map.name,
+                data: state.map
+              })
+            }
+          );
+      }
+
+
+      if (result?.id) {
+
+        state.currentMapId =
+          result.id;
+      }
+
+
+      markSaved();
+
+      $("currentMapName").textContent =
+        state.map.name;
+
+
+      await loadMapList();
+
+
+      showToast(
+        "路線図を保存しました",
+        "success"
+      );
+
+    } catch (error) {
+
+      console.error(error);
+
+      showToast(
+        error.message,
+        "error"
+      );
+    }
+  }
+
+
+  /* =======================================================
+     Load map
+  ======================================================= */
+
+  async function loadMap(id) {
+
+    try {
+
+      const result =
+        await api(
+          `/api/railway/maps/${encodeURIComponent(id)}`
+        );
+
+
+      state.currentMapId =
+        result.id || id;
+
+
+      state.map =
+        normalizeMap(
+          result.data || result
+        );
+
+
+      state.selectedStationId =
+        null;
+
+      state.selectedLineId =
+        null;
+
+      state.selectedTrainTypeId =
+        null;
+
+
+      $("mapNameInput").value =
+        state.map.name;
+
+      $("currentMapName").textContent =
+        state.map.name;
+
+
+      renderAll();
+
+      markSaved();
+
+      showToast(
+        "路線図を読み込みました",
+        "success"
+      );
+
+    } catch (error) {
+
+      console.error(error);
+
+      showToast(
+        error.message,
+        "error"
+      );
+    }
+  }
+
+
+  /* =======================================================
+     Delete map
+  ======================================================= */
+
+  async function deleteMap(id) {
+
+    const confirmed =
+      confirm(
+        "この路線図を削除しますか？"
+      );
+
+
+    if (!confirmed) {
+      return;
+    }
+
+
+    try {
+
+      await api(
+        `/api/railway/maps/${encodeURIComponent(id)}`,
+        {
+          method: "DELETE"
+        }
+      );
+
+
+      if (state.currentMapId === id) {
+
+        createNewMap();
+      }
+
+
+      await loadMapList();
+
+
+      showToast(
+        "路線図を削除しました",
+        "success"
+      );
+
+    } catch (error) {
+
+      console.error(error);
+
+      showToast(
+        error.message,
+        "error"
+      );
+    }
+  }
+
+
+  /* =======================================================
+     Stations
+  ======================================================= */
+
+  function addStation() {
+
+    const name =
+      $("stationNameInput")
+        .value
+        .trim();
+
+
+    const code =
+      $("stationCodeInput")
+        .value
+        .trim();
+
+
+    if (!name) {
+
+      showToast(
+        "駅名を入力してください",
+        "error"
+      );
+
+      return;
+    }
+
+
+    const station = {
+
+      id: createId("station"),
+
+      name,
+
+      code,
+
+      x: 250 +
+        Math.random() * 500,
+
+      y: 150 +
+        Math.random() * 400
+    };
+
+
+    state.map.stations.push(
+      station
+    );
+
+
+    state.selectedStationId =
+      station.id;
+
+
+    $("stationNameInput").value =
+      station.name;
+
+    $("stationCodeInput").value =
+      station.code;
+
+
+    markUnsaved();
+
+    renderAll();
+
+
+    showToast(
+      `${name} を追加しました`,
+      "success"
+    );
+  }
+
+
+  function selectStation(id) {
+
+    const station =
+      state.map.stations.find(
+        item => item.id === id
+      );
+
+
+    if (!station) {
+      return;
+    }
+
+
+    state.selectedStationId =
+      id;
+
+
+    $("stationNameInput").value =
+      station.name || "";
+
+    $("stationCodeInput").value =
+      station.code || "";
+
+
+    renderStationList();
+
+    renderMap();
+  }
+
+
+  function updateStation() {
+
+    if (!state.selectedStationId) {
+
+      showToast(
+        "駅を選択してください",
+        "error"
+      );
+
+      return;
+    }
+
+
+    const station =
+      state.map.stations.find(
+        item =>
+          item.id ===
+          state.selectedStationId
+      );
+
+
+    if (!station) {
+      return;
+    }
+
+
+    const name =
+      $("stationNameInput")
+        .value
+        .trim();
+
+
+    const code =
+      $("stationCodeInput")
+        .value
+        .trim();
+
+
+    if (!name) {
+
+      showToast(
+        "駅名を入力してください",
+        "error"
+      );
+
+      return;
+    }
+
+
+    station.name = name;
+
+    station.code = code;
+
+
+    markUnsaved();
+
+    renderAll();
+
+
+    showToast(
+      "駅情報を更新しました",
+      "success"
+    );
+  }
+
+
+  function deleteStation() {
+
+    if (!state.selectedStationId) {
+
+      showToast(
+        "駅を選択してください",
+        "error"
+      );
+
+      return;
+    }
+
+
+    const station =
+      state.map.stations.find(
+        item =>
+          item.id ===
+          state.selectedStationId
+      );
+
+
+    if (!station) {
+      return;
+    }
+
+
+    const confirmed =
+      confirm(
+        `「${station.name}」を削除しますか？`
+      );
+
+
+    if (!confirmed) {
+      return;
+    }
+
+
+    state.map.stations =
+      state.map.stations.filter(
+        item =>
+          item.id !==
+          state.selectedStationId
+      );
+
+
+    /* 路線からも削除 */
+
+    for (const line of state.map.lines) {
+
+      line.stationIds =
+        (line.stationIds || [])
+          .filter(
+            stationId =>
+              stationId !==
+              state.selectedStationId
+          );
+    }
+
+
+    /* 種別からも削除 */
+
+    for (const type of state.map.trainTypes) {
+
+      type.stopStationIds =
+        (type.stopStationIds || [])
+          .filter(
+            stationId =>
+              stationId !==
+              state.selectedStationId
+          );
+    }
+
+
+    state.selectedStationId =
+      null;
+
+
+    $("stationNameInput").value =
+      "";
+
+    $("stationCodeInput").value =
+      "";
+
+
+    markUnsaved();
+
+    renderAll();
+
+
+    showToast(
+      "駅を削除しました",
+      "success"
+    );
+  }
+
+
+  function renderStationList() {
+
+    const list =
+      $("stationList");
+
+
+    if (!state.map.stations.length) {
+
+      list.innerHTML =
+        `<div class="empty">
+          駅がありません
+        </div>`;
+
+      return;
+    }
+
+
+    list.innerHTML = "";
+
+
+    for (const station of state.map.stations) {
+
+      const item =
+        document.createElement("div");
+
+
+      item.className =
+        "list-item" +
+        (
+          state.selectedStationId ===
+          station.id
+            ? " active"
+            : ""
+        );
+
+
+      item.innerHTML = `
+
+        <div class="list-item-main">
+
+          <div class="list-item-title">
+            ${escapeHtml(
+              station.name
+            )}
+          </div>
+
+          <div class="list-item-sub">
+            ${escapeHtml(
+              station.code || ""
+            )}
+          </div>
+
+        </div>
+      `;
+
+
+      item.addEventListener(
+        "click",
+        () => {
+          selectStation(station.id);
+        }
+      );
+
+
+      list.appendChild(item);
+    }
+  }
+
+
+  /* =======================================================
+     Lines
+  ======================================================= */
+
+  function addLine() {
+
+    const name =
+      $("lineNameInput")
+        .value
+        .trim();
+
+
+    const color =
+      $("lineColorInput").value;
+
+
+    if (!name) {
+
+      showToast(
+        "路線名を入力してください",
+        "error"
+      );
+
+      return;
+    }
+
+
+    const line = {
+
+      id: createId("line"),
+
+      name,
+
+      color,
+
+      stationIds: []
+    };
+
+
+    state.map.lines.push(
+      line
+    );
+
+
+    state.selectedLineId =
+      line.id;
+
+
+    renderAll();
+
+    markUnsaved();
+
+
+    showToast(
+      `${name} を追加しました`,
+      "success"
+    );
+  }
+
+
+  function selectLine(id) {
+
+    const line =
+      state.map.lines.find(
+        item => item.id === id
+      );
+
+
+    if (!line) {
+      return;
+    }
+
+
+    state.selectedLineId =
+      id;
+
+
+    $("lineNameInput").value =
+      line.name || "";
+
+    $("lineColorInput").value =
+      line.color || "#0088cc";
+
+
+    renderAll();
+  }
+
+
+  function updateLine() {
+
+    if (!state.selectedLineId) {
+
+      showToast(
+        "路線を選択してください",
+        "error"
+      );
+
+      return;
+    }
+
+
+    const line =
+      state.map.lines.find(
+        item =>
+          item.id ===
+          state.selectedLineId
+      );
+
+
+    if (!line) {
+      return;
+    }
+
+
+    const name =
+      $("lineNameInput")
+        .value
+        .trim();
+
+
+    const color =
+      $("lineColorInput").value;
+
+
+    if (!name) {
+
+      showToast(
+        "路線名を入力してください",
+        "error"
+      );
+
+      return;
+    }
+
+
+    line.name =
+      name;
+
+    line.color =
+      color;
+
+
+    markUnsaved();
+
+    renderAll();
+
+
+    showToast(
+      "路線情報を更新しました",
+      "success"
+    );
+  }
+
+
+  function deleteLine() {
+
+    if (!state.selectedLineId) {
+
+      showToast(
+        "路線を選択してください",
+        "error"
+      );
+
+      return;
+    }
+
+
+    const line =
+      state.map.lines.find(
+        item =>
+          item.id ===
+          state.selectedLineId
+      );
+
+
+    if (!line) {
+      return;
+    }
+
+
+    const confirmed =
+      confirm(
+        `「${line.name}」を削除しますか？`
+      );
+
+
+    if (!confirmed) {
+      return;
+    }
+
+
+    state.map.lines =
+      state.map.lines.filter(
+        item =>
+          item.id !==
+          state.selectedLineId
+      );
+
+
+    state.selectedLineId =
+      null;
+
+
+    $("lineNameInput").value =
+      "";
+
+    $("lineColorInput").value =
+      "#0088cc";
+
+
+    markUnsaved();
+
+    renderAll();
+
+
+    showToast(
+      "路線を削除しました",
+      "success"
+    );
+  }
+
+
+  function renderLineList() {
+
+    const list =
+      $("lineList");
+
+
+    if (!state.map.lines.length) {
+
+      list.innerHTML =
+        `<div class="empty">
+          路線がありません
+        </div>`;
+
+      return;
+    }
+
+
+    list.innerHTML = "";
+
+
+    for (const line of state.map.lines) {
+
+      const item =
+        document.createElement("div");
+
+
+      item.className =
+        "list-item" +
+        (
+          state.selectedLineId ===
+          line.id
+            ? " active"
+            : ""
+        );
+
+
+      item.innerHTML = `
+
+        <div
+          style="
+            display:flex;
+            align-items:center;
+            gap:8px;
+            min-width:0;
+          "
+        >
+
+          <div
+            class="color-dot"
+            style="
+              background:${escapeHtml(
+                line.color || "#888"
+              )};
+            "
+          ></div>
+
+          <div class="list-item-main">
+
+            <div class="list-item-title">
+              ${escapeHtml(
+                line.name
+              )}
+            </div>
+
+            <div class="list-item-sub">
+              ${(line.stationIds || []).length}
+              駅
+            </div>
+
+          </div>
+
+        </div>
+      `;
+
+
+      item.addEventListener(
+        "click",
+        () => {
+          selectLine(line.id);
+        }
+      );
+
+
+      list.appendChild(item);
+    }
+  }
+
+
+  function renderLineSelect() {
+
+    const select =
+      $("lineSelect");
+
+
+    const previous =
+      state.selectedLineId;
+
+
+    select.innerHTML =
+      `<option value="">
+        路線を選択
+      </option>`;
+
+
+    for (const line of state.map.lines) {
+
+      const option =
+        document.createElement("option");
+
+
+      option.value =
+        line.id;
+
+      option.textContent =
+        line.name;
+
+
+      select.appendChild(option);
+    }
+
+
+    if (
+      previous &&
+      state.map.lines.some(
+        line =>
+          line.id === previous
+      )
+    ) {
+
+      select.value =
+        previous;
+    }
+  }
+
+
+  function renderLineStationList() {
+
+    const list =
+      $("lineStationList");
+
+
+    if (!state.selectedLineId) {
+
+      list.innerHTML =
+        `<div class="empty">
+          路線を選択してください
+        </div>`;
+
+      return;
+    }
+
+
+    const line =
+      state.map.lines.find(
+        item =>
+          item.id ===
+          state.selectedLineId
+      );
+
+
+    if (!line) {
+      return;
+    }
+
+
+    if (!line.stationIds) {
+      line.stationIds = [];
+    }
+
+
+    if (!line.stationIds.length) {
+
+      list.innerHTML =
+        `<div class="empty">
+          駅が登録されていません
+        </div>`;
+
+      return;
+    }
+
+
+    list.innerHTML = "";
+
+
+    line.stationIds.forEach(
+      (stationId, index) => {
+
+        const station =
+          state.map.stations.find(
+            item =>
+              item.id === stationId
+          );
+
+
+        if (!station) {
+          return;
+        }
+
+
+        const item =
+          document.createElement("div");
+
+
+        item.className =
+          "list-item";
+
+
+        const title =
+          document.createElement("div");
+
+
+        title.className =
+          "list-item-main";
+
+
+        title.innerHTML = `
+
+          <div class="list-item-title">
+            ${index + 1}.
+            ${escapeHtml(
+              station.name
+            )}
+          </div>
+
+          <div class="list-item-sub">
+            ${escapeHtml(
+              station.code || ""
+            )}
+          </div>
+        `;
+
+
+        const buttons =
+          document.createElement("div");
+
+
+        buttons.className =
+          "button-row";
+
+
+        const up =
+          document.createElement("button");
+
+
+        up.className =
+          "btn btn-small";
+
+        up.textContent =
+          "↑";
+
+
+        up.disabled =
+          index === 0;
+
+
+        up.addEventListener(
+          "click",
+          () => {
+
+            if (index <= 0) {
+              return;
+            }
+
+            [
+              line.stationIds[index - 1],
+              line.stationIds[index]
+            ] =
+            [
+              line.stationIds[index],
+              line.stationIds[index - 1]
+            ];
+
+
+            markUnsaved();
+
+            renderAll();
+          }
+        );
+
+
+        const down =
+          document.createElement("button");
+
+
+        down.className =
+          "btn btn-small";
+
+        down.textContent =
+          "↓";
+
+
+        down.disabled =
+          index ===
+          line.stationIds.length - 1;
+
+
+        down.addEventListener(
+          "click",
+          () => {
+
+            if (
+              index >=
+              line.stationIds.length - 1
+            ) {
+              return;
+            }
+
+
+            [
+              line.stationIds[index],
+              line.stationIds[index + 1]
+            ] =
+            [
+              line.stationIds[index + 1],
+              line.stationIds[index]
+            ];
+
+
+            markUnsaved();
+
+            renderAll();
+          }
+        );
+
+
+        const remove =
+          document.createElement("button");
+
+
+        remove.className =
+          "btn btn-danger btn-small";
+
+        remove.textContent =
+          "×";
+
+
+        remove.addEventListener(
+          "click",
+          () => {
+
+            line.stationIds =
+              line.stationIds.filter(
+                id =>
+                  id !== station.id
+              );
+
+
+            markUnsaved();
+
+            renderAll();
+          }
+        );
+
+
+        buttons.appendChild(up);
+
+        buttons.appendChild(down);
+
+        buttons.appendChild(remove);
+
+
+        item.appendChild(title);
+
+        item.appendChild(buttons);
+
+
+        list.appendChild(item);
+      }
+    );
+  }
+
+
+  /* =======================================================
+     Train Types
+  ======================================================= */
+
+  function addTrainType() {
+
+    const name =
+      $("trainTypeNameInput")
+        .value
+        .trim();
+
+
+    const color =
+      $("trainTypeColorInput").value;
+
+
+    if (!name) {
+
+      showToast(
+        "種別名を入力してください",
+        "error"
+      );
+
+      return;
+    }
+
+
+    const trainType = {
+
+      id: createId("type"),
+
+      name,
+
+      color,
+
+      stopStationIds: []
+    };
+
+
+    state.map.trainTypes.push(
+      trainType
+    );
+
+
+    state.selectedTrainTypeId =
+      trainType.id;
+
+
+    renderAll();
+
+    markUnsaved();
+
+
+    showToast(
+      `${name} を追加しました`,
+      "success"
+    );
+  }
+
+
+  function selectTrainType(id) {
+
+    const type =
+      state.map.trainTypes.find(
+        item => item.id === id
+      );
+
+
+    if (!type) {
+      return;
+    }
+
+
+    state.selectedTrainTypeId =
+      id;
+
+
+    $("trainTypeNameInput").value =
+      type.name || "";
+
+    $("trainTypeColorInput").value =
+      type.color || "#e63946";
+
+
+    renderAll();
+  }
+
+
+  function updateTrainType() {
+
+    if (!state.selectedTrainTypeId) {
+
+      showToast(
+        "種別を選択してください",
+        "error"
+      );
+
+      return;
+    }
+
+
+    const type =
+      state.map.trainTypes.find(
+        item =>
+          item.id ===
+          state.selectedTrainTypeId
+      );
+
+
+    if (!type) {
+      return;
+    }
+
+
+    const name =
+      $("trainTypeNameInput")
+        .value
+        .trim();
+
+
+    const color =
+      $("trainTypeColorInput").value;
+
+
+    if (!name) {
+
+      showToast(
+        "種別名を入力してください",
+        "error"
+      );
+
+      return;
+    }
+
+
+    type.name =
+      name;
+
+    type.color =
+      color;
+
+
+    markUnsaved();
+
+    renderAll();
+
+
+    showToast(
+      "種別情報を更新しました",
+      "success"
+    );
+  }
+
+
+  function deleteTrainType() {
+
+    if (!state.selectedTrainTypeId) {
+
+      showToast(
+        "種別を選択してください",
+        "error"
+      );
+
+      return;
+    }
+
+
+    const type =
+      state.map.trainTypes.find(
+        item =>
+          item.id ===
+          state.selectedTrainTypeId
+      );
+
+
+    if (!type) {
+      return;
+    }
+
+
+    const confirmed =
+      confirm(
+        `「${type.name}」を削除しますか？`
+      );
+
+
+    if (!confirmed) {
+      return;
+    }
+
+
+    state.map.trainTypes =
+      state.map.trainTypes.filter(
+        item =>
+          item.id !==
+          state.selectedTrainTypeId
+      );
+
+
+    state.selectedTrainTypeId =
+      null;
+
+
+    $("trainTypeNameInput").value =
+      "";
+
+    $("trainTypeColorInput").value =
+      "#e63946";
+
+
+    markUnsaved();
+
+    renderAll();
+
+
+    showToast(
+      "種別を削除しました",
+      "success"
+    );
+  }
+
+
+  function renderTrainTypeList() {
+
+    const list =
+      $("trainTypeList");
+
+
+    if (!state.map.trainTypes.length) {
+
+      list.innerHTML =
+        `<div class="empty">
+          種別がありません
+        </div>`;
+
+      return;
+    }
+
+
+    list.innerHTML = "";
+
+
+    for (const type of state.map.trainTypes) {
+
+      const item =
+        document.createElement("div");
+
+
+      item.className =
+        "list-item" +
+        (
+          state.selectedTrainTypeId ===
+          type.id
+            ? " active"
+            : ""
+        );
+
+
+      item.innerHTML = `
+
+        <div
+          style="
+            display:flex;
+            align-items:center;
+            gap:8px;
+            min-width:0;
+          "
+        >
+
+          <div
+            class="color-dot"
+            style="
+              background:${escapeHtml(
+                type.color || "#888"
+              )};
+            "
+          ></div>
+
+          <div class="list-item-main">
+
+            <div class="list-item-title">
+              ${escapeHtml(
+                type.name
+              )}
+            </div>
+
+            <div class="list-item-sub">
+              ${(type.stopStationIds || []).length}
+              駅停車
+            </div>
+
+          </div>
+
+        </div>
+      `;
+
+
+      item.addEventListener(
+        "click",
+        () => {
+          selectTrainType(type.id);
+        }
+      );
+
+
+      list.appendChild(item);
+    }
+  }
+
+
+  function renderTrainTypeSelect() {
+
+    const select =
+      $("trainTypeSelect");
+
+
+    const previous =
+      state.selectedTrainTypeId;
+
+
+    select.innerHTML =
+      `<option value="">
+        種別を選択
+      </option>`;
+
+
+    for (
+      const type of state.map.trainTypes
+    ) {
+
+      const option =
+        document.createElement("option");
+
+
+      option.value =
+        type.id;
+
+      option.textContent =
+        type.name;
+
+
+      select.appendChild(option);
+    }
+
+
+    if (
+      previous &&
+      state.map.trainTypes.some(
+        type =>
+          type.id === previous
+      )
+    ) {
+
+      select.value =
+        previous;
+    }
+  }
+
+
+  function renderStopStationList() {
+
+    const container =
+      $("stopStationList");
+
+
+    if (!state.selectedTrainTypeId) {
+
+      container.innerHTML =
+        `<div class="empty">
+          種別を選択してください
+        </div>`;
+
+      return;
+    }
+
+
+    const type =
+      state.map.trainTypes.find(
+        item =>
+          item.id ===
+          state.selectedTrainTypeId
+      );
+
+
+    if (!type) {
+      return;
+    }
+
+
+    const stopIds =
+      new Set(
+        type.stopStationIds || []
+      );
+
+
+    if (!state.map.stations.length) {
+
+      container.innerHTML =
+        `<div class="empty">
+          駅がありません
+        </div>`;
+
+      return;
+    }
+
+
+    container.innerHTML = "";
+
+
+    for (
+      const station of state.map.stations
+    ) {
+
+      const label =
+        document.createElement("label");
+
+
+      label.className =
+        "checkbox-item";
+
+
+      const checkbox =
+        document.createElement("input");
+
+
+      checkbox.type =
+        "checkbox";
+
+      checkbox.dataset.stationId =
+        station.id;
+
+      checkbox.checked =
+        stopIds.has(
+          station.id
+        );
+
+
+      label.appendChild(
+        checkbox
+      );
+
+
+      const text =
+        document.createElement("span");
+
+
+      text.textContent =
+        station.name;
+
+
+      label.appendChild(
+        text
+      );
+
+
+      container.appendChild(
+        label
+      );
+    }
+  }
+
+
+  function saveStopPattern() {
+
+    if (!state.selectedTrainTypeId) {
+
+      showToast(
+        "種別を選択してください",
+        "error"
+      );
+
+      return;
+    }
+
+
+    const type =
+      state.map.trainTypes.find(
+        item =>
+          item.id ===
+          state.selectedTrainTypeId
+      );
+
+
+    if (!type) {
+      return;
+    }
+
+
+    const checkboxes =
+      $("stopStationList")
+        .querySelectorAll(
+          "input[type=checkbox]"
+        );
+
+
+    type.stopStationIds = [];
+
+
+    for (const checkbox of checkboxes) {
+
+      if (checkbox.checked) {
+
+        type.stopStationIds.push(
+          checkbox.dataset.stationId
+        );
+      }
+    }
+
+
+    markUnsaved();
+
+    renderAll();
+
+
+    showToast(
+      "停車駅を保存しました",
+      "success"
+    );
+  }
+
+
+  /* =======================================================
+     Map rendering
+  ======================================================= */
+
+  function renderMap() {
+
+    lineLayer.innerHTML = "";
+
+    stationLayer.innerHTML = "";
+
+
+    /*
+     * 路線
+     */
+
+    for (const line of state.map.lines) {
+
+      const stationIds =
+        line.stationIds || [];
+
+
+      const stations =
+        stationIds
+          .map(
+            id =>
+              state.map.stations.find(
+                station =>
+                  station.id === id
+              )
+          )
+          .filter(Boolean);
+
+
+      if (stations.length < 2) {
+        continue;
+      }
+
+
+      /*
+       * 通常路線
+       */
+
+      const points =
+        stations
+          .map(
+            station =>
+              `${station.x},${station.y}`
+          )
+          .join(" ");
+
+
+      const polyline =
+        document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "polyline"
+        );
+
+
+      polyline.setAttribute(
+        "points",
+        points
+      );
+
+
+      polyline.setAttribute(
+        "stroke",
+        line.color || "#0088cc"
+      );
+
+
+      polyline.setAttribute(
+        "stroke-width",
+        "10"
+      );
+
+
+      polyline.setAttribute(
+        "class",
+        "line-path"
+      );
+
+
+      lineLayer.appendChild(
+        polyline
+      );
+    }
+
+
+    /*
+     * 駅
+     */
+
+    for (
+      const station of state.map.stations
+    ) {
+
+      const group =
+        document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "g"
+        );
+
+
+      group.classList.add(
+        "station-group"
+      );
+
+
+      group.dataset.stationId =
+        station.id;
+
+
+      group.setAttribute(
+        "transform",
+        `translate(${station.x},${station.y})`
+      );
+
+
+      const circle =
+        document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "circle"
+        );
+
+
+      circle.setAttribute(
+        "r",
+        "9"
+      );
+
+
+      circle.classList.add(
+        "station-circle"
+      );
+
+
+      if (
+        state.selectedStationId ===
+        station.id
+      ) {
+
+        circle.classList.add(
+          "selected"
+        );
+      }
+
+
+      /*
+       * 駅名
+       */
+
+      const label =
+        document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "text"
+        );
+
+
+      label.setAttribute(
+        "x",
+        "15"
+      );
+
+      label.setAttribute(
+        "y",
+        "-7"
+      );
+
+
+      label.classList.add(
+        "station-label"
+      );
+
+
+      label.textContent =
+        station.name;
+
+
+      /*
+       * 駅コード
+       */
+
+      const code =
+        document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "text"
+        );
+
+
+      code.setAttribute(
+        "x",
+        "15"
+      );
+
+      code.setAttribute(
+        "y",
+        "10"
+      );
+
+
+      code.classList.add(
+        "station-code"
+      );
+
+
+      code.textContent =
+        station.code || "";
+
+
+      group.appendChild(
+        circle
+      );
+
+      group.appendChild(
+        label
+      );
+
+      group.appendChild(
+        code
+      );
+
+
+      /*
+       * 選択
+       */
+
+      group.addEventListener(
+        "click",
+        event => {
+
+          event.stopPropagation();
+
+          selectStation(
+            station.id
+          );
+        }
+      );
+
+
+      /*
+       * ドラッグ開始
+       */
+
+      group.addEventListener(
+        "pointerdown",
+        event => {
+
+          event.preventDefault();
+
+          event.stopPropagation();
+
+
+          state.draggingStationId =
+            station.id;
+
+
+          const point =
+            svgPoint(
+              event
+            );
+
+
+          state.dragOffsetX =
+            station.x -
+            point.x;
+
+
+          state.dragOffsetY =
+            station.y -
+            point.y;
+
+
+          group.setPointerCapture(
+            event.pointerId
+          );
+        }
+      );
+
+
+      /*
+       * ドラッグ中
+       */
+
+      group.addEventListener(
+        "pointermove",
+        event => {
+
+          if (
+            state.draggingStationId !==
+            station.id
+          ) {
+            return;
+          }
+
+
+          const point =
+            svgPoint(
+              event
+            );
+
+
+          station.x =
+            Math.max(
+              20,
+              Math.min(
+                1380,
+                point.x +
+                state.dragOffsetX
+              )
+            );
+
+
+          station.y =
+            Math.max(
+              20,
+              Math.min(
+                830,
+                point.y +
+                state.dragOffsetY
+              )
+            );
+
+
+          group.setAttribute(
+            "transform",
+            `translate(${station.x},${station.y})`
+          );
+
+
+          markUnsaved();
+
+
+          /*
+           * 路線を再描画
+           */
+
+          renderLinesOnly();
+        }
+      );
+
+
+      group.addEventListener(
+        "pointerup",
+        event => {
+
+          state.draggingStationId =
+            null;
+
+          try {
+
+            group.releasePointerCapture(
+              event.pointerId
+            );
+
+          } catch {}
+        }
+      );
+
+
+      stationLayer.appendChild(
+        group
+      );
+    }
+  }
+
+
+  function renderLinesOnly() {
+
+    lineLayer.innerHTML = "";
+
+
+    for (const line of state.map.lines) {
+
+      const stations =
+        (line.stationIds || [])
+          .map(
+            id =>
+              state.map.stations.find(
+                station =>
+                  station.id === id
+              )
+          )
+          .filter(Boolean);
+
+
+      if (stations.length < 2) {
+        continue;
+      }
+
+
+      const polyline =
+        document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "polyline"
+        );
+
+
+      polyline.setAttribute(
+        "points",
+        stations
+          .map(
+            station =>
+              `${station.x},${station.y}`
+          )
+          .join(" ")
+      );
+
+
+      polyline.setAttribute(
+        "stroke",
+        line.color || "#0088cc"
+      );
+
+
+      polyline.setAttribute(
+        "stroke-width",
+        "10"
+      );
+
+
+      polyline.setAttribute(
+        "class",
+        "line-path"
+      );
+
+
+      lineLayer.appendChild(
+        polyline
+      );
+    }
+  }
+
+
+  function svgPoint(event) {
+
+    const rect =
+      mapSvg.getBoundingClientRect();
+
+
+    const viewBox =
+      mapSvg.viewBox.baseVal;
+
+
+    const x =
+      (event.clientX - rect.left)
+      *
+      viewBox.width
+      /
+      rect.width;
+
+
+    const y =
+      (event.clientY - rect.top)
+      *
+      viewBox.height
+      /
+      rect.height;
+
+
+    return {
+      x,
+      y
+    };
+  }
+
+
+  /* =======================================================
+     Add station to line
+  ======================================================= */
+
+  function toggleStationOnSelectedLine(
+    stationId
+  ) {
+
+    if (!state.selectedLineId) {
+
+      showToast(
+        "先に路線を選択してください",
+        "error"
+      );
+
+      return;
+    }
+
+
+    const line =
+      state.map.lines.find(
+        item =>
+          item.id ===
+          state.selectedLineId
+      );
+
+
+    if (!line) {
+      return;
+    }
+
+
+    if (!line.stationIds) {
+      line.stationIds = [];
+    }
+
+
+    const index =
+      line.stationIds.indexOf(
+        stationId
+      );
+
+
+    if (index >= 0) {
+
+      line.stationIds.splice(
+        index,
+        1
+      );
+
+    } else {
+
+      line.stationIds.push(
+        stationId
+      );
+    }
+
+
+    markUnsaved();
+
+    renderAll();
+  }
+
+
+  /* =======================================================
+     Clear
+  ======================================================= */
+
+  function clearMap() {
+
+    const confirmed =
+      confirm(
+        "現在の路線図の駅・路線・種別をすべて削除しますか？"
+      );
+
+
+    if (!confirmed) {
+      return;
+    }
+
+
+    state.map.stations = [];
+
+    state.map.lines = [];
+
+    state.map.trainTypes = [];
+
+
+    state.selectedStationId =
+      null;
+
+    state.selectedLineId =
+      null;
+
+    state.selectedTrainTypeId =
+      null;
+
+
+    $("stationNameInput").value =
+      "";
+
+    $("stationCodeInput").value =
+      "";
+
+    $("lineNameInput").value =
+      "";
+
+    $("trainTypeNameInput").value =
+      "";
+
+
+    markUnsaved();
+
+    renderAll();
+
+
+    showToast(
+      "路線図をクリアしました",
+      "success"
+    );
+  }
+
+
+  /* =======================================================
+     Render all
+  ======================================================= */
+
+  function renderAll() {
+
+    renderStationList();
+
+    renderLineList();
+
+    renderLineSelect();
+
+    renderLineStationList();
+
+    renderTrainTypeList();
+
+    renderTrainTypeSelect();
+
+    renderStopStationList();
+
+    renderMap();
+  }
+
+
+  /* =======================================================
+     Events
+  ======================================================= */
+
+  $("loginButton")
+    .addEventListener(
+      "click",
+      goToLogin
+    );
+
+
+  $("loginRequiredButton")
+    .addEventListener(
+      "click",
+      goToLogin
+    );
+
+
+  $("logoutButton")
+    .addEventListener(
+      "click",
+      () => {
+
+        window.location.href =
+          "/logout";
+      }
+    );
+
+
+  $("newMapButton")
+    .addEventListener(
+      "click",
+      createNewMap
+    );
+
+
+  $("saveMapButton")
+    .addEventListener(
+      "click",
+      saveMap
+    );
+
+
+  $("mapNameInput")
+    .addEventListener(
+      "input",
+      () => {
+
+        state.map.name =
+          $("mapNameInput")
+            .value;
+
+        $("currentMapName")
+          .textContent =
+          state.map.name ||
+          "新しい路線図";
+
+        markUnsaved();
+      }
+    );
+
+
+  $("addStationButton")
+    .addEventListener(
+      "click",
+      addStation
+    );
+
+
+  $("updateStationButton")
+    .addEventListener(
+      "click",
+      updateStation
+    );
+
+
+  $("deleteStationButton")
+    .addEventListener(
+      "click",
+      deleteStation
+    );
+
+
+  $("addLineButton")
+    .addEventListener(
+      "click",
+      addLine
+    );
+
+
+  $("updateLineButton")
+    .addEventListener(
+      "click",
+      updateLine
+    );
+
+
+  $("deleteLineButton")
+    .addEventListener(
+      "click",
+      deleteLine
+    );
+
+
+  $("lineSelect")
+    .addEventListener(
+      "change",
+      event => {
+
+        state.selectedLineId =
+          event.target.value ||
+          null;
+
+        renderAll();
+      }
+    );
+
+
+  $("addTrainTypeButton")
+    .addEventListener(
+      "click",
+      addTrainType
+    );
+
+
+  $("updateTrainTypeButton")
+    .addEventListener(
+      "click",
+      updateTrainType
+    );
+
+
+  $("deleteTrainTypeButton")
+    .addEventListener(
+      "click",
+      deleteTrainType
+    );
+
+
+  $("trainTypeSelect")
+    .addEventListener(
+      "change",
+      event => {
+
+        state.selectedTrainTypeId =
+          event.target.value ||
+          null;
+
+        renderAll();
+      }
+    );
+
+
+  $("saveStopPatternButton")
+    .addEventListener(
+      "click",
+      saveStopPattern
+    );
+
+
+  $("fitMapButton")
+    .addEventListener(
+      "click",
+      () => {
+
+        const container =
+          document.querySelector(
+            ".svg-container"
+          );
+
+        container.scrollLeft = 0;
+
+        container.scrollTop = 0;
+      }
+    );
+
+
+  $("clearMapButton")
+    .addEventListener(
+      "click",
+      clearMap
+    );
+
+
+  /*
+   * SVGをクリックしたとき
+   */
+
+  mapSvg.addEventListener(
+    "click",
+    () => {
+
+      state.selectedStationId =
+        null;
+
+      renderStationList();
+
+      renderMap();
+    }
+  );
+
+
+  /*
+   * Enterで追加
+   */
+
+  $("stationNameInput")
+    .addEventListener(
+      "keydown",
+      event => {
+
+        if (
+          event.key === "Enter"
+        ) {
+
+          addStation();
+        }
+      }
+    );
+
+
+  $("lineNameInput")
+    .addEventListener(
+      "keydown",
+      event => {
+
+        if (
+          event.key === "Enter"
+        ) {
+
+          addLine();
+        }
+      }
+    );
+
+
+  $("trainTypeNameInput")
+    .addEventListener(
+      "keydown",
+      event => {
+
+        if (
+          event.key === "Enter"
+        ) {
+
+          addTrainType();
+        }
+      }
+    );
+
+
+  /* =======================================================
+     Keyboard shortcut
+  ======================================================= */
+
+  document.addEventListener(
+    "keydown",
+    event => {
+
+      /*
+       * Ctrl + S
+       */
+
+      if (
+        (event.ctrlKey ||
+          event.metaKey) &&
+        event.key.toLowerCase() === "s"
+      ) {
+
+        event.preventDefault();
+
+        saveMap();
+      }
+
+
+      /*
+       * Delete
+       */
+
+      if (
+        event.key === "Delete" &&
+        state.selectedStationId
+      ) {
+
+        const active =
+          document.activeElement;
+
+
+        if (
+          active &&
+          (
+            active.tagName ===
+              "INPUT" ||
+            active.tagName ===
+              "TEXTAREA"
+          )
+        ) {
+          return;
+        }
+
+
+        deleteStation();
+      }
+    }
+  );
+
+
+  /* =======================================================
+     Start
+  ======================================================= */
+
+  $("mapNameInput").value =
+    state.map.name;
+
+
+  $("currentMapName").textContent =
+    state.map.name;
+
+
+  renderAll();
+
+  checkLogin();
+
+})();
+</script>
 
 </body>
+</html>
+

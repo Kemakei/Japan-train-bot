@@ -1,47 +1,1208 @@
-#battle{
-position:relative;
-width:100%;
-height:500px;
-overflow:hidden;
+/* =========================================================
+   Railway Map Editor
+   style.css
+========================================================= */
+
+* {
+  box-sizing: border-box;
 }
 
-#player{
-position:absolute;
-left:30px;
-bottom:50px;
-width:180px;
-cursor:pointer;
+:root {
+  --bg: #f3f5f7;
+  --panel: #ffffff;
+  --border: #d9dde2;
+  --text: #222222;
+  --sub: #6b7280;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --danger: #dc2626;
+  --success: #16a34a;
 }
 
-#boss{
-position:absolute;
-right:30px;
-top:100px;
-width:250px;
+
+/* =========================================================
+   Base
+========================================================= */
+
+html {
+  min-height: 100%;
 }
 
-.arrow{
-position:absolute;
-left:180px;
-bottom:130px;
-width:60px;
-height:30px;
-background:url("/assets/arrow.png") center/contain no-repeat;
-animation:arrowMove 0.6s linear forwards;
+body {
+  margin: 0;
+  min-height: 100vh;
+
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    "Noto Sans JP",
+    sans-serif;
+
+  color: var(--text);
+  background: var(--bg);
 }
 
-@keyframes arrowMove{
-from{
-left:180px;
-transform:rotate(-45deg);
-}
-to{
-left:calc(100% - 300px);
-transform:rotate(-45deg);
-}
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
 
-body{
-margin:0;
-background:url("/assets/background.jpg") center/cover fixed;
+button {
+  cursor: pointer;
+}
+
+
+/* =========================================================
+   Header
+========================================================= */
+
+header {
+  height: 64px;
+
+  background: #ffffff;
+
+  border-bottom: 1px solid var(--border);
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 0 20px;
+
+  position: sticky;
+  top: 0;
+
+  z-index: 1000;
+}
+
+
+.logo {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+
+  white-space: nowrap;
+}
+
+
+.header-right {
+  display: flex;
+  align-items: center;
+
+  gap: 12px;
+}
+
+
+/* =========================================================
+   User
+========================================================= */
+
+.user-info {
+  display: none;
+
+  align-items: center;
+
+  gap: 8px;
+
+  font-size: 14px;
+}
+
+
+.user-info img {
+  width: 32px;
+  height: 32px;
+
+  border-radius: 50%;
+
+  object-fit: cover;
+
+  background: #e5e7eb;
+}
+
+
+#userName {
+  max-width: 180px;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  font-weight: 600;
+}
+
+
+/* =========================================================
+   Discord Login
+========================================================= */
+
+.login-button {
+  background: #5865f2;
+  color: #ffffff;
+
+  border: none;
+
+  border-radius: 8px;
+
+  padding: 9px 14px;
+
+  font-weight: 700;
+
+  transition:
+    background 0.15s ease,
+    transform 0.1s ease;
+}
+
+
+.login-button:hover {
+  background: #4752c4;
+}
+
+
+.login-button:active {
+  transform: translateY(1px);
+}
+
+
+.logout-button {
+  background: #f1f3f5;
+
+  border: 1px solid var(--border);
+
+  border-radius: 7px;
+
+  padding: 7px 10px;
+
+  color: #333;
+}
+
+
+.logout-button:hover {
+  background: #e9ecef;
+}
+
+
+/* =========================================================
+   Main Layout
+========================================================= */
+
+.app {
+  display: grid;
+
+  grid-template-columns: 320px minmax(0, 1fr);
+
+  min-height: calc(100vh - 64px);
+}
+
+
+/* =========================================================
+   Sidebar
+========================================================= */
+
+.sidebar {
+  background: #ffffff;
+
+  border-right: 1px solid var(--border);
+
+  padding: 16px;
+
+  overflow-y: auto;
+
+  max-height: calc(100vh - 64px);
+
+  position: sticky;
+
+  top: 64px;
+}
+
+
+/* =========================================================
+   Workspace
+========================================================= */
+
+.workspace {
+  min-width: 0;
+
+  padding: 18px;
+}
+
+
+/* =========================================================
+   Panel
+========================================================= */
+
+.panel {
+  border: 1px solid var(--border);
+
+  border-radius: 10px;
+
+  background: var(--panel);
+
+  margin-bottom: 14px;
+
+  overflow: hidden;
+}
+
+
+.panel-header {
+  padding: 12px 14px;
+
+  border-bottom: 1px solid var(--border);
+
+  font-weight: 800;
+
+  background: #fafafa;
+}
+
+
+.panel-body {
+  padding: 14px;
+}
+
+
+/* =========================================================
+   Section
+========================================================= */
+
+.section-title {
+  font-size: 13px;
+
+  font-weight: 800;
+
+  color: #555555;
+
+  margin-bottom: 8px;
+}
+
+
+/* =========================================================
+   Fields
+========================================================= */
+
+.field {
+  margin-bottom: 10px;
+}
+
+
+.field:last-child {
+  margin-bottom: 0;
+}
+
+
+.field label {
+  display: block;
+
+  font-size: 12px;
+
+  color: var(--sub);
+
+  margin-bottom: 4px;
+}
+
+
+/* =========================================================
+   Inputs
+========================================================= */
+
+input[type="text"],
+input[type="number"],
+select,
+textarea {
+  width: 100%;
+
+  border: 1px solid #cfd4da;
+
+  border-radius: 7px;
+
+  padding: 8px 9px;
+
+  outline: none;
+
+  background: #ffffff;
+
+  color: var(--text);
+
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--primary);
+
+  box-shadow:
+    0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af;
+}
+
+
+/* =========================================================
+   Color Input
+========================================================= */
+
+input[type="color"] {
+  width: 48px;
+  height: 36px;
+
+  padding: 2px;
+
+  border: 1px solid var(--border);
+
+  border-radius: 6px;
+
+  background: #ffffff;
+
+  cursor: pointer;
+}
+
+
+/* =========================================================
+   Buttons
+========================================================= */
+
+.button-row {
+  display: flex;
+
+  align-items: center;
+
+  gap: 7px;
+
+  flex-wrap: wrap;
+}
+
+
+.btn {
+  border: 1px solid var(--border);
+
+  background: #ffffff;
+
+  color: #222222;
+
+  border-radius: 7px;
+
+  padding: 8px 11px;
+
+  font-weight: 600;
+
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.1s ease;
+}
+
+
+.btn:hover {
+  background: #f5f6f7;
+}
+
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+
+.btn:disabled {
+  cursor: not-allowed;
+
+  opacity: 0.45;
+}
+
+
+.btn-primary {
+  background: var(--primary);
+
+  border-color: var(--primary);
+
+  color: #ffffff;
+}
+
+
+.btn-primary:hover {
+  background: var(--primary-hover);
+
+  border-color: var(--primary-hover);
+}
+
+
+.btn-success {
+  background: var(--success);
+
+  border-color: var(--success);
+
+  color: #ffffff;
+}
+
+
+.btn-success:hover {
+  background: #15803d;
+
+  border-color: #15803d;
+}
+
+
+.btn-danger {
+  background: #ffffff;
+
+  color: var(--danger);
+
+  border-color: #f1b4b4;
+}
+
+
+.btn-danger:hover {
+  background: #fef2f2;
+
+  border-color: #ef4444;
+}
+
+
+.btn-small {
+  padding: 5px 8px;
+
+  font-size: 12px;
+}
+
+
+/* =========================================================
+   Map Wrapper
+========================================================= */
+
+.map-wrapper {
+  background: #ffffff;
+
+  border: 1px solid var(--border);
+
+  border-radius: 12px;
+
+  overflow: hidden;
+
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+
+/* =========================================================
+   Map Toolbar
+========================================================= */
+
+.map-toolbar {
+  min-height: 58px;
+
+  padding: 10px 12px;
+
+  border-bottom: 1px solid var(--border);
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 10px;
+
+  flex-wrap: wrap;
+}
+
+
+.map-name {
+  font-size: 18px;
+
+  font-weight: 800;
+
+  line-height: 1.3;
+}
+
+
+.save-status {
+  font-size: 12px;
+
+  color: var(--sub);
+
+  margin-top: 3px;
+}
+
+
+/* =========================================================
+   SVG Map
+========================================================= */
+
+.svg-container {
+  width: 100%;
+
+  overflow: auto;
+
+  background-color: #ffffff;
+
+  background-image:
+    linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.025) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      rgba(0, 0, 0, 0.025) 1px,
+      transparent 1px
+    );
+
+  background-size: 25px 25px;
+}
+
+
+#mapSvg {
+  display: block;
+
+  width: 1400px;
+
+  height: 850px;
+
+  min-width: 1400px;
+
+  min-height: 850px;
+
+  background: #ffffff;
+
+  user-select: none;
+
+  touch-action: none;
+}
+
+
+/* =========================================================
+   SVG Railway Lines
+========================================================= */
+
+.line-path {
+  fill: none;
+
+  stroke-linecap: round;
+
+  stroke-linejoin: round;
+
+  pointer-events: none;
+}
+
+
+/* =========================================================
+   SVG Stations
+========================================================= */
+
+.station-group {
+  cursor: move;
+
+  touch-action: none;
+}
+
+
+.station-circle {
+  fill: #ffffff;
+
+  stroke: #111111;
+
+  stroke-width: 3;
+
+  vector-effect: non-scaling-stroke;
+}
+
+
+.station-circle.selected {
+  stroke: var(--primary);
+
+  stroke-width: 5;
+}
+
+
+.station-label {
+  font-size: 15px;
+
+  font-weight: 700;
+
+  user-select: none;
+
+  pointer-events: none;
+}
+
+
+.station-code {
+  font-size: 11px;
+
+  fill: #666666;
+
+  user-select: none;
+
+  pointer-events: none;
+}
+
+
+/* =========================================================
+   Lists
+========================================================= */
+
+.list {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 7px;
+}
+
+
+.list-item {
+  border: 1px solid var(--border);
+
+  border-radius: 8px;
+
+  padding: 9px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 8px;
+
+  background: #ffffff;
+
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+
+.list-item:hover {
+  background: #f8fafc;
+}
+
+
+.list-item.active {
+  border-color: var(--primary);
+
+  background: #eff6ff;
+}
+
+
+.list-item-main {
+  min-width: 0;
+}
+
+
+.list-item-title {
+  font-weight: 700;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+}
+
+
+.list-item-sub {
+  font-size: 11px;
+
+  color: var(--sub);
+
+  margin-top: 2px;
+}
+
+
+/* =========================================================
+   Color Dot
+========================================================= */
+
+.color-dot {
+  width: 13px;
+
+  height: 13px;
+
+  border-radius: 50%;
+
+  flex: 0 0 auto;
+
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+
+/* =========================================================
+   Checkbox List
+========================================================= */
+
+.station-checkboxes {
+  max-height: 220px;
+
+  overflow-y: auto;
+
+  border: 1px solid var(--border);
+
+  border-radius: 7px;
+
+  padding: 5px;
+
+  background: #ffffff;
+}
+
+
+.checkbox-item {
+  display: flex;
+
+  align-items: center;
+
+  gap: 7px;
+
+  padding: 6px;
+
+  border-radius: 5px;
+
+  cursor: pointer;
+}
+
+
+.checkbox-item:hover {
+  background: #f4f5f6;
+}
+
+
+.checkbox-item input {
+  width: 16px;
+
+  height: 16px;
+
+  margin: 0;
+
+  cursor: pointer;
+}
+
+
+.checkbox-item span {
+  font-size: 13px;
+
+  user-select: none;
+}
+
+
+/* =========================================================
+   Empty State
+========================================================= */
+
+.empty {
+  text-align: center;
+
+  color: var(--sub);
+
+  font-size: 13px;
+
+  padding: 15px 8px;
+}
+
+
+/* =========================================================
+   Login Overlay
+========================================================= */
+
+#loginRequired {
+  display: none;
+
+  position: fixed;
+
+  inset: 0;
+
+  background: rgba(0, 0, 0, 0.45);
+
+  align-items: center;
+
+  justify-content: center;
+
+  z-index: 4000;
+
+  padding: 15px;
+}
+
+
+.login-card {
+  width: min(420px, 100%);
+
+  background: #ffffff;
+
+  border-radius: 14px;
+
+  padding: 26px;
+
+  text-align: center;
+
+  box-shadow:
+    0 15px 50px rgba(0, 0, 0, 0.2);
+
+  animation:
+    loginCardIn 0.18s ease-out;
+}
+
+
+.login-card h2 {
+  margin-top: 0;
+
+  margin-bottom: 10px;
+}
+
+
+.login-card p {
+  color: var(--sub);
+
+  line-height: 1.7;
+
+  margin-bottom: 20px;
+}
+
+
+@keyframes loginCardIn {
+
+  from {
+    opacity: 0;
+
+    transform:
+      translateY(10px)
+      scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+
+    transform:
+      translateY(0)
+      scale(1);
+  }
+}
+
+
+/* =========================================================
+   Toast
+========================================================= */
+
+#toastContainer {
+  position: fixed;
+
+  right: 18px;
+
+  bottom: 18px;
+
+  z-index: 5000;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: flex-end;
+
+  gap: 8px;
+
+  pointer-events: none;
+}
+
+
+.toast {
+  min-width: 220px;
+
+  max-width: 360px;
+
+  padding: 11px 13px;
+
+  border-radius: 8px;
+
+  background: #222222;
+
+  color: #ffffff;
+
+  box-shadow:
+    0 5px 20px rgba(0, 0, 0, 0.18);
+
+  font-size: 13px;
+
+  line-height: 1.5;
+
+  animation:
+    toastIn 0.2s ease-out;
+}
+
+
+.toast.success {
+  background: #15803d;
+}
+
+
+.toast.error {
+  background: #b91c1c;
+}
+
+
+@keyframes toastIn {
+
+  from {
+    opacity: 0;
+
+    transform:
+      translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+
+    transform:
+      translateY(0);
+  }
+}
+
+
+/* =========================================================
+   Scrollbars
+========================================================= */
+
+.sidebar,
+.svg-container,
+.station-checkboxes {
+  scrollbar-width: thin;
+
+  scrollbar-color:
+    #cbd5e1
+    transparent;
+}
+
+
+.sidebar::-webkit-scrollbar,
+.svg-container::-webkit-scrollbar,
+.station-checkboxes::-webkit-scrollbar {
+  width: 8px;
+
+  height: 8px;
+}
+
+
+.sidebar::-webkit-scrollbar-track,
+.svg-container::-webkit-scrollbar-track,
+.station-checkboxes::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+
+.sidebar::-webkit-scrollbar-thumb,
+.svg-container::-webkit-scrollbar-thumb,
+.station-checkboxes::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+
+  border-radius: 999px;
+}
+
+
+.sidebar::-webkit-scrollbar-thumb:hover,
+.svg-container::-webkit-scrollbar-thumb:hover,
+.station-checkboxes::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+
+/* =========================================================
+   Responsive
+========================================================= */
+
+@media (max-width: 1100px) {
+
+  .app {
+    grid-template-columns: 290px minmax(0, 1fr);
+  }
+
+  .sidebar {
+    padding: 12px;
+  }
+
+  .workspace {
+    padding: 12px;
+  }
+
+}
+
+
+@media (max-width: 900px) {
+
+  header {
+    height: auto;
+
+    min-height: 64px;
+
+    padding: 10px 14px;
+
+    gap: 10px;
+  }
+
+
+  .logo {
+    font-size: 17px;
+  }
+
+
+  .app {
+    display: flex;
+
+    flex-direction: column;
+
+    min-height: calc(100vh - 64px);
+  }
+
+
+  .sidebar {
+    position: static;
+
+    max-height: none;
+
+    border-right: none;
+
+    border-bottom: 1px solid var(--border);
+
+    padding: 12px;
+  }
+
+
+  .workspace {
+    padding: 10px;
+  }
+
+
+  .map-toolbar {
+    align-items: flex-start;
+
+    flex-direction: column;
+  }
+
+
+  .map-toolbar .button-row {
+    width: 100%;
+  }
+
+}
+
+
+@media (max-width: 600px) {
+
+  header {
+    flex-direction: column;
+
+    align-items: stretch;
+  }
+
+
+  .header-right {
+    justify-content: flex-end;
+  }
+
+
+  .user-info {
+    max-width: 100%;
+  }
+
+
+  #userName {
+    max-width: 120px;
+  }
+
+
+  .panel-header {
+    padding: 10px 12px;
+  }
+
+
+  .panel-body {
+    padding: 12px;
+  }
+
+
+  .button-row {
+    gap: 5px;
+  }
+
+
+  .btn {
+    padding: 7px 9px;
+
+    font-size: 13px;
+  }
+
+
+  .map-name {
+    font-size: 16px;
+  }
+
+
+  #toastContainer {
+    left: 12px;
+
+    right: 12px;
+
+    bottom: 12px;
+
+    align-items: stretch;
+  }
+
+
+  .toast {
+    min-width: 0;
+
+    max-width: none;
+  }
+
+}
+
+
+/* =========================================================
+   Accessibility
+========================================================= */
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--primary);
+
+  outline-offset: 2px;
+}
+
+
+/* =========================================================
+   Selection
+========================================================= */
+
+::selection {
+  background: rgba(37, 99, 235, 0.18);
+}
+
+
+/* =========================================================
+   Utility
+========================================================= */
+
+.hidden {
+  display: none !important;
+}
+
+
+.no-select {
+  user-select: none !important;
+}
+
+
+/* =========================================================
+   Prevent accidental image dragging
+========================================================= */
+
+img,
+svg {
+  -webkit-user-drag: none;
 }
