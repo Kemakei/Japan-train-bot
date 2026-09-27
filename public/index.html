@@ -10,14 +10,10 @@
 
     <title>Railway Map Editor</title>
 
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/style.css">
 </head>
 
 <body>
-
-<!-- =========================================================
-     HEADER
-========================================================= -->
 
 <header class="app-header">
 
@@ -35,14 +31,14 @@
 
         <button
             id="saveButton"
-            class="btn btn-primary primary-button"
+            class="primary-button"
         >
             保存
         </button>
 
         <button
             id="newMapButton"
-            class="btn secondary-button"
+            class="secondary-button"
         >
             新規作成
         </button>
@@ -56,20 +52,10 @@
 
 </header>
 
-
-<!-- =========================================================
-     MAIN
-========================================================= -->
-
-<main class="app-layout app-main">
-
-    <!-- =====================================================
-         SIDEBAR
-    ====================================================== -->
+<main class="app-main">
 
     <aside class="sidebar">
 
-        <!-- Map -->
         <section class="panel">
 
             <div class="panel-title">
@@ -94,7 +80,7 @@
 
                 <button
                     id="loadMapsButton"
-                    class="btn secondary-button"
+                    class="secondary-button"
                 >
                     保存済みを表示
                 </button>
@@ -107,11 +93,6 @@
             ></div>
 
         </section>
-
-
-        <!-- =================================================
-             STATIONS
-        ================================================== -->
 
         <section class="panel">
 
@@ -133,7 +114,6 @@
 
             </div>
 
-
             <div class="field">
 
                 <label for="stationRoman">
@@ -147,7 +127,6 @@
                 >
 
             </div>
-
 
             <div class="field">
 
@@ -163,7 +142,6 @@
 
             </div>
 
-
             <div class="field">
 
                 <label for="stationTransfers">
@@ -178,14 +156,12 @@
 
             </div>
 
-
             <button
                 id="addStationButton"
-                class="btn btn-primary btn-block primary-button full-width"
+                class="primary-button full-width"
             >
                 駅を追加
             </button>
-
 
             <div
                 id="stationList"
@@ -194,17 +170,11 @@
 
         </section>
 
-
-        <!-- =================================================
-             LINES
-        ================================================== -->
-
         <section class="panel">
 
             <div class="panel-title">
                 路線
             </div>
-
 
             <div class="field">
 
@@ -220,7 +190,6 @@
 
             </div>
 
-
             <div class="field">
 
                 <label for="lineColor">
@@ -235,14 +204,12 @@
 
             </div>
 
-
             <button
                 id="addLineButton"
-                class="btn btn-primary btn-block primary-button full-width"
+                class="primary-button full-width"
             >
                 路線を追加
             </button>
-
 
             <div
                 id="lineList"
@@ -251,17 +218,11 @@
 
         </section>
 
-
-        <!-- =================================================
-             TRAIN TYPES
-        ================================================== -->
-
         <section class="panel">
 
             <div class="panel-title">
                 列車種別
             </div>
-
 
             <div class="field">
 
@@ -277,7 +238,6 @@
 
             </div>
 
-
             <div class="field">
 
                 <label for="trainTypeColor">
@@ -292,14 +252,12 @@
 
             </div>
 
-
             <button
                 id="addTrainTypeButton"
-                class="btn btn-primary btn-block primary-button full-width"
+                class="primary-button full-width"
             >
                 種別を追加
             </button>
-
 
             <div
                 id="trainTypeList"
@@ -308,17 +266,11 @@
 
         </section>
 
-
-        <!-- =================================================
-             CURRENT LINE / TRAIN TYPE
-        ================================================== -->
-
         <section class="panel">
 
             <div class="panel-title">
                 選択中の路線・種別
             </div>
-
 
             <div class="field">
 
@@ -334,7 +286,6 @@
 
             </div>
 
-
             <div class="field">
 
                 <label for="selectedTrainType">
@@ -349,7 +300,6 @@
 
             </div>
 
-
             <div
                 id="lineStationEditor"
                 class="line-station-editor"
@@ -357,88 +307,16 @@
 
         </section>
 
-
-        <!-- =================================================
-             LINE DISPLAY SETTINGS
-        ================================================== -->
-
-        <section class="panel">
-
-            <div class="panel-title">
-                種別線設定
-            </div>
-
-
-            <div class="field">
-
-                <label for="lineLength">
-                    線の長さ
-                </label>
-
-                <input
-                    id="lineLength"
-                    type="number"
-                    min="50"
-                    max="5000"
-                    step="10"
-                    value="1000"
-                >
-
-                <small>
-                    種別ごとに個別設定できます
-                </small>
-
-            </div>
-
-
-            <div class="field">
-
-                <label for="lineOffset">
-                    線の上下位置
-                </label>
-
-                <input
-                    id="lineOffset"
-                    type="number"
-                    min="-1000"
-                    max="1000"
-                    step="5"
-                    value="0"
-                >
-
-            </div>
-
-
-            <div class="button-row">
-
-                <button
-                    id="applyLineSettingsButton"
-                    class="btn btn-primary primary-button"
-                >
-                    適用
-                </button>
-
-            </div>
-
-        </section>
-
-
-        <!-- =================================================
-             DISPLAY SETTINGS
-        ================================================== -->
-
         <section class="panel">
 
             <div class="panel-title">
                 表示設定
             </div>
 
-
             <div class="button-row">
-
-                <button
+<button
                     id="addBendButton"
-                    class="btn secondary-button"
+                    class="secondary-button"
                 >
                     折れ曲がりを追加
                 </button>
@@ -449,20 +327,15 @@
 
     </aside>
 
-
-    <!-- =====================================================
-         WORKSPACE
-    ====================================================== -->
-
     <section class="workspace">
 
-        <div class="map-toolbar workspace-toolbar">
+        <div class="workspace-toolbar">
 
-            <div class="map-toolbar-group toolbar-left">
+            <div class="toolbar-left">
 
                 <button
                     id="zoomOutButton"
-                    class="btn btn-icon icon-button"
+                    class="icon-button"
                     title="縮小"
                 >
                     −
@@ -470,7 +343,7 @@
 
                 <button
                     id="zoomResetButton"
-                    class="btn btn-icon icon-button"
+                    class="icon-button"
                     title="100%"
                 >
                     100%
@@ -478,7 +351,7 @@
 
                 <button
                     id="zoomInButton"
-                    class="btn btn-icon icon-button"
+                    class="icon-button"
                     title="拡大"
                 >
                     ＋
@@ -486,26 +359,25 @@
 
                 <button
                     id="fitButton"
-                    class="btn secondary-button"
+                    class="secondary-button"
                 >
                     全体表示
                 </button>
 
             </div>
 
-
-            <div class="map-toolbar-group toolbar-right">
+            <div class="toolbar-right">
 
                 <button
                     id="toggleGridButton"
-                    class="btn secondary-button"
+                    class="secondary-button"
                 >
                     グリッド
                 </button>
 
                 <button
                     id="toggleDragModeButton"
-                    class="btn secondary-button"
+                    class="secondary-button"
                 >
                     駅移動
                 </button>
@@ -514,19 +386,14 @@
 
         </div>
 
-
-        <!-- =================================================
-             MAP
-        ================================================== -->
-
         <div
             id="mapViewport"
-            class="map-area map-viewport"
+            class="map-viewport"
         >
 
             <svg
                 id="railwayMap"
-                class="map-svg railway-map"
+                class="railway-map"
                 viewBox="0 0 1600 1000"
                 preserveAspectRatio="xMidYMid meet"
             >
@@ -552,9 +419,6 @@
 
                 </defs>
 
-
-                <!-- 背景 -->
-
                 <rect
                     id="mapBackground"
                     x="0"
@@ -563,9 +427,6 @@
                     height="1000"
                     fill="transparent"
                 />
-
-
-                <!-- グリッド -->
 
                 <rect
                     id="mapGrid"
@@ -576,18 +437,9 @@
                     fill="url(#gridPattern)"
                 />
 
-
-                <!-- 線 -->
-
                 <g id="lineLayer"></g>
 
-
-                <!-- 駅 -->
-
                 <g id="stationLayer"></g>
-
-
-                <!-- 選択表示 -->
 
                 <g id="selectionLayer"></g>
 
@@ -595,10 +447,9 @@
 
         </div>
 
-
         <div
             id="statusBar"
-            class="save-status status-bar"
+            class="status-bar"
         >
             準備完了
         </div>
@@ -606,11 +457,6 @@
     </section>
 
 </main>
-
-
-<!-- =========================================================
-     STATION DETAIL MODAL
-========================================================= -->
 
 <div
     id="stationModal"
@@ -636,14 +482,12 @@
 
         </div>
 
-
         <div class="modal-body">
 
             <input
                 id="editingStationId"
                 type="hidden"
             >
-
 
             <div class="field">
 
@@ -658,7 +502,6 @@
 
             </div>
 
-
             <div class="field">
 
                 <label>
@@ -672,7 +515,6 @@
 
             </div>
 
-
             <div class="field">
 
                 <label>
@@ -685,7 +527,6 @@
                 >
 
             </div>
-
 
             <div class="field">
 
@@ -707,14 +548,11 @@
 
             </div>
 
-
             <hr>
-
 
             <h3>
                 駅名表示
             </h3>
-
 
             <div class="field">
 
@@ -736,7 +574,6 @@
 
             </div>
 
-
             <div class="field">
 
                 <label>
@@ -752,7 +589,6 @@
                 >
 
             </div>
-
 
             <div class="field">
 
@@ -786,14 +622,11 @@
 
             </div>
 
-
             <hr>
-
 
             <h3>
                 ローマ字表示
             </h3>
-
 
             <div class="field">
 
@@ -815,7 +648,6 @@
 
             </div>
 
-
             <div class="field">
 
                 <label>
@@ -831,7 +663,6 @@
                 >
 
             </div>
-
 
             <div class="field">
 
@@ -865,14 +696,11 @@
 
             </div>
 
-
             <hr>
-
 
             <h3>
                 駅の間隔
             </h3>
-
 
             <div class="field">
 
@@ -890,7 +718,6 @@
 
             </div>
 
-
             <div class="field">
 
                 <label>
@@ -907,14 +734,11 @@
 
             </div>
 
-
             <hr>
-
 
             <h3>
                 駅BOX
             </h3>
-
 
             <div class="field">
 
@@ -935,7 +759,6 @@
                 </select>
 
             </div>
-
 
             <div
                 id="manualBoxSettings"
@@ -958,7 +781,6 @@
 
                 </div>
 
-
                 <div class="field">
 
                     <label>
@@ -977,14 +799,11 @@
 
             </div>
 
-
             <hr>
-
 
             <h3>
                 乗換案内
             </h3>
-
 
             <div class="field">
 
@@ -997,7 +816,6 @@
             </div>
 
         </div>
-
 
         <div class="modal-footer">
 
@@ -1012,14 +830,14 @@
 
                 <button
                     id="cancelStationModalButton"
-                    class="btn secondary-button"
+                    class="secondary-button"
                 >
                     キャンセル
                 </button>
 
                 <button
                     id="saveStationDetailButton"
-                    class="btn btn-primary primary-button"
+                    class="primary-button"
                 >
                     適用
                 </button>
@@ -1031,11 +849,6 @@
     </div>
 
 </div>
-
-
-<!-- =========================================================
-     LINE DETAIL MODAL
-========================================================= -->
 
 <div
     id="lineModal"
@@ -1061,14 +874,12 @@
 
         </div>
 
-
         <div class="modal-body">
 
             <input
                 id="editingLineId"
                 type="hidden"
             >
-
 
             <div class="field">
 
@@ -1083,7 +894,6 @@
 
             </div>
 
-
             <div class="field">
 
                 <label>
@@ -1097,24 +907,17 @@
 
             </div>
 
-
             <hr>
-
 
             <h3>
                 路線の駅
             </h3>
 
-
             <div
                 id="lineStationChecklist"
                 class="check-list"
             ></div>
-
-
-
-        </div>
-
+</div>
 
         <div class="modal-footer">
 
@@ -1129,14 +932,14 @@
 
                 <button
                     id="cancelLineModalButton"
-                    class="btn secondary-button"
+                    class="secondary-button"
                 >
                     キャンセル
                 </button>
 
                 <button
                     id="saveLineDetailButton"
-                    class="btn btn-primary primary-button"
+                    class="primary-button"
                 >
                     適用
                 </button>
@@ -1148,11 +951,6 @@
     </div>
 
 </div>
-
-
-<!-- =========================================================
-     TRAIN TYPE MODAL
-========================================================= -->
 
 <div
     id="trainTypeModal"
@@ -1178,14 +976,12 @@
 
         </div>
 
-
         <div class="modal-body">
 
             <input
                 id="editingTrainTypeId"
                 type="hidden"
             >
-
 
             <div class="field">
 
@@ -1200,7 +996,6 @@
 
             </div>
 
-
             <div class="field">
 
                 <label>
@@ -1213,26 +1008,7 @@
                 >
 
             </div>
-
-
-            <div class="field">
-
-                <label>
-                    線の長さ
-                </label>
-
-                <input
-                    id="detailTrainTypeLineLength"
-                    type="number"
-                    min="50"
-                    max="5000"
-                    value="1000"
-                >
-
-            </div>
-
-
-            <div class="field">
+<div class="field">
 
                 <label>
                     線の上下位置
@@ -1247,7 +1023,6 @@
                 >
 
             </div>
-
 
             <div class="field">
 
@@ -1268,7 +1043,6 @@
 
         </div>
 
-
         <div class="modal-footer">
 
             <button
@@ -1282,14 +1056,14 @@
 
                 <button
                     id="cancelTrainTypeModalButton"
-                    class="btn secondary-button"
+                    class="secondary-button"
                 >
                     キャンセル
                 </button>
 
                 <button
                     id="saveTrainTypeDetailButton"
-                    class="btn btn-primary primary-button"
+                    class="primary-button"
                 >
                     適用
                 </button>
@@ -1301,11 +1075,6 @@
     </div>
 
 </div>
-
-
-<!-- =========================================================
-     LOGIN MODAL
-========================================================= -->
 
 <div
     id="loginModal"
@@ -1323,7 +1092,6 @@
             </h2>
 
         </div>
-
 
         <div class="modal-body">
 
@@ -1344,29 +1112,14 @@
 
 </div>
 
-
-<!-- =========================================================
-     TOAST
-========================================================= -->
-
 <div
     id="toast"
     class="toast"
 ></div>
 
-
-<!-- =========================================================
-     JAVASCRIPT
-========================================================= -->
-
 <script>
 
 "use strict";
-
-
-/* =========================================================
-   DATA
-========================================================= */
 
 const state = {
 
@@ -1403,15 +1156,11 @@ const state = {
     dragOffsetX: 0,
 
     dragOffsetY: 0,
-    bendMode: false,
-    bendPointerActive: false
+      bendMode: false,
+      bendPointerActive: false,
+      draggingText: null
 
 };
-
-
-/* =========================================================
-   DOM
-========================================================= */
 
 const $ = id => document.getElementById(id);
 
@@ -1421,14 +1170,7 @@ const stationLayer = $("stationLayer");
 
 const lineLayer = $("lineLayer");
 
-
-
 const selectionLayer = $("selectionLayer");
-
-
-/* =========================================================
-   UTIL
-========================================================= */
 
 function uid(prefix = "id") {
 
@@ -1444,7 +1186,6 @@ function uid(prefix = "id") {
 
 }
 
-
 function escapeHtml(value) {
 
     return String(value ?? "")
@@ -1455,7 +1196,6 @@ function escapeHtml(value) {
         .replaceAll("'", "&#039;");
 
 }
-
 
 function showToast(message) {
 
@@ -1473,7 +1213,6 @@ function showToast(message) {
 
 }
 
-
 function clamp(value, min, max) {
 
     return Math.max(
@@ -1483,6 +1222,16 @@ function clamp(value, min, max) {
 
 }
 
+function normalizeMapId(value) {
+    if (value === null || value === undefined) return null;
+    if (typeof value === "string" || typeof value === "number") return String(value);
+    if (typeof value === "object") {
+        if (value.$oid !== undefined) return String(value.$oid);
+        if (value.id !== undefined) return String(value.id);
+        if (value._id !== undefined) return normalizeMapId(value._id);
+    }
+    return null;
+}
 
 function normalizeMap() {
 
@@ -1514,7 +1263,6 @@ function normalizeMap() {
         state.map.breaks = [];
     }
 
-
     for (const station of state.map.stations) {
 
         if (!station.id) {
@@ -1539,7 +1287,6 @@ function normalizeMap() {
             station.transfers = [];
         }
 
-
         station.display ??= {};
 
         station.display.nameSize ??= 18;
@@ -1548,11 +1295,15 @@ function normalizeMap() {
 
         station.display.nameDirection ??= "vertical";
 
-        station.display.romanDirection ??= "horizontal";
+        station.display.romanDirection ??= "vertical";
 
         station.display.nameRotation ??= 0;
 
         station.display.romanRotation ??= 0;
+        station.display.nameOffsetX ??= 0;
+        station.display.nameOffsetY ??= 0;
+        station.display.romanOffsetX ??= 0;
+        station.display.romanOffsetY ??= 0;
 
         station.display.boxMode ??= "auto";
 
@@ -1563,13 +1314,8 @@ function normalizeMap() {
         station.display.spacingBefore ??= 100;
 
         station.display.spacingAfter ??= 100;
-        station.display.nameOffsetX ??= 0;
-        station.display.nameOffsetY ??= 0;
-        station.display.romanOffsetX ??= 0;
-        station.display.romanOffsetY ??= 0;
 
     }
-
 
     for (const line of state.map.lines) {
 
@@ -1588,7 +1334,6 @@ function normalizeMap() {
         line.segments ??= [];
 
     }
-
 
     for (const type of state.map.trainTypes) {
 
@@ -1610,7 +1355,6 @@ function normalizeMap() {
 
 }
 
-
 function getStation(id) {
 
     return state.map.stations.find(
@@ -1618,7 +1362,6 @@ function getStation(id) {
     );
 
 }
-
 
 function getLine(id) {
 
@@ -1628,7 +1371,6 @@ function getLine(id) {
 
 }
 
-
 function getTrainType(id) {
 
     return state.map.trainTypes.find(
@@ -1636,11 +1378,6 @@ function getTrainType(id) {
     );
 
 }
-
-
-/* =========================================================
-   SVG
-========================================================= */
 
 function svgPointFromEvent(event) {
 
@@ -1665,11 +1402,6 @@ function svgPointFromEvent(event) {
 
 }
 
-
-/* =========================================================
-   STATION BOX SIZE
-========================================================= */
-
 function estimateTextWidth(text, size) {
 
     return Math.max(
@@ -1679,115 +1411,33 @@ function estimateTextWidth(text, size) {
 
 }
 
-
 function getStationBoxSize(station) {
-
     const display = station.display || {};
-
     if (display.boxMode === "manual") {
-
-        return {
-            width: Number(display.boxWidth) || 80,
-            height: Number(display.boxHeight) || 120
-        };
-
+        return { width: Math.max(20, Number(display.boxWidth) || 80), height: Math.max(20, Number(display.boxHeight) || 120) };
     }
-
-
-    const nameSize =
-        Number(display.nameSize) || 18;
-
-    const romanSize =
-        Number(display.romanSize) || 11;
-
-
-    const name =
-        station.name || "";
-
-    const roman =
-        station.roman || "";
-
-
-    let width = 50;
-
+    const nameSize = Number(display.nameSize) || 18;
+    const romanSize = Number(display.romanSize) || 11;
+    const name = station.name || "";
+    const roman = station.roman || "";
+    let width = 70;
     let height = 70;
-
-
-    if (
-        display.nameDirection ===
-        "horizontal"
-    ) {
-
-        width = Math.max(
-            width,
-            estimateTextWidth(
-                name,
-                nameSize
-            ) + 30
-        );
-
-        height += nameSize + 10;
-
+    if ((display.nameDirection || "vertical") === "vertical") {
+        height = Math.max(height, [...name].length * nameSize * 1.08 + 34);
+        width = Math.max(width, nameSize + 34);
     } else {
-
-        height = Math.max(
-            height,
-            name.length *
-                nameSize *
-                1.15 +
-                30
-        );
-
+        width = Math.max(width, estimateTextWidth(name, nameSize) + 34);
+        height = Math.max(height, nameSize + 34);
     }
-
-
-    if (
-        display.romanDirection ===
-        "horizontal"
-    ) {
-
-        width = Math.max(
-            width,
-            estimateTextWidth(
-                roman,
-                romanSize
-            ) + 30
-        );
-
-        height += romanSize + 10;
-
+    if ((display.romanDirection || "vertical") === "vertical") {
+        height = Math.max(height, [...roman].length * romanSize * 1.08 + 34);
+        width = Math.max(width, nameSize + romanSize + 52);
     } else {
-
-        height +=
-            roman.length *
-            romanSize *
-            1.1;
-
+        width = Math.max(width, estimateTextWidth(roman, romanSize) + 34);
+        height = Math.max(height, romanSize + 34);
     }
-
-
-    width = Math.max(
-        width,
-        60
-    );
-
-    height = Math.max(
-        height,
-        70
-    );
-
-
-    return {
-        width,
-        height
-    };
-
+    return { width: Math.max(width, 70), height: Math.max(height, 70) };
 }
-
-
-/* =========================================================
-   SVG TEXT
-========================================================= */
 
 function createSvgElement(
     tag,
@@ -1816,200 +1466,103 @@ function createSvgElement(
 
 }
 
-
-function getStationStopCount(stationId) {
-
-    const ids = new Set();
-
-    for (const line of state.map.lines) {
-
-        for (const setting of line.trainTypes || []) {
-
-            if (setting.stationIds?.includes(stationId)) {
-                ids.add(`${line.id}:${setting.trainTypeId}`);
-            }
-
-        }
-
-    }
-
-    return ids.size;
-
-}
-
-
-function makeDraggableText(textGroup, station, kind) {
-
-    let dragging = false;
-    let startPoint = null;
-    let startX = 0;
-    let startY = 0;
-
-    textGroup.style.cursor = "move";
-
-    textGroup.addEventListener("pointerdown", event => {
-
-        event.stopPropagation();
-
-        const point = svgPointFromEvent(event);
-        const display = station.display;
-
-        dragging = true;
-        startPoint = point;
-        startX = Number(display[`${kind}OffsetX`]) || 0;
-        startY = Number(display[`${kind}OffsetY`]) || 0;
-
-        try {
-            textGroup.setPointerCapture(event.pointerId);
-        } catch {}
-
-    });
-
-    textGroup.addEventListener("pointermove", event => {
-
-        if (!dragging || !startPoint) {
-            return;
-        }
-
-        const point = svgPointFromEvent(event);
-        const display = station.display;
-
-        display[`${kind}OffsetX`] = startX + point.x - startPoint.x;
-        display[`${kind}OffsetY`] = startY + point.y - startPoint.y;
-
-        renderMap();
-
-    });
-
-    textGroup.addEventListener("pointerup", event => {
-
-        if (!dragging) {
-            return;
-        }
-
-        dragging = false;
-        startPoint = null;
-
-        try {
-            textGroup.releasePointerCapture(event.pointerId);
-        } catch {}
-
-    });
-
-}
-
-
 function drawStationText(group, station) {
-
     const display = station.display || {};
     const box = getStationBoxSize(station);
-    const centerX = station.x;
-    const centerY = station.y;
-    const largeStation = getStationStopCount(station.id) >= 2;
+    const cx = station.x;
+    const cy = station.y;
     const name = station.name || "";
     const roman = station.roman || "";
+    const nameSize = Number(display.nameSize) || 18;
+    const romanSize = Number(display.romanSize) || 11;
+    const nameDir = display.nameDirection || "vertical";
+    const romanDir = display.romanDirection || "vertical";
+    const nameOX = Number(display.nameOffsetX) || 0;
+    const nameOY = Number(display.nameOffsetY) || 0;
+    const romanOX = Number(display.romanOffsetX) || 0;
+    const romanOY = Number(display.romanOffsetY) || 0;
 
-    const makeTextGroup = (kind) => createSvgElement("g", {
-        transform: `translate(${Number(display[`${kind}OffsetX`]) || 0} ${Number(display[`${kind}OffsetY`]) || 0}) rotate(${Number(display[`${kind}Rotation`]) || 0} ${centerX} ${centerY})`
-    });
+    const stationCount = state.map.lines.flatMap(line => line.trainTypes || [])
+        .filter(setting => setting.stationIds?.includes(station.id)).length;
+    const large = stationCount >= 2;
 
-    const appendVerticalText = (target, value, x, y, size) => {
-        [...String(value)].forEach((char, index) => {
-            const text = createSvgElement("text", {
-                x,
-                y: y + index * size * 1.12,
-                "font-size": size,
-                "text-anchor": "middle",
-                "dominant-baseline": "middle"
-            });
-            text.textContent = char;
-            target.appendChild(text);
+    function addTextGroup(type, textValue, direction, size, ox, oy, rotation, role, persistOX = ox, persistOY = oy) {
+        if (!textValue) return;
+        const g = createSvgElement("g", {
+            class: role === "name" ? "station-name-group" : "station-roman-group",
+            transform: `rotate(${Number(rotation) || 0} ${cx + ox} ${cy + oy})`,
+            "data-text-role": role
         });
-    };
-
-    if (largeStation) {
-        if (name) {
-            const nameGroup = makeTextGroup("name");
-            if (display.nameDirection === "vertical") {
-                appendVerticalText(nameGroup, name, centerX, centerY - (([...name].length - 1) * display.nameSize * 1.12) / 2, display.nameSize);
-            } else {
-                const text = createSvgElement("text", {
-                    x: centerX,
-                    y: centerY - Math.max(12, display.nameSize),
-                    "font-size": display.nameSize,
-                    "text-anchor": "middle",
-                    "dominant-baseline": "middle"
+        if (direction === "vertical") {
+            const chars = [...textValue];
+            const step = size * 1.08;
+            const total = chars.length * step;
+            let y = cy + oy - total / 2 + step / 2;
+            const x = cx + ox;
+            for (const ch of chars) {
+                const t = createSvgElement("text", {
+                    x, y, "font-size": size, "text-anchor": "middle",
+                    "dominant-baseline": "middle", class: role === "name" ? "station-name" : "station-roman"
                 });
-                text.textContent = name;
-                nameGroup.appendChild(text);
+                t.textContent = ch;
+                g.appendChild(t);
+                y += step;
             }
-            group.appendChild(nameGroup);
-            makeDraggableText(nameGroup, station, "name");
+        } else {
+            const t = createSvgElement("text", {
+                x: cx + ox, y: cy + oy, "font-size": size, "text-anchor": "middle",
+                "dominant-baseline": "middle", class: role === "name" ? "station-name" : "station-roman"
+            });
+            t.textContent = textValue;
+            g.appendChild(t);
         }
+        g.addEventListener("pointerdown", event => {
+            event.stopPropagation();
+            const p = svgPointFromEvent(event);
+            state.draggingText = { station, role, startX: p.x, startY: p.y, ox, oy };
+            g.setPointerCapture(event.pointerId);
+        });
+        g.addEventListener("pointermove", event => {
+            if (!state.draggingText || state.draggingText.station !== station || state.draggingText.role !== role) return;
+            const p = svgPointFromEvent(event);
+            const dx = p.x - state.draggingText.startX;
+            const dy = p.y - state.draggingText.startY;
+            if (role === "name") {
+                station.display.nameOffsetX = persistOX + dx;
+                station.display.nameOffsetY = persistOY + dy;
+            } else {
+                station.display.romanOffsetX = persistOX + dx;
+                station.display.romanOffsetY = persistOY + dy;
+            }
+            g.setAttribute("transform", `translate(${dx} ${dy}) rotate(${Number(rotation) || 0} ${cx + ox} ${cy + oy})`);
+        });
+        g.addEventListener("pointerup", event => {
+            if (state.draggingText?.station === station && state.draggingText?.role === role) {
+                state.draggingText = null;
+                try { g.releasePointerCapture(event.pointerId); } catch {}
+                renderMap();
+            }
+        });
+        group.appendChild(g);
+    }
 
+    if (large) {
+        addTextGroup("name", name, nameDir, nameSize, nameOX, nameOY, display.nameRotation, "name", nameOX, nameOY);
         if (roman) {
-            const romanGroup = makeTextGroup("roman");
-            if (display.romanDirection === "vertical") {
-                appendVerticalText(romanGroup, roman, centerX + box.width / 2 + 12, centerY - (([...roman].length - 1) * display.romanSize * 1.12) / 2, display.romanSize);
-            } else {
-                const text = createSvgElement("text", {
-                    x: centerX,
-                    y: centerY + Math.max(12, display.romanSize),
-                    "font-size": display.romanSize,
-                    "text-anchor": "middle",
-                    "dominant-baseline": "middle"
-                });
-                text.textContent = roman;
-                romanGroup.appendChild(text);
-            }
-            group.appendChild(romanGroup);
-            makeDraggableText(romanGroup, station, "roman");
+            const defaultRomanX = romanDir === "vertical" ? box.width * 0.28 : 0;
+            const defaultRomanY = romanDir === "vertical" ? 0 : box.height * 0.28;
+            addTextGroup("roman", roman, romanDir, romanSize, romanOX + defaultRomanX, romanOY + defaultRomanY, display.romanRotation, "roman", romanOX, romanOY);
         }
-        return;
-    }
-
-    if (name) {
-        const nameGroup = makeTextGroup("name");
-        if (display.nameDirection === "vertical") {
-            appendVerticalText(nameGroup, name, centerX, centerY + 28, display.nameSize);
-        } else {
-            const text = createSvgElement("text", {
-                x: centerX,
-                y: centerY + 28,
-                "font-size": display.nameSize,
-                "text-anchor": "middle",
-                "dominant-baseline": "hanging"
-            });
-            text.textContent = name;
-            nameGroup.appendChild(text);
+    } else {
+        const nameDefaultY = 24;
+        addTextGroup("name", name, nameDir, nameSize, nameOX, nameOY + nameDefaultY, display.nameRotation, "name", nameOX, nameOY);
+        if (roman) {
+            const romanDefaultX = nameDir === "vertical" ? nameSize * 1.8 : 0;
+            const romanDefaultY = nameDir === "vertical" ? nameDefaultY : nameDefaultY + romanSize * 1.4;
+            addTextGroup("roman", roman, romanDir, romanSize, romanOX + romanDefaultX, romanOY + romanDefaultY, display.romanRotation, "roman", romanOX, romanOY);
         }
-        group.appendChild(nameGroup);
-        makeDraggableText(nameGroup, station, "name");
-    }
-
-    if (roman) {
-        const romanGroup = makeTextGroup("roman");
-        if (display.romanDirection === "vertical") {
-            appendVerticalText(romanGroup, roman, centerX + box.width / 2 + 12, centerY + 28, display.romanSize);
-        } else {
-            const text = createSvgElement("text", {
-                x: centerX,
-                y: centerY + box.height / 2 + display.romanSize + 8,
-                "font-size": display.romanSize,
-                "text-anchor": "middle",
-                "dominant-baseline": "middle"
-            });
-            text.textContent = roman;
-            romanGroup.appendChild(text);
-        }
-        group.appendChild(romanGroup);
-        makeDraggableText(romanGroup, station, "roman");
     }
 }
-
-/* =========================================================
-   TRAIN TYPE STOP CHECK
-========================================================= */
 
 function trainTypeStopsAt(
     line,
@@ -2033,483 +1586,125 @@ function trainTypeStopsAt(
 
 }
 
+function getBendPoints(line, fromStationId, toStationId) {
+    const item = (line.segments || []).find(segment =>
+        segment.fromStationId === fromStationId && segment.toStationId === toStationId
+    );
+    return item?.points || [];
+}
 
-/* =========================================================
-   DRAW LINES
-========================================================= */
-
-function renderTrainTypeLine(
-    line,
-    trainType
-) {
+function renderTrainTypeLine(line, trainType, typeIndex, activeTypeCount) {
     const setting = line.trainTypes.find(item => item.trainTypeId === trainType.id);
     if (!setting) return;
-
-    const stations = (setting.stationIds || [])
-        .map(getStation)
-        .filter(Boolean)
-        .filter(station => station.visible);
-
+    const stations = (setting.stationIds || []).map(getStation).filter(Boolean).filter(station => station.visible);
     if (stations.length < 2) return;
-
     const width = Number(trainType.lineWidth) || 5;
     const baseOffset = Number(trainType.lineOffset) || 0;
+    const laneGap = Math.max(width + 4, 10);
+    const laneOffset = baseOffset + (typeIndex - (activeTypeCount - 1) / 2) * laneGap;
 
-    // 複数種別を同じ駅間に描く場合は、自動的に上下へずらして重なりを防ぐ。
-    const activeTypes = (line.trainTypes || [])
-        .map(ts => getTrainType(ts.trainTypeId))
-        .filter(Boolean)
-        .filter(type => (line.trainTypes.find(ts => ts.trainTypeId === type.id)?.stationIds || []).length >= 2);
-    const laneIndex = Math.max(0, activeTypes.findIndex(type => type.id === trainType.id));
-    const laneSpacing = Math.max(width + 4, 10);
-    const laneOffset = (laneIndex - (Math.max(activeTypes.length, 1) - 1) / 2) * laneSpacing;
-    const offset = baseOffset + laneOffset;
-
-    const stationPairs = [];
     for (let i = 0; i < stations.length - 1; i++) {
-        stationPairs.push([stations[i], stations[i + 1]]);
-    }
-
-    for (const [a, b] of stationPairs) {
-        const route = [
-            {x: a.x, y: a.y + offset},
-            ...getBendPoints(line, a.id, b.id),
-            {x: b.x, y: b.y + offset}
-        ];
-
-        if (route.length === 2) {
-            lineLayer.appendChild(createSvgElement("line", {
-                x1: route[0].x, y1: route[0].y,
-                x2: route[1].x, y2: route[1].y,
-                stroke: trainType.color,
-                "stroke-width": width,
-                "stroke-linecap": "round",
-                class: "map-line"
-            }));
-        } else {
-            lineLayer.appendChild(createSvgElement("polyline", {
-                points: route.map(p => `${p.x},${p.y}`).join(" "),
-                fill: "none",
-                stroke: trainType.color,
-                "stroke-width": width,
-                "stroke-linecap": "round",
-                "stroke-linejoin": "round",
-                class: "map-line"
-            }));
-        }
+        const a = stations[i];
+        const b = stations[i + 1];
+        const bend = getBendPoints(line, a.id, b.id);
+        const points = [{ x: a.x, y: a.y + laneOffset }, ...bend.map(p => ({ x: p.x, y: p.y + laneOffset })), { x: b.x, y: b.y + laneOffset }];
+        const polyline = createSvgElement("polyline", {
+            points: points.map(p => `${p.x},${p.y}`).join(" "),
+            fill: "none", stroke: trainType.color, "stroke-width": width,
+            "stroke-linecap": "round", "stroke-linejoin": "round", class: "map-line"
+        });
+        lineLayer.appendChild(polyline);
     }
 }
 
-function getBendPoints(line, fromId, toId) {
-    const item = (line.segments || []).find(segment =>
-        segment.fromStationId === fromId && segment.toStationId === toId
-    );
-    if (!item || !Array.isArray(item.points)) return [];
-    return item.points.map(p => ({x: Number(p.x), y: Number(p.y)})).filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
-}
-
-function nearestLineStationPair(line, point) {
-    const ids = line.stationIds || [];
-    let best = null;
-    let bestDistance = Infinity;
-    for (let i = 0; i < ids.length - 1; i++) {
-        const a = getStation(ids[i]);
-        const b = getStation(ids[i + 1]);
-        if (!a || !b) continue;
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-        const len2 = dx * dx + dy * dy || 1;
-        const t = Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / len2));
-        const px = a.x + dx * t;
-        const py = a.y + dy * t;
-        const d2 = (point.x - px) ** 2 + (point.y - py) ** 2;
-        if (d2 < bestDistance) {
-            bestDistance = d2;
-            best = {fromStationId: a.id, toStationId: b.id};
-        }
-    }
-    return best;
-}
-
-/* =========================================================
-   DRAW STATIONS
-========================================================= */
-
-function renderStation(
-    station
-) {
-
-    if (!station.visible) {
-        return;
-    }
-
-
-    const group =
-        createSvgElement(
-            "g",
-            {
-                class:
-                    "station-node station-group"
-            }
-        );
-
-
-    group.dataset.stationId =
-        station.id;
-
-
-    const box =
-        getStationBoxSize(station);
-
-
-    const stationCount = getStationStopCount(station.id);
-
-
-    /*
-       複数種別停車駅
-       → 大きな駅BOX
-    */
-
+function renderStation(station) {
+    if (!station.visible) return;
+    const group = createSvgElement("g", { class: "station-node station-group" });
+    group.dataset.stationId = station.id;
+    group.dataset.renderX = station.x;
+    group.dataset.renderY = station.y;
+    const box = getStationBoxSize(station);
+    const stationCount = state.map.lines.flatMap(line => line.trainTypes || [])
+        .filter(setting => setting.stationIds?.includes(station.id)).length;
     if (stationCount >= 2) {
-
-        const rect =
-            createSvgElement(
-                "rect",
-                {
-                    x:
-                        station.x -
-                        box.width / 2,
-                    y:
-                        station.y -
-                        box.height / 2,
-                    width:
-                        box.width,
-                    height:
-                        box.height,
-                    rx: 4,
-                    ry: 4,
-                    fill:
-                        "white",
-                    stroke:
-                        "#111",
-                    "stroke-width":
-                        4
-                }
-            );
-
-
-        group.appendChild(
-            rect
-        );
-
+        group.appendChild(createSvgElement("rect", {
+            x: station.x - box.width / 2, y: station.y - box.height / 2,
+            width: box.width, height: box.height, rx: 4, ry: 4, fill: "white", stroke: "#111", "stroke-width": 4, class: "station-large-box"
+        }));
     } else {
-
-        /*
-           1種別だけなら円形駅
-        */
-
-        const circle =
-            createSvgElement(
-                "circle",
-                {
-                    cx:
-                        station.x,
-                    cy:
-                        station.y,
-                    r: 10,
-                    fill:
-                        "white",
-                    stroke:
-                        "#111",
-                    "stroke-width":
-                        4
-                }
-            );
-
-
-        group.appendChild(
-            circle
-        );
-
+        group.appendChild(createSvgElement("circle", {
+            cx: station.x, cy: station.y, r: 10, fill: "white", stroke: "#111", "stroke-width": 4, class: "station-small-marker-circle"
+        }));
     }
-
-
-    drawStationText(
-        group,
-        station
-    );
-
-
-    /*
-       乗換案内
-    */
-
-    if (
-        station.transfers &&
-        station.transfers.length
-    ) {
-
-        const transferText =
-            station.transfers.join(
-                " / "
-            );
-
-
-        const text =
-            createSvgElement(
-                "text",
-                {
-                    x:
-                        station.x +
-                        box.width / 2 +
-                        8,
-                    y:
-                        station.y,
-                    "font-size":
-                        10,
-                    "text-anchor":
-                        "start"
-                }
-            );
-
-
-        text.textContent =
-            transferText;
-
-
-        group.appendChild(
-            text
-        );
-
+    drawStationText(group, station);
+    if (station.transfers?.length) {
+        const text = createSvgElement("text", { x: station.x + box.width / 2 + 8, y: station.y, "font-size": 10, "text-anchor": "start" });
+        text.textContent = station.transfers.join(" / ");
+        group.appendChild(text);
     }
-
-
-    /*
-       ドラッグ
-    */
-
-    group.addEventListener(
-        "pointerdown",
-        event => {
-
-            event.stopPropagation();
-
-            state.selectedStationId =
-                station.id;
-
-            if (!state.dragMode) {
-                openStationModal(
-                    station.id
-                );
-                return;
-            }
-
-
-            const point =
-                svgPointFromEvent(
-                    event
-                );
-
-
-            state.draggingStation =
-                station;
-
-
-            state.dragOffsetX =
-                station.x -
-                point.x;
-
-
-            state.dragOffsetY =
-                station.y -
-                point.y;
-
-
-            group.setPointerCapture(
-                event.pointerId
-            );
-
+    group.addEventListener("pointerdown", event => {
+        if (event.target.closest?.("[data-text-role]")) return;
+        event.stopPropagation();
+        if (state.bendMode) return;
+        state.selectedStationId = station.id;
+        if (!state.dragMode) { openStationModal(station.id); return; }
+        const p = svgPointFromEvent(event);
+        state.draggingStation = station;
+        state.dragOffsetX = station.x - p.x;
+        state.dragOffsetY = station.y - p.y;
+        group.dataset.dragStartX = station.x;
+        group.dataset.dragStartY = station.y;
+        group.setPointerCapture(event.pointerId);
+    });
+    group.addEventListener("pointermove", event => {
+        if (state.draggingStation !== station) return;
+        const p = svgPointFromEvent(event);
+        station.x = clamp(p.x + state.dragOffsetX, 20, 50000);
+        station.y = clamp(p.y + state.dragOffsetY, 20, 980);
+        const startX = Number(group.dataset.dragStartX);
+        const startY = Number(group.dataset.dragStartY);
+        group.setAttribute("transform", `translate(${station.x - startX} ${station.y - startY})`);
+    });
+    group.addEventListener("pointerup", event => {
+        if (state.draggingStation === station) {
+            state.draggingStation = null;
+            try { group.releasePointerCapture(event.pointerId); } catch {}
+            renderMap();
         }
-    );
-
-
-    group.addEventListener(
-        "pointermove",
-        event => {
-
-            if (
-                state.draggingStation !==
-                station
-            ) {
-                return;
-            }
-
-
-            const point =
-                svgPointFromEvent(
-                    event
-                );
-
-
-            const newX = clamp(point.x + state.dragOffsetX, 20, 50000);
-            const newY = clamp(point.y + state.dragOffsetY, 20, 980);
-            const dx = newX - station.x;
-            const dy = newY - station.y;
-            group.setAttribute("transform", `translate(${dx} ${dy})`);
-            group.dataset.dragX = String(newX);
-            group.dataset.dragY = String(newY);
-
-        }
-    );
-
-
-    group.addEventListener(
-        "pointerup",
-        event => {
-
-            if (
-                state.draggingStation ===
-                station
-            ) {
-
-                const newX = Number(group.dataset.dragX);
-                const newY = Number(group.dataset.dragY);
-                if (Number.isFinite(newX) && Number.isFinite(newY)) {
-                    station.x = newX;
-                    station.y = newY;
-                }
-                state.draggingStation = null;
-                renderMap();
-
-                try {
-
-                    group.releasePointerCapture(
-                        event.pointerId
-                    );
-
-                } catch {}
-
-            }
-
-        }
-    );
-
-
-    group.addEventListener(
-        "dblclick",
-        event => {
-
-            event.stopPropagation();
-
-            openStationModal(
-                station.id
-            );
-
-        }
-    );
-
-
-    stationLayer.appendChild(
-        group
-    );
-
+    });
+    group.addEventListener("dblclick", event => {
+        event.stopPropagation();
+        openStationModal(station.id);
+    });
+    stationLayer.appendChild(group);
 }
-
-
-/* =========================================================
-   MAP SIZE
-========================================================= */
-
-function updateMapViewportSize() {
-
-    const maxX = state.map.stations.reduce(
-        (max, station) => Math.max(max, Number(station.x) || 0),
-        100
-    );
-
-    const width = Math.max(1600, maxX + 300);
-
-    svg.setAttribute(
-        "viewBox",
-        `0 0 ${width} 1000`
-    );
-
-    $("mapBackground").setAttribute("width", width);
-    $("mapGrid").setAttribute("width", width);
-
-}
-
-
-/* =========================================================
-   RENDER MAP
-========================================================= */
 
 function renderMap() {
-
     normalizeMap();
-    updateMapViewportSize();
-
-
     stationLayer.innerHTML = "";
-
     lineLayer.innerHTML = "";
-
     selectionLayer.innerHTML = "";
-
-
-    /*
-       先に線
-    */
-
-    for (
-        const line
-        of state.map.lines
-    ) {
-
-        for (
-            const type
-            of state.map.trainTypes
-        ) {
-
-            renderTrainTypeLine(
-                line,
-                type
-            );
-
+    for (const line of state.map.lines) {
+        const active = (line.trainTypes || []).filter(setting => (setting.stationIds || []).length >= 2);
+        active.forEach((setting, index) => {
+            const type = getTrainType(setting.trainTypeId);
+            if (type) renderTrainTypeLine(line, type, index, active.length);
+        });
+    }
+    for (const line of state.map.lines) {
+        for (const segment of line.segments || []) {
+            for (const point of segment.points || []) {
+                lineLayer.appendChild(createSvgElement("circle", {
+                    cx: point.x, cy: point.y, r: 5, fill: "white", stroke: "#333", "stroke-width": 2, class: "bend-point"
+                }));
+            }
         }
-
     }
-
-
-    /*
-       最後に駅BOX
-    */
-
-    for (
-        const station
-        of state.map.stations
-    ) {
-
-        renderStation(
-            station
-        );
-
-    }
-
-
+    for (const station of state.map.stations) renderStation(station);
     updateLists();
-
 }
 
-
-/* =========================================================
-   BREAKS
-========================================================= */
-
-
-/* =========================================================
-   STATION LIST
-========================================================= */
+function renderBreaks() {}
 
 function updateStationList() {
 
@@ -2517,7 +1712,6 @@ function updateStationList() {
         $("stationList");
 
     container.innerHTML = "";
-
 
     for (
         const station
@@ -2529,10 +1723,8 @@ function updateStationList() {
                 "div"
             );
 
-
         row.className =
             "editor-list-item";
-
 
         row.innerHTML = `
 
@@ -2584,7 +1776,6 @@ function updateStationList() {
             </div>
         `;
 
-
         row.querySelector(
             '[data-action="visibility"]'
         ).addEventListener(
@@ -2599,7 +1790,6 @@ function updateStationList() {
             }
         );
 
-
         row.querySelector(
             '[data-action="edit"]'
         ).addEventListener(
@@ -2612,7 +1802,6 @@ function updateStationList() {
 
             }
         );
-
 
         row.querySelector(
             '[data-action="delete"]'
@@ -2628,14 +1817,12 @@ function updateStationList() {
                     return;
                 }
 
-
                 state.map.stations =
                     state.map.stations.filter(
                         item =>
                             item.id !==
                             station.id
                     );
-
 
                 for (
                     const line
@@ -2648,7 +1835,6 @@ function updateStationList() {
                                 id !==
                                 station.id
                         );
-
 
                     for (
                         const setting
@@ -2667,12 +1853,10 @@ function updateStationList() {
 
                 }
 
-
                 renderMap();
 
             }
         );
-
 
         container.appendChild(
             row
@@ -2682,18 +1866,12 @@ function updateStationList() {
 
 }
 
-
-/* =========================================================
-   LINE LIST
-========================================================= */
-
 function updateLineList() {
 
     const container =
         $("lineList");
 
     container.innerHTML = "";
-
 
     for (
         const line
@@ -2705,10 +1883,8 @@ function updateLineList() {
                 "div"
             );
 
-
         row.className =
             "editor-list-item";
-
 
         row.innerHTML = `
 
@@ -2746,7 +1922,6 @@ function updateLineList() {
             </div>
         `;
 
-
         row.querySelector(
             '[data-action="edit"]'
         ).addEventListener(
@@ -2759,7 +1934,6 @@ function updateLineList() {
 
             }
         );
-
 
         row.querySelector(
             '[data-action="delete"]'
@@ -2775,14 +1949,12 @@ function updateLineList() {
                     return;
                 }
 
-
                 state.map.lines =
                     state.map.lines.filter(
                         item =>
                             item.id !==
                             line.id
                     );
-
 
                 if (
                     state.selectedLineId ===
@@ -2794,12 +1966,10 @@ function updateLineList() {
 
                 }
 
-
                 renderMap();
 
             }
         );
-
 
         container.appendChild(
             row
@@ -2809,18 +1979,12 @@ function updateLineList() {
 
 }
 
-
-/* =========================================================
-   TRAIN TYPE LIST
-========================================================= */
-
 function updateTrainTypeList() {
 
     const container =
         $("trainTypeList");
 
     container.innerHTML = "";
-
 
     for (
         const type
@@ -2832,10 +1996,8 @@ function updateTrainTypeList() {
                 "div"
             );
 
-
         row.className =
             "editor-list-item";
-
 
         row.innerHTML = `
 
@@ -2846,13 +2008,7 @@ function updateTrainTypeList() {
                         type.name
                     )}
                 </strong>
-
-                <small>
-                    線長：
-                    ${type.lineLength}px
-                </small>
-
-            </div>
+</div>
 
             <div class="list-actions">
 
@@ -2873,7 +2029,6 @@ function updateTrainTypeList() {
             </div>
         `;
 
-
         row.querySelector(
             '[data-action="edit"]'
         ).addEventListener(
@@ -2886,7 +2041,6 @@ function updateTrainTypeList() {
 
             }
         );
-
 
         row.querySelector(
             '[data-action="delete"]'
@@ -2902,14 +2056,12 @@ function updateTrainTypeList() {
                     return;
                 }
 
-
                 state.map.trainTypes =
                     state.map.trainTypes.filter(
                         item =>
                             item.id !==
                             type.id
                     );
-
 
                 for (
                     const line
@@ -2925,12 +2077,10 @@ function updateTrainTypeList() {
 
                 }
 
-
                 renderMap();
 
             }
         );
-
 
         container.appendChild(
             row
@@ -2940,11 +2090,6 @@ function updateTrainTypeList() {
 
 }
 
-
-/* =========================================================
-   SELECT BOXES
-========================================================= */
-
 function updateSelectors() {
 
     const lineSelect =
@@ -2953,18 +2098,15 @@ function updateSelectors() {
     const typeSelect =
         $("selectedTrainType");
 
-
     lineSelect.innerHTML =
         `<option value="">
             路線を選択
         </option>`;
 
-
     typeSelect.innerHTML =
         `<option value="">
             種別を選択
         </option>`;
-
 
     for (
         const line
@@ -2988,7 +2130,6 @@ function updateSelectors() {
 
     }
 
-
     for (
         const type
         of state.map.trainTypes
@@ -3011,343 +2152,90 @@ function updateSelectors() {
 
     }
 
-
     lineSelect.value =
         state.selectedLineId || "";
 
-
     typeSelect.value =
         state.selectedTrainTypeId || "";
-
 
     updateLineStationEditor();
 
 }
 
-
-/* =========================================================
-   LINE STATION EDITOR
-========================================================= */
-
-function updateLineStationEditor() {
-
-    const container =
-        $("lineStationEditor");
-
-    container.innerHTML = "";
-
-
-    const line =
-        getLine(
-            state.selectedLineId
-        );
-
-
-    const type =
-        getTrainType(
-            state.selectedTrainTypeId
-        );
-
-
-    if (!line) {
-
-        container.textContent =
-            "路線を選択してください。";
-
-        return;
-
-    }
-
-
-    /*
-       路線への駅追加
-    */
-
-    const title =
-        document.createElement(
-            "h4"
-        );
-
-    title.textContent =
-        "路線に駅を追加";
-
-    container.appendChild(
-        title
-    );
-
-
-    for (
-        const station
-        of state.map.stations
-    ) {
-
-        const label =
-            document.createElement(
-                "label"
-            );
-
-
-        label.className =
-            "checkbox-row";
-
-
-        const checkbox =
-            document.createElement(
-                "input"
-            );
-
-
-        checkbox.type =
-            "checkbox";
-
-        checkbox.checked =
-            line.stationIds
-                .includes(
-                    station.id
-                );
-
-
-        checkbox.addEventListener(
-            "change",
-            () => {
-
-                if (
-                    checkbox.checked
-                ) {
-
-                    if (
-                        !line.stationIds
-                            .includes(
-                                station.id
-                            )
-                    ) {
-
-                        line.stationIds.push(
-                            station.id
-                        );
-
-                    }
-
-                } else {
-
-                    line.stationIds =
-                        line.stationIds.filter(
-                            id =>
-                                id !==
-                                station.id
-                        );
-
-
-                    for (
-                        const setting
-                        of line.trainTypes
-                    ) {
-
-                        setting.stationIds =
-                            setting.stationIds
-                                .filter(
-                                    id =>
-                                        id !==
-                                        station.id
-                                );
-
-                    }
-
-                }
-
-
-                renderMap();
-
-            }
-        );
-
-
-        label.appendChild(
-            checkbox
-        );
-
-
-        const span =
-            document.createElement(
-                "span"
-            );
-
-        span.textContent =
-            station.name;
-
-        label.appendChild(
-            span
-        );
-
-
-        container.appendChild(
-            label
-        );
-
-    }
-
-
-    /*
-       選択中の種別に停車駅を設定
-    */
-
-    if (!type) {
-        return;
-    }
-
-
-    const title2 =
-        document.createElement(
-            "h4"
-        );
-
-    title2.textContent =
-        `${type.name} の停車駅`;
-
-    container.appendChild(
-        title2
-    );
-
-
-    let setting =
-        line.trainTypes.find(
-            item =>
-                item.trainTypeId ===
-                type.id
-        );
-
-
+function ensureLineTrainTypeSetting(line, typeId) {
+    let setting = line.trainTypes.find(item => item.trainTypeId === typeId);
     if (!setting) {
-
-        setting = {
-
-            trainTypeId:
-                type.id,
-
-            stationIds: []
-
-        };
-
-
-        line.trainTypes.push(
-            setting
-        );
-
+        setting = { trainTypeId: typeId, stationIds: [] };
+        line.trainTypes.push(setting);
     }
-
-
-    for (
-        const stationId
-        of line.stationIds
-    ) {
-
-        const station =
-            getStation(
-                stationId
-            );
-
-
-        if (!station) {
-            continue;
-        }
-
-
-        const label =
-            document.createElement(
-                "label"
-            );
-
-
-        label.className =
-            "checkbox-row";
-
-
-        const checkbox =
-            document.createElement(
-                "input"
-            );
-
-
-        checkbox.type =
-            "checkbox";
-
-
-        checkbox.checked =
-            setting.stationIds
-                .includes(
-                    station.id
-                );
-
-
-        checkbox.addEventListener(
-            "change",
-            () => {
-
-                if (
-                    checkbox.checked
-                ) {
-
-                    if (
-                        !setting.stationIds
-                            .includes(
-                                station.id
-                            )
-                    ) {
-
-                        setting.stationIds.push(
-                            station.id
-                        );
-
-                    }
-
-                } else {
-
-                    setting.stationIds =
-                        setting.stationIds.filter(
-                            id =>
-                                id !==
-                                station.id
-                        );
-
-                }
-
-
-                renderMap();
-
-            }
-        );
-
-
-        label.appendChild(
-            checkbox
-        );
-
-
-        const span =
-            document.createElement(
-                "span"
-            );
-
-        span.textContent =
-            station.name;
-
-        label.appendChild(
-            span
-        );
-
-
-        container.appendChild(
-            label
-        );
-
-    }
-
+    return setting;
 }
 
-
-/* =========================================================
-   UPDATE LISTS
-========================================================= */
+function updateLineStationEditor() {
+    const container = $("lineStationEditor");
+    container.innerHTML = "";
+    const line = getLine(state.selectedLineId);
+    if (!line) { container.textContent = "路線を選択してください。"; return; }
+    const title = document.createElement("h4");
+    title.textContent = "路線の駅";
+    container.appendChild(title);
+    for (const station of state.map.stations) {
+        const item = document.createElement("div");
+        item.className = "line-station-item";
+        const label = document.createElement("label");
+        label.className = "checkbox-row";
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = line.stationIds.includes(station.id);
+        checkbox.addEventListener("change", () => {
+            if (checkbox.checked) {
+                if (!line.stationIds.includes(station.id)) line.stationIds.push(station.id);
+            } else {
+                line.stationIds = line.stationIds.filter(id => id !== station.id);
+                for (const setting of line.trainTypes) setting.stationIds = setting.stationIds.filter(id => id !== station.id);
+            }
+            updateLineStationEditor();
+            renderMap();
+        });
+        label.appendChild(checkbox);
+        const span = document.createElement("span");
+        span.textContent = station.name;
+        label.appendChild(span);
+        item.appendChild(label);
+        if (checkbox.checked && state.map.trainTypes.length) {
+            const stopBox = document.createElement("div");
+            stopBox.className = "station-stop-settings";
+            const small = document.createElement("small");
+            small.textContent = "停車する列車種別";
+            stopBox.appendChild(small);
+            for (const type of state.map.trainTypes) {
+                const typeSetting = ensureLineTrainTypeSetting(line, type.id);
+                const typeLabel = document.createElement("label");
+                typeLabel.className = "checkbox-row";
+                const typeCheck = document.createElement("input");
+                typeCheck.type = "checkbox";
+                typeCheck.checked = typeSetting.stationIds.includes(station.id);
+                typeCheck.addEventListener("change", () => {
+                    if (typeCheck.checked) {
+                        if (!typeSetting.stationIds.includes(station.id)) typeSetting.stationIds.push(station.id);
+                    } else {
+                        typeSetting.stationIds = typeSetting.stationIds.filter(id => id !== station.id);
+                    }
+                    renderMap();
+                });
+                typeLabel.appendChild(typeCheck);
+                const typeSpan = document.createElement("span");
+                typeSpan.textContent = type.name;
+                typeSpan.style.borderLeft = `5px solid ${type.color}`;
+                typeSpan.style.paddingLeft = "8px";
+                typeLabel.appendChild(typeSpan);
+                stopBox.appendChild(typeLabel);
+            }
+            item.appendChild(stopBox);
+        }
+        container.appendChild(item);
+    }
+}
 
 function updateLists() {
 
@@ -3360,11 +2248,6 @@ function updateLists() {
     updateSelectors();
 
 }
-
-
-/* =========================================================
-   ADD STATION
-========================================================= */
 
 $("addStationButton")
     .addEventListener(
@@ -3396,7 +2279,6 @@ $("addStationButton")
                     )
                     .filter(Boolean);
 
-
             if (!name) {
 
                 showToast(
@@ -3406,7 +2288,6 @@ $("addStationButton")
                 return;
 
             }
-
 
             const station = {
 
@@ -3418,13 +2299,8 @@ $("addStationButton")
 
                 code,
 
-                x:
-                    120 +
-                    state.map.stations.length *
-                    180,
-
-                y:
-                    500,
+                x: 140 + state.map.stations.length * 180,
+                y: 500,
 
                 visible: true,
 
@@ -3440,7 +2316,7 @@ $("addStationButton")
                         "vertical",
 
                     romanDirection:
-                        "horizontal",
+                        "vertical",
 
                     nameRotation: 0,
 
@@ -3461,11 +2337,9 @@ $("addStationButton")
 
             };
 
-
             state.map.stations.push(
                 station
             );
-
 
             $("stationName").value =
                 "";
@@ -3479,7 +2353,6 @@ $("addStationButton")
             $("stationTransfers").value =
                 "";
 
-
             renderMap();
 
             showToast(
@@ -3488,11 +2361,6 @@ $("addStationButton")
 
         }
     );
-
-
-/* =========================================================
-   ADD LINE
-========================================================= */
 
 $("addLineButton")
     .addEventListener(
@@ -3508,7 +2376,6 @@ $("addLineButton")
                 $("lineColor")
                     .value;
 
-
             if (!name) {
 
                 showToast(
@@ -3518,7 +2385,6 @@ $("addLineButton")
                 return;
 
             }
-
 
             const line = {
 
@@ -3537,19 +2403,15 @@ $("addLineButton")
 
             };
 
-
             state.map.lines.push(
                 line
             );
 
-
             $("lineName").value =
                 "";
 
-
             state.selectedLineId =
                 line.id;
-
 
             renderMap();
 
@@ -3559,11 +2421,6 @@ $("addLineButton")
 
         }
     );
-
-
-/* =========================================================
-   ADD TRAIN TYPE
-========================================================= */
 
 $("addTrainTypeButton")
     .addEventListener(
@@ -3579,7 +2436,6 @@ $("addTrainTypeButton")
                 $("trainTypeColor")
                     .value;
 
-
             if (!name) {
 
                 showToast(
@@ -3589,7 +2445,6 @@ $("addTrainTypeButton")
                 return;
 
             }
-
 
             const type = {
 
@@ -3611,19 +2466,15 @@ $("addTrainTypeButton")
 
             };
 
-
             state.map.trainTypes.push(
                 type
             );
 
-
             $("trainTypeName").value =
                 "";
 
-
             state.selectedTrainTypeId =
                 type.id;
-
 
             renderMap();
 
@@ -3633,11 +2484,6 @@ $("addTrainTypeButton")
 
         }
     );
-
-
-/* =========================================================
-   SELECTORS
-========================================================= */
 
 $("selectedLine")
     .addEventListener(
@@ -3655,7 +2501,6 @@ $("selectedLine")
         }
     );
 
-
 $("selectedTrainType")
     .addEventListener(
         "change",
@@ -3670,11 +2515,6 @@ $("selectedTrainType")
         }
     );
 
-
-/* =========================================================
-   STATION MODAL
-========================================================= */
-
 function openStationModal(
     stationId
 ) {
@@ -3684,11 +2524,9 @@ function openStationModal(
             stationId
         );
 
-
     if (!station) {
         return;
     }
-
 
     $("editingStationId").value =
         station.id;
@@ -3707,10 +2545,8 @@ function openStationModal(
             station.visible
         );
 
-
     const d =
         station.display;
-
 
     $("detailNameDirection").value =
         d.nameDirection;
@@ -3721,7 +2557,6 @@ function openStationModal(
     $("detailNameRotation").value =
         d.nameRotation;
 
-
     $("detailRomanDirection").value =
         d.romanDirection;
 
@@ -3731,17 +2566,14 @@ function openStationModal(
     $("detailRomanRotation").value =
         d.romanRotation;
 
-
     $("detailSpacingBefore").value =
         d.spacingBefore;
 
     $("detailSpacingAfter").value =
         d.spacingAfter;
 
-
     $("detailBoxMode").value =
         d.boxMode;
-
 
     $("detailBoxWidth").value =
         d.boxWidth;
@@ -3749,12 +2581,10 @@ function openStationModal(
     $("detailBoxHeight").value =
         d.boxHeight;
 
-
     $("detailTransfers").value =
         station.transfers.join(
             "\n"
         );
-
 
     $("manualBoxSettings")
         .classList.toggle(
@@ -3763,18 +2593,12 @@ function openStationModal(
                 "manual"
         );
 
-
     $("stationModal")
         .classList.remove(
             "hidden"
         );
 
 }
-
-
-/* =========================================================
-   SAVE STATION DETAIL
-========================================================= */
 
 $("saveStationDetailButton")
     .addEventListener(
@@ -3787,11 +2611,9 @@ $("saveStationDetailButton")
                         .value
                 );
 
-
             if (!station) {
                 return;
             }
-
 
             station.name =
                 $("detailStationName")
@@ -3812,7 +2634,6 @@ $("saveStationDetailButton")
                 $("detailStationVisible")
                     .value ===
                 "true";
-
 
             station.display = {
 
@@ -3847,6 +2668,10 @@ $("saveStationDetailButton")
                         $("detailRomanRotation")
                             .value
                     ),
+                    nameOffsetX: station.display.nameOffsetX || 0,
+                    nameOffsetY: station.display.nameOffsetY || 0,
+                    romanOffsetX: station.display.romanOffsetX || 0,
+                    romanOffsetY: station.display.romanOffsetY || 0,
 
                 spacingBefore:
                     Number(
@@ -3874,15 +2699,9 @@ $("saveStationDetailButton")
                     Number(
                         $("detailBoxHeight")
                             .value
-                    ),
-
-                nameOffsetX: Number(station.display.nameOffsetX) || 0,
-                nameOffsetY: Number(station.display.nameOffsetY) || 0,
-                romanOffsetX: Number(station.display.romanOffsetX) || 0,
-                romanOffsetY: Number(station.display.romanOffsetY) || 0
+                    )
 
             };
-
 
             station.transfers =
                 $("detailTransfers")
@@ -3893,7 +2712,6 @@ $("saveStationDetailButton")
                             value.trim()
                     )
                     .filter(Boolean);
-
 
             closeStationModal();
 
@@ -3906,7 +2724,6 @@ $("saveStationDetailButton")
         }
     );
 
-
 function closeStationModal() {
 
     $("stationModal")
@@ -3916,20 +2733,17 @@ function closeStationModal() {
 
 }
 
-
 $("closeStationModalButton")
     .addEventListener(
         "click",
         closeStationModal
     );
 
-
 $("cancelStationModalButton")
     .addEventListener(
         "click",
         closeStationModal
     );
-
 
 $("deleteStationFromModalButton")
     .addEventListener(
@@ -3940,7 +2754,6 @@ $("deleteStationFromModalButton")
                 $("editingStationId")
                     .value;
 
-
             if (
                 !confirm(
                     "この駅を削除しますか？"
@@ -3949,14 +2762,12 @@ $("deleteStationFromModalButton")
                 return;
             }
 
-
             state.map.stations =
                 state.map.stations.filter(
                     station =>
                         station.id !==
                         id
                 );
-
 
             for (
                 const line
@@ -3969,7 +2780,6 @@ $("deleteStationFromModalButton")
                             stationId !==
                             id
                     );
-
 
                 for (
                     const setting
@@ -3988,14 +2798,12 @@ $("deleteStationFromModalButton")
 
             }
 
-
             closeStationModal();
 
             renderMap();
 
         }
     );
-
 
 $("detailBoxMode")
     .addEventListener(
@@ -4012,167 +2820,73 @@ $("detailBoxMode")
         }
     );
 
-
-/* =========================================================
-   LINE MODAL
-========================================================= */
-
-function openLineModal(
-    lineId
-) {
-
-    const line =
-        getLine(
-            lineId
-        );
-
-
-    if (!line) {
-        return;
-    }
-
-
-    $("editingLineId").value =
-        line.id;
-
-    $("detailLineName").value =
-        line.name;
-
-    $("detailLineColor").value =
-        line.color;
-
-
-    renderLineModalStations(
-        line
-    );
-
-    $("lineModal")
-        .classList.remove(
-            "hidden"
-        );
-
+function openLineModal(lineId) {
+    const line = getLine(lineId);
+    if (!line) return;
+    $("editingLineId").value = line.id;
+    $("detailLineName").value = line.name;
+    $("detailLineColor").value = line.color;
+    renderLineModalStations(line);
+    $("lineModal").classList.remove("hidden");
 }
 
-
 function renderLineModalStations(line) {
-
     const container = $("lineStationChecklist");
     container.innerHTML = "";
-
     for (const station of state.map.stations) {
-
-        const wrapper = document.createElement("div");
-        wrapper.className = "line-station-item";
-
+        const item = document.createElement("div");
+        item.className = "line-station-item";
         const label = document.createElement("label");
         label.className = "checkbox-row";
-
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
         checkbox.checked = line.stationIds.includes(station.id);
-
         checkbox.addEventListener("change", () => {
-
             if (checkbox.checked) {
-
-                if (!line.stationIds.includes(station.id)) {
-                    line.stationIds.push(station.id);
-                }
-
+                if (!line.stationIds.includes(station.id)) line.stationIds.push(station.id);
             } else {
-
                 line.stationIds = line.stationIds.filter(id => id !== station.id);
-
-                for (const setting of line.trainTypes || []) {
-                    setting.stationIds = (setting.stationIds || []).filter(id => id !== station.id);
-                }
-
+                for (const setting of line.trainTypes) setting.stationIds = setting.stationIds.filter(id => id !== station.id);
             }
-
             renderLineModalStations(line);
             renderMap();
-
         });
-
         label.appendChild(checkbox);
-
         const span = document.createElement("span");
         span.textContent = station.name;
         label.appendChild(span);
-        wrapper.appendChild(label);
-
-        if (checkbox.checked) {
-
-            const stopSettings = document.createElement("div");
-            stopSettings.className = "station-stop-settings";
-
-            const stopTitle = document.createElement("small");
-            stopTitle.textContent = "停車駅設定";
-            stopSettings.appendChild(stopTitle);
-
+        item.appendChild(label);
+        if (checkbox.checked && state.map.trainTypes.length) {
+            const stopBox = document.createElement("div");
+            stopBox.className = "station-stop-settings";
             for (const type of state.map.trainTypes) {
-
-                const setting = line.trainTypes.find(item => item.trainTypeId === type.id);
-
-                const stopLabel = document.createElement("label");
-                stopLabel.className = "checkbox-row";
-
-                const stopCheckbox = document.createElement("input");
-                stopCheckbox.type = "checkbox";
-                stopCheckbox.checked = Boolean(setting?.stationIds?.includes(station.id));
-
-                stopCheckbox.addEventListener("change", () => {
-
-                    let current = line.trainTypes.find(item => item.trainTypeId === type.id);
-
-                    if (!current && stopCheckbox.checked) {
-                        current = {trainTypeId: type.id, stationIds: []};
-                        line.trainTypes.push(current);
-                    }
-
-                    if (!current) {
-                        return;
-                    }
-
-                    if (stopCheckbox.checked) {
-                        if (!current.stationIds.includes(station.id)) {
-                            current.stationIds.push(station.id);
-                        }
+                const setting = ensureLineTrainTypeSetting(line, type.id);
+                const typeLabel = document.createElement("label");
+                typeLabel.className = "checkbox-row";
+                const typeCheck = document.createElement("input");
+                typeCheck.type = "checkbox";
+                typeCheck.checked = setting.stationIds.includes(station.id);
+                typeCheck.addEventListener("change", () => {
+                    if (typeCheck.checked) {
+                        if (!setting.stationIds.includes(station.id)) setting.stationIds.push(station.id);
                     } else {
-                        current.stationIds = current.stationIds.filter(id => id !== station.id);
+                        setting.stationIds = setting.stationIds.filter(id => id !== station.id);
                     }
-
-                    renderLineModalStations(line);
                     renderMap();
-
                 });
-
-                stopLabel.appendChild(stopCheckbox);
-
-                const typeName = document.createElement("span");
-                typeName.textContent = type.name;
-                typeName.style.borderLeft = `5px solid ${type.color}`;
-                typeName.style.paddingLeft = "8px";
-                stopLabel.appendChild(typeName);
-
-                stopSettings.appendChild(stopLabel);
-
+                typeLabel.appendChild(typeCheck);
+                const typeSpan = document.createElement("span");
+                typeSpan.textContent = type.name;
+                typeSpan.style.borderLeft = `5px solid ${type.color}`;
+                typeSpan.style.paddingLeft = "8px";
+                typeLabel.appendChild(typeSpan);
+                stopBox.appendChild(typeLabel);
             }
-
-            wrapper.appendChild(stopSettings);
-
+            item.appendChild(stopBox);
         }
-
-        container.appendChild(wrapper);
-
+        container.appendChild(item);
     }
-
 }
-
-
-/* =========================================================
-   SAVE LINE DETAIL
-========================================================= */
 
 $("saveLineDetailButton")
     .addEventListener(
@@ -4185,11 +2899,9 @@ $("saveLineDetailButton")
                         .value
                 );
 
-
             if (!line) {
                 return;
             }
-
 
             line.name =
                 $("detailLineName")
@@ -4200,14 +2912,12 @@ $("saveLineDetailButton")
                 $("detailLineColor")
                     .value;
 
-
             closeLineModal();
 
             renderMap();
 
         }
     );
-
 
 function closeLineModal() {
 
@@ -4218,20 +2928,17 @@ function closeLineModal() {
 
 }
 
-
 $("closeLineModalButton")
     .addEventListener(
         "click",
         closeLineModal
     );
 
-
 $("cancelLineModalButton")
     .addEventListener(
         "click",
         closeLineModal
     );
-
 
 $("deleteLineFromModalButton")
     .addEventListener(
@@ -4242,7 +2949,6 @@ $("deleteLineFromModalButton")
                 $("editingLineId")
                     .value;
 
-
             if (
                 !confirm(
                     "この路線を削除しますか？"
@@ -4251,7 +2957,6 @@ $("deleteLineFromModalButton")
                 return;
             }
 
-
             state.map.lines =
                 state.map.lines.filter(
                     line =>
@@ -4259,18 +2964,12 @@ $("deleteLineFromModalButton")
                         id
                 );
 
-
             closeLineModal();
 
             renderMap();
 
         }
     );
-
-
-/* =========================================================
-   TRAIN TYPE MODAL
-========================================================= */
 
 function openTrainTypeModal(
     typeId
@@ -4281,11 +2980,9 @@ function openTrainTypeModal(
             typeId
         );
 
-
     if (!type) {
         return;
     }
-
 
     $("editingTrainTypeId").value =
         type.id;
@@ -4296,15 +2993,11 @@ function openTrainTypeModal(
     $("detailTrainTypeColor").value =
         type.color;
 
-    $("detailTrainTypeLineLength").value =
-        type.lineLength;
-
     $("detailTrainTypeLineOffset").value =
         type.lineOffset;
 
     $("detailTrainTypeLineWidth").value =
         type.lineWidth;
-
 
     $("trainTypeModal")
         .classList.remove(
@@ -4312,7 +3005,6 @@ function openTrainTypeModal(
         );
 
 }
-
 
 $("saveTrainTypeDetailButton")
     .addEventListener(
@@ -4325,11 +3017,9 @@ $("saveTrainTypeDetailButton")
                         .value
                 );
 
-
             if (!type) {
                 return;
             }
-
 
             type.name =
                 $("detailTrainTypeName")
@@ -4339,14 +3029,7 @@ $("saveTrainTypeDetailButton")
             type.color =
                 $("detailTrainTypeColor")
                     .value;
-
-            type.lineLength =
-                Number(
-                    $("detailTrainTypeLineLength")
-                        .value
-                );
-
-            type.lineOffset =
+type.lineOffset =
                 Number(
                     $("detailTrainTypeLineOffset")
                         .value
@@ -4358,14 +3041,12 @@ $("saveTrainTypeDetailButton")
                         .value
                 );
 
-
             closeTrainTypeModal();
 
             renderMap();
 
         }
     );
-
 
 function closeTrainTypeModal() {
 
@@ -4376,20 +3057,17 @@ function closeTrainTypeModal() {
 
 }
 
-
 $("closeTrainTypeModalButton")
     .addEventListener(
         "click",
         closeTrainTypeModal
     );
 
-
 $("cancelTrainTypeModalButton")
     .addEventListener(
         "click",
         closeTrainTypeModal
     );
-
 
 $("deleteTrainTypeFromModalButton")
     .addEventListener(
@@ -4400,7 +3078,6 @@ $("deleteTrainTypeFromModalButton")
                 $("editingTrainTypeId")
                     .value;
 
-
             if (
                 !confirm(
                     "この種別を削除しますか？"
@@ -4409,14 +3086,12 @@ $("deleteTrainTypeFromModalButton")
                 return;
             }
 
-
             state.map.trainTypes =
                 state.map.trainTypes.filter(
                     type =>
                         type.id !==
                         id
                 );
-
 
             for (
                 const line
@@ -4432,67 +3107,12 @@ $("deleteTrainTypeFromModalButton")
 
             }
 
-
             closeTrainTypeModal();
 
             renderMap();
 
         }
     );
-
-
-/* =========================================================
-   LINE SETTINGS
-========================================================= */
-
-$("applyLineSettingsButton")
-    .addEventListener(
-        "click",
-        () => {
-
-            const type =
-                getTrainType(
-                    state.selectedTrainTypeId
-                );
-
-
-            if (!type) {
-
-                showToast(
-                    "列車種別を選択してください"
-                );
-
-                return;
-
-            }
-
-
-            type.lineLength =
-                Number(
-                    $("lineLength")
-                        .value
-                );
-
-            type.lineOffset =
-                Number(
-                    $("lineOffset")
-                        .value
-                );
-
-
-            renderMap();
-
-            showToast(
-                "種別線設定を適用しました"
-            );
-
-        }
-    );
-
-
-/* =========================================================
-   GRID
-========================================================= */
 
 $("toggleGridButton")
     .addEventListener(
@@ -4501,7 +3121,6 @@ $("toggleGridButton")
 
             state.gridVisible =
                 !state.gridVisible;
-
 
             $("mapGrid")
                 .style.display =
@@ -4512,11 +3131,6 @@ $("toggleGridButton")
         }
     );
 
-
-/* =========================================================
-   DRAG MODE
-========================================================= */
-
 $("toggleDragModeButton")
     .addEventListener(
         "click",
@@ -4524,7 +3138,6 @@ $("toggleDragModeButton")
 
             state.dragMode =
                 !state.dragMode;
-
 
             $("toggleDragModeButton")
                 .textContent =
@@ -4535,62 +3148,50 @@ $("toggleDragModeButton")
         }
     );
 
-
 $("addBendButton")
-    .addEventListener(
-        "click",
-        () => {
-            state.bendMode = !state.bendMode;
-            $("addBendButton").textContent = state.bendMode ? "折れ点追加：ON" : "折れ曲がりを追加";
-            showToast(state.bendMode ? "駅間をクリックして折れ点を追加してください" : "折れ点追加モードを終了しました");
-        }
-    );
+    .addEventListener("click", () => {
+        const line = getLine(state.selectedLineId);
+        if (!line) { showToast("路線を選択してください"); return; }
+        state.bendMode = !state.bendMode;
+        state.bendPointerActive = false;
+        $("addBendButton").textContent = state.bendMode ? "折れ曲がり：ON" : "折れ曲がりを追加";
+        showToast(state.bendMode ? "折れ曲がり追加モード：ON" : "折れ曲がり追加モード：OFF");
+    });
 
 svg.addEventListener("pointerdown", event => {
     if (!state.bendMode || state.bendPointerActive) return;
-    if (event.target.closest(".station-node")) return;
-    const line = getLine(state.selectedLineId);
-    if (!line) {
-        showToast("折れ点を追加する路線を選択してください");
-        return;
-    }
-
-    const point = svgPointFromEvent(event);
-    const pair = nearestLineStationPair(line, point);
-    if (!pair) {
-        showToast("駅が2つ以上ある路線を選択してください");
-        return;
-    }
-
     state.bendPointerActive = true;
-    line.segments ??= [];
-    let segment = line.segments.find(item => item.fromStationId === pair.fromStationId && item.toStationId === pair.toStationId);
+    const line = getLine(state.selectedLineId);
+    if (!line) return;
+    const p = svgPointFromEvent(event);
+    const settingPairs = line.trainTypes.flatMap(setting => {
+        const ids = setting.stationIds || [];
+        return ids.slice(0, -1).map((id, i) => [id, ids[i + 1]]);
+    });
+    let best = null;
+    for (const [fromId, toId] of settingPairs) {
+        const a = getStation(fromId), b = getStation(toId);
+        if (!a || !b) continue;
+        const dx=b.x-a.x, dy=b.y-a.y;
+        const len2=dx*dx+dy*dy || 1;
+        const t=clamp(((p.x-a.x)*dx+(p.y-a.y)*dy)/len2,0,1);
+        const q={x:a.x+dx*t,y:a.y+dy*t};
+        const d2=(p.x-q.x)**2+(p.y-q.y)**2;
+        if (!best || d2<best.d2) best={fromId,toId,d2};
+    }
+    if (!best || best.d2 > 2500) { showToast("駅と駅の間をクリックしてください"); return; }
+    let segment = line.segments.find(s => s.fromStationId === best.fromId && s.toStationId === best.toId);
     if (!segment) {
-        segment = {id: uid("segment"), fromStationId: pair.fromStationId, toStationId: pair.toStationId, points: []};
+        segment={id:uid("segment"),fromStationId:best.fromId,toStationId:best.toId,points:[]};
         line.segments.push(segment);
     }
-    segment.points.push({x: point.x, y: point.y});
-
-    const a = getStation(pair.fromStationId);
-    const b = getStation(pair.toStationId);
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const len2 = dx * dx + dy * dy || 1;
-    segment.points.sort((p, q) => {
-        const tp = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2;
-        const tq = ((q.x - a.x) * dx + (q.y - a.y) * dy) / len2;
-        return tp - tq;
-    });
+    segment.points.push({x:p.x,y:p.y});
     renderMap();
 });
 
-svg.addEventListener("pointerup", () => {
-    state.bendPointerActive = false;
+document.addEventListener("pointerup", () => {
+    if (state.bendPointerActive) state.bendPointerActive = false;
 });
-
-/* =========================================================
-   ZOOM
-========================================================= */
 
 function applyZoom() {
 
@@ -4598,7 +3199,6 @@ function applyZoom() {
         `scale(${state.zoom})`;
 
 }
-
 
 $("zoomInButton")
     .addEventListener(
@@ -4616,7 +3216,6 @@ $("zoomInButton")
         }
     );
 
-
 $("zoomOutButton")
     .addEventListener(
         "click",
@@ -4633,7 +3232,6 @@ $("zoomOutButton")
         }
     );
 
-
 $("zoomResetButton")
     .addEventListener(
         "click",
@@ -4646,7 +3244,6 @@ $("zoomResetButton")
 
         }
     );
-
 
 $("fitButton")
     .addEventListener(
@@ -4661,11 +3258,6 @@ $("fitButton")
         }
     );
 
-
-/* =========================================================
-   SAVE
-========================================================= */
-
 async function saveMap() {
 
     try {
@@ -4675,10 +3267,8 @@ async function saveMap() {
                 "/api/user"
             );
 
-
         const userData =
             await userResponse.json();
-
 
         if (
             !userData ||
@@ -4694,13 +3284,11 @@ async function saveMap() {
 
         }
 
-
         state.map.name =
             $("mapName")
                 .value
                 .trim() ||
             "無題の路線図";
-
 
         const payload = {
 
@@ -4712,9 +3300,7 @@ async function saveMap() {
 
         };
 
-
         let response;
-
 
         if (state.currentMapId) {
 
@@ -4760,10 +3346,8 @@ async function saveMap() {
 
         }
 
-
         const result =
             await response.json();
-
 
         if (!response.ok) {
 
@@ -4774,22 +3358,15 @@ async function saveMap() {
 
         }
 
+        if (result.id) {
 
-        const savedMapId = normalizeMapId(
-            result.id ??
-            result._id ??
-            result.mapId
-        );
+            state.currentMapId = normalizeMapId(result.id ?? result._id);
 
-        if (savedMapId) {
-            state.currentMapId = savedMapId;
         }
-
 
         showToast(
             "路線図を保存しました"
         );
-
 
         await loadMapList();
 
@@ -4806,17 +3383,11 @@ async function saveMap() {
 
 }
 
-
 $("saveButton")
     .addEventListener(
         "click",
         saveMap
     );
-
-
-/* =========================================================
-   NEW MAP
-========================================================= */
 
 $("newMapButton")
     .addEventListener(
@@ -4831,10 +3402,8 @@ $("newMapButton")
                 return;
             }
 
-
             state.currentMapId =
                 null;
-
 
             state.map = {
 
@@ -4851,7 +3420,6 @@ $("newMapButton")
 
             };
 
-
             state.selectedLineId =
                 null;
 
@@ -4861,34 +3429,13 @@ $("newMapButton")
             state.selectedStationId =
                 null;
 
-
             $("mapName").value =
                 state.map.name;
-
 
             renderMap();
 
         }
     );
-
-
-/* =========================================================
-   LOAD MAP LIST
-========================================================= */
-function normalizeMapId(value) {
-
-    if (value === null || value === undefined) {
-        return "";
-    }
-
-    if (typeof value === "object") {
-        return String(value.$oid || value.id || value._id || "");
-    }
-
-    return String(value).trim();
-
-}
-
 
 async function loadMapList() {
 
@@ -4898,14 +3445,12 @@ async function loadMapList() {
     container.innerHTML =
         "読み込み中…";
 
-
     try {
 
         const response =
             await fetch(
                 "/api/railway/maps"
             );
-
 
         if (
             response.status ===
@@ -4919,20 +3464,16 @@ async function loadMapList() {
 
         }
 
-
         const result =
             await response.json();
-
 
         const maps =
             Array.isArray(result)
                 ? result
                 : result.maps || [];
 
-
         container.innerHTML =
             "";
-
 
         for (
             const map
@@ -4944,10 +3485,8 @@ async function loadMapList() {
                     "div"
                 );
 
-
             row.className =
                 "saved-map-item";
-
 
             row.innerHTML = `
 
@@ -4990,29 +3529,16 @@ async function loadMapList() {
                 </div>
             `;
 
-
             row.querySelector(
                 "[data-load]"
             ).addEventListener(
                 "click",
                 () => {
 
-                    const mapId = normalizeMapId(
-                        map._id ??
-                        map.id ??
-                        map.mapId
-                    );
-
-                    if (!mapId) {
-                        showToast("保存データのIDを取得できませんでした");
-                        return;
-                    }
-
-                    loadMap(mapId);
+                    loadMap(normalizeMapId(map._id ?? map.id));
 
                 }
             );
-
 
             row.querySelector(
                 "[data-delete]"
@@ -5020,22 +3546,10 @@ async function loadMapList() {
                 "click",
                 () => {
 
-                    const mapId = normalizeMapId(
-                        map._id ??
-                        map.id ??
-                        map.mapId
-                    );
-
-                    if (!mapId) {
-                        showToast("保存データのIDを取得できませんでした");
-                        return;
-                    }
-
-                    deleteMap(mapId);
+                    deleteMap(normalizeMapId(map._id ?? map.id));
 
                 }
             );
-
 
             container.appendChild(
                 row
@@ -5054,40 +3568,27 @@ async function loadMapList() {
 
 }
 
-
 $("loadMapsButton")
     .addEventListener(
         "click",
         loadMapList
     );
 
-
-/* =========================================================
-   LOAD MAP
-========================================================= */
-
 async function loadMap(
     id
 ) {
-
     id = normalizeMapId(id);
-
-    if (!id) {
-        showToast("保存データのIDを取得できませんでした");
-        return;
-    }
+    if (!id) { showToast("保存データのIDを取得できませんでした"); return; }
 
     try {
 
         const response =
             await fetch(
-                `/api/railway/maps/${id}`
+                `/api/railway/maps/${encodeURIComponent(id)}`
             );
-
 
         const result =
             await response.json();
-
 
         if (!response.ok) {
 
@@ -5098,32 +3599,20 @@ async function loadMap(
 
         }
 
-
-        state.currentMapId =
-            normalizeMapId(
-                result.id ??
-                result._id ??
-                result.mapId
-            ) ||
-            id;
-
+        state.currentMapId = normalizeMapId(result.id ?? result._id) || id;
 
         state.map =
             result.data ||
             result;
 
-
         normalizeMap();
-
 
         $("mapName").value =
             state.map.name ||
             result.name ||
             "無題の路線図";
 
-
         renderMap();
-
 
         showToast(
             "路線図を読み込みました"
@@ -5142,21 +3631,11 @@ async function loadMap(
 
 }
 
-
-/* =========================================================
-   DELETE MAP
-========================================================= */
-
 async function deleteMap(
     id
 ) {
-
     id = normalizeMapId(id);
-
-    if (!id) {
-        showToast("保存データのIDを取得できませんでした");
-        return;
-    }
+    if (!id) { showToast("保存データのIDを取得できませんでした"); return; }
 
     if (
         !confirm(
@@ -5166,22 +3645,19 @@ async function deleteMap(
         return;
     }
 
-
     try {
 
         const response =
             await fetch(
-                `/api/railway/maps/${id}`,
+                `/api/railway/maps/${encodeURIComponent(id)}`,
                 {
                     method:
                         "DELETE"
                 }
             );
 
-
         const result =
             await response.json();
-
 
         if (!response.ok) {
 
@@ -5191,7 +3667,6 @@ async function deleteMap(
             );
 
         }
-
 
         if (
             state.currentMapId ===
@@ -5203,9 +3678,7 @@ async function deleteMap(
 
         }
 
-
         await loadMapList();
-
 
         showToast(
             "削除しました"
@@ -5224,11 +3697,6 @@ async function deleteMap(
 
 }
 
-
-/* =========================================================
-   USER
-========================================================= */
-
 async function loadUser() {
 
     try {
@@ -5238,14 +3706,11 @@ async function loadUser() {
                 "/api/user"
             );
 
-
         const result =
             await response.json();
 
-
         const userArea =
             $("userArea");
-
 
         if (
             result &&
@@ -5255,10 +3720,8 @@ async function loadUser() {
             const user =
                 result.user;
 
-
             let avatar =
                 "";
-
 
             if (
                 user.avatar &&
@@ -5269,7 +3732,6 @@ async function loadUser() {
                     `https://cdn.discordapp.com/avatars/${user.discordId}/${user.avatar}.png?size=64`;
 
             }
-
 
             userArea.innerHTML = `
 
@@ -5301,7 +3763,6 @@ async function loadUser() {
 
             `;
 
-
             loadMapList();
 
         } else {
@@ -5330,11 +3791,6 @@ async function loadUser() {
 
 }
 
-
-/* =========================================================
-   KEYBOARD
-========================================================= */
-
 document.addEventListener(
     "keydown",
     event => {
@@ -5354,7 +3810,6 @@ document.addEventListener(
 
         }
 
-
         if (
             event.key ===
             "Escape"
@@ -5371,11 +3826,6 @@ document.addEventListener(
     }
 );
 
-
-/* =========================================================
-   MAP NAME
-========================================================= */
-
 $("mapName")
     .addEventListener(
         "input",
@@ -5386,11 +3836,6 @@ $("mapName")
 
         }
     );
-
-
-/* =========================================================
-   INIT
-========================================================= */
 
 normalizeMap();
 
