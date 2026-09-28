@@ -1457,7 +1457,7 @@ function drawStationText(group, station) {
             addTextGroup("roman", roman, romanDir, romanSize, romanOX + defaultRomanX, romanOY + defaultRomanY, display.romanRotation, "roman", romanOX, romanOY);
         }
     } else {
-        const nameDefaultY = Math.max(14, 10 + box.height * 0.08);
+        const nameDefaultY = 24;
         addTextGroup("name", name, nameDir, nameSize, nameOX, nameOY + nameDefaultY, display.nameRotation, "name", nameOX, nameOY);
         if (roman) {
             const romanDefaultX = 0;
@@ -1536,6 +1536,8 @@ function renderTrainTypeLine(line, trainType, typeIndex, activeTypeCount) {
         });
         hit.addEventListener("click", event => {
             event.stopPropagation();
+            state.selectedLineId = line.id;
+            updateLineList();
         });
         lineLayer.appendChild(hit);
     }
@@ -1612,7 +1614,6 @@ function renderLineLayer() {
                 });
                 pointNode.addEventListener("click", event => {
                     event.stopPropagation();
-                    if (state.bendMode) return;
                     if (!confirm("この折れ点を削除しますか？")) return;
                     segment.points = (segment.points || []).filter(candidate => candidate !== point);
                     if (!segment.points.length) {
@@ -1631,11 +1632,14 @@ function renderStation(station) {
     const group = createSvgElement("g", { class: "station-node station-group" });
     group.dataset.stationId = station.id;
     const box = getStationBoxSize(station);
-    const stationCount = state.map.lines.filter(line => line.stationIds?.includes(station.id)).length;
+    const stationLines = state.map.lines.filter(line => line.stationIds?.includes(station.id));
+    const stationCount = stationLines.length;
     if (stationCount >= 2) {
+        const boxWidth = Math.min(Math.max(box.width, 46), 58);
+        const boxHeight = Math.min(Math.max(box.height, 58), 82);
         group.appendChild(createSvgElement("rect", {
-            x: station.x - box.width / 2, y: station.y - box.height / 2,
-            width: Math.min(box.width, 58), height: Math.min(box.height, 82), rx: 4, ry: 4, fill: "white", stroke: "#111", "stroke-width": 3, class: "station-large-box"
+            x: station.x - boxWidth / 2, y: station.y - boxHeight / 2,
+            width: boxWidth, height: boxHeight, rx: 4, ry: 4, fill: "white", stroke: "#111", "stroke-width": 3, class: "station-large-box"
         }));
     } else {
         group.appendChild(createSvgElement("circle", {
@@ -1760,9 +1764,10 @@ function updateStationList() {
     const container=$("stationList"); container.innerHTML="";
     for (const station of state.map.stations) {
         const row=document.createElement("div"); row.className="editor-list-item station-list-item";
-        row.innerHTML=`<div class="list-main"><strong>${escapeHtml(station.name||"名称未設定")}</strong><small>${escapeHtml(station.roman||"")}</small></div><div class="list-actions"><button class="small-button" data-action="visibility">${station.visible?"表示":"非表示"}</button><button class="small-button" data-action="inline-edit">編集</button><button class="danger-small-button" data-action="delete">削除</button></div>`;
+        row.innerHTML=`<div class="list-main"><strong>${escapeHtml(station.name||"名称未設定")}</strong><small>${escapeHtml(station.roman||"")}</small></div><div class="list-actions"><button class="small-button" data-action="visibility">${station.visible?"表示":"非表示"}</button><button class="small-button" data-action="inline-edit">編集</button><button class="small-button" data-action="edit">詳細</button><button class="danger-small-button" data-action="delete">削除</button></div>`;
         row.querySelector('[data-action="visibility"]').addEventListener("click",e=>{e.stopPropagation();station.visible=!station.visible;renderMap();});
         row.querySelector('[data-action="inline-edit"]').addEventListener("click",e=>{e.stopPropagation();state.inlineEditStationId=state.inlineEditStationId===station.id?null:station.id;state.selectedStationId=station.id;updateStationList();});
+        row.querySelector('[data-action="edit"]').addEventListener("click",e=>{e.stopPropagation();openStationModal(station.id);});
         row.querySelector('[data-action="delete"]').addEventListener("click",e=>{e.stopPropagation();if(!confirm("この駅を削除しますか？"))return;state.map.stations=state.map.stations.filter(item=>item.id!==station.id);for(const line of state.map.lines){line.stationIds=line.stationIds.filter(id=>id!==station.id);for(const setting of line.trainTypes)setting.stationIds=setting.stationIds.filter(id=>id!==station.id);line.segments=(line.segments||[]).filter(segment=>segment.fromStationId!==station.id&&segment.toStationId!==station.id);}renderMap();});
         container.appendChild(row); appendStationInlineEditor(row,station);
     }
@@ -2809,7 +2814,7 @@ svg.addEventListener("pointerdown", event => {
         const activeSettings = (line.trainTypes || []).filter(item => (item.stationIds || []).length >= 2);
         const laneGap = Math.max((Number(type.lineWidth) || 6.5) + 13, 20);
         const typeIndex = activeSettings.indexOf(setting);
-        const laneOffset = (Number(type.lineOffset) || 0) + (typeIndex - (line.trainTypes.length - 1) / 2) * laneGap;
+        const laneOffset = (Number(type.lineOffset) || 0) + (typeIndex - (activeSettings.length - 1) / 2) * laneGap;
         for (let i = 0; i < stations.length - 1; i++) {
             const a = stations[i], b = stations[i + 1];
             const existing = getBendPoints(line, a.id, b.id, type.id).map(q => ({x:q.x, y:q.y + laneOffset}));
@@ -2830,11 +2835,14 @@ svg.addEventListener("pointerdown", event => {
         line.segments.push(segment);
     }
     const activeSettings = (line.trainTypes || []).filter(item => (item.stationIds || []).length >= 2);
-    const laneGap = candidates.length ? Math.max((Number(getTrainType(activeSettings[best.typeIndex]?.trainTypeId)?.lineWidth) || 6.5) + 13, 20) : 20;
-    const type = getTrainType(activeSettings[best.typeIndex]?.trainTypeId);
+    const selectedSetting = activeSettings[best.typeIndex];
+    const type = getTrainType(selectedSetting?.trainTypeId);
+    const laneGap = Math.max((Number(type?.lineWidth) || 6.5) + 13, 20);
     const laneOffset = (Number(type?.lineOffset) || 0) + (best.typeIndex - (activeSettings.length - 1) / 2) * laneGap;
     const rawPoint = { x: best.point.x, y: best.point.y - laneOffset };
-    segment.points.push(rawPoint);
+    if (!segment.points.some(point => Math.hypot(point.x - rawPoint.x, point.y - rawPoint.y) < 6)) {
+        segment.points.push(rawPoint);
+    }
     segment.points.sort((u,v) => {
         const a = getStation(segment.fromStationId), b = getStation(segment.toStationId);
         const dx=b.x-a.x, dy=b.y-a.y, len2=dx*dx+dy*dy || 1;
