@@ -1353,7 +1353,7 @@ function getStationMultiplicity(station) {
             }
         }
     }
-    return { routeCount, typeCount: typeKeys.size, boxed: routeCount >= 2 || typeKeys.size >= 2 };
+    return { routeCount, typeCount: typeKeys.size, boxed: typeKeys.size >= 2 };
 }
 
 function getLineLaneGap(line, active) {
@@ -1598,8 +1598,8 @@ function drawStationText(group, station, options = {}) {
 
     const name = station.name || "";
     const roman = station.roman || "";
-    const nameSize = Number(display.nameSize) || 18;
-    const romanSize = Number(display.romanSize) || 11;
+    const baseNameSize = Number(display.nameSize) || 18;
+    const baseRomanSize = Number(display.romanSize) || 11;
     const vertical = (display.nameDirection || "vertical") === "vertical";
     const nameOX = Number(display.nameOffsetX) || 0;
     const nameOY = Number(display.nameOffsetY) || 0;
@@ -1630,9 +1630,7 @@ function drawStationText(group, station, options = {}) {
         if (!text) return;
         const chars = [...text];
         const rows = [];
-        for (let i = 0; i < chars.length; i += 2) {
-            rows.push(chars.slice(i, i + 2).join(""));
-        }
+        for (let i = 0; i < chars.length; i += 2) rows.push(chars.slice(i, i + 2).join(""));
         const gap = size * 1.15;
         const total = rows.length * gap;
         rows.forEach((row, i) => {
@@ -1649,49 +1647,64 @@ function drawStationText(group, station, options = {}) {
     }
 
     if (multiplicity.boxed) {
-        // 箱駅では駅名を箱のど真ん中へ。
-        const nameCenterY = centerY + nameOY;
-        if (vertical) {
-            verticalText(name, cx + nameOX, nameCenterY, nameSize, "station-name");
-        } else {
-            horizontalWrappedText(name, cx + nameOX, nameCenterY, nameSize, "station-name");
+        // 箱駅：箱の中心を固定し、文字だけを箱内へ収める。
+        let nameSize = baseNameSize;
+        let romanSize = baseRomanSize;
+        const stops = getStationLaneContexts(station, false);
+        const all = getStationLaneContexts(station, true);
+
+        // 非停車種別線をまたがない範囲を「箱の中心」から計算する。
+        // 文字が収まらなければフォントだけを縮小し、箱の位置は動かさない。
+        if (display.boxMode !== "manual" && stops.length) {
+            const ys = stops.map(c => c.y).sort((a,b)=>a-b);
+            const stopCenter = (ys[0] + ys[ys.length-1]) / 2;
+            const maxLineWidth = Math.max(10, ...stops.map(c => Number(c.type?.lineWidth) || 10));
+            const others = all.filter(c => !c.stopsHere).map(c => c.y);
+            const upper = others.filter(y => y < stopCenter).reduce((m,y)=>Math.max(m,y), -Infinity);
+            const lower = others.filter(y => y > stopCenter).reduce((m,y)=>Math.min(m,y), Infinity);
+            const upperRoom = Number.isFinite(upper) ? stopCenter - upper - maxLineWidth/2 - 5 : Infinity;
+            const lowerRoom = Number.isFinite(lower) ? lower - stopCenter - maxLineWidth/2 - 5 : Infinity;
+            const room = Math.min(upperRoom, lowerRoom);
+            if (Number.isFinite(room) && room > 0) {
+                const maxTextHeight = Math.max(12, room * 2 - 8);
+                const required = vertical
+                    ? Math.max(1, [...name].length) * nameSize * 1.08
+                    : Math.max(1, Math.ceil([...name].length/2)) * nameSize * 1.15;
+                if (required > maxTextHeight) {
+                    const ratio = maxTextHeight / required;
+                    nameSize = Math.max(8, nameSize * ratio);
+                    romanSize = Math.max(6, romanSize * ratio);
+                }
+            }
         }
 
-        // ローマ字は駅名のすぐ右隣。サイズ指定をそのまま使用し、縦書き。
+        const nameCenterY = centerY + nameOY;
+        if (display.nameVisible !== false) {
+            if (vertical) verticalText(name, cx + nameOX, nameCenterY, nameSize, "station-name");
+            else horizontalWrappedText(name, cx + nameOX, nameCenterY, nameSize, "station-name");
+        }
+
         if (roman && display.romanVisible !== false) {
-            const nameWidth = vertical
-                ? nameSize
-                : Math.min(box.width * 0.55, estimateTextWidth(
-                    [...name].slice(0, 2).join(""), nameSize
-                ));
-            const romanX =
-                cx + nameWidth / 2 + romanSize / 2 + 2 + romanOX;
+            // ローマ字は駅名の右側へ寄せる。縦書き駅名なら名前列のすぐ右。
+            const nameColumnWidth = vertical ? nameSize : Math.min(box.width * 0.45, estimateTextWidth([...name].slice(0,2).join(""), nameSize));
+            const romanX = cx + nameColumnWidth / 2 + romanSize / 2 + 2 + romanOX;
             verticalText(roman, romanX, nameCenterY + romanOY, romanSize, "station-roman");
         }
         return;
     }
 
-    // 丸駅：丸の中心と駅名が重ならない位置にラベルを置く。
+    // 丸駅：駅名は丸の中心ではなく、丸の下側へ配置する。
     const markerY = getStationLaneContexts(station, false)[0]?.y ?? station.y;
-    const labelY = markerY + Math.max(20, nameSize + 10) + nameOY;
+    const labelY = markerY + Math.max(24, baseNameSize + 12) + nameOY;
 
-    if (vertical) {
-        verticalText(name, cx + nameOX, labelY, nameSize, "station-name");
-    } else {
-        horizontalWrappedText(name, cx + nameOX, labelY, nameSize, "station-name");
+    if (display.nameVisible !== false) {
+        if (vertical) verticalText(name, cx + nameOX, labelY, baseNameSize, "station-name");
+        else horizontalWrappedText(name, cx + nameOX, labelY, baseNameSize, "station-name");
     }
 
     if (roman && display.romanVisible !== false) {
-        const nameWidth = vertical
-            ? nameSize
-            : Math.min(70, estimateTextWidth([...name].slice(0, 2).join(""), nameSize));
-        verticalText(
-            roman,
-            cx + nameWidth / 2 + romanSize / 2 + 2 + romanOX,
-            labelY + romanOY,
-            romanSize,
-            "station-roman"
-        );
+        const nameWidth = vertical ? baseNameSize : Math.min(70, estimateTextWidth([...name].slice(0,2).join(""), baseNameSize));
+        verticalText(roman, cx + nameWidth / 2 + baseRomanSize / 2 + 2 + romanOX, labelY + romanOY, baseRomanSize, "station-roman");
     }
 }
 
