@@ -2990,26 +2990,3 @@ textarea { resize: vertical; overflow-wrap: anywhere; }
 .map-line-hit { pointer-events: stroke; cursor: pointer; }
 .station-transfer-line { pointer-events:none; }
 .station-transfer-box { pointer-events:none; }
-
-/* Inline station editing and mobile pointer handling */
-.station-inline-editor-box { min-width: 200px; }
-.station-inline-row input[data-inline="name"],
-.station-inline-row input[data-inline="roman"] { flex: 1; width: auto; }
-.station-group { touch-action: none; }
-#mapViewport { overscroll-behavior: contain; }
-#railwayMap { touch-action: pan-x pan-y; }
-
-
-/* Toolbar and modal controls */
-.history-button { font-size: 25px; line-height: 1; min-width: 40px; padding: 4px 8px; }
-.modal-header { position: relative; }
-.modal-close-button { margin-left: auto; border: 0; background: transparent; font-size: 28px; line-height: 1; cursor: pointer; color: inherit; }
-.line-station-order { display: inline-flex; min-width: 1.5em; justify-content: center; color: #718096; font-size: 12px; }
-.line-station-item > .small-button { min-width: 30px; padding: 3px 7px; }
-@media (max-width: 700px) {
-  .workspace-toolbar { flex-wrap: wrap; gap: 6px; }
-  .toolbar-left, .toolbar-right { flex-wrap: wrap; gap: 5px; }
-  .history-button { min-width: 36px; min-height: 36px; }
-  .modal-window { width: min(96vw, 560px); max-height: 90dvh; overflow: auto; }
-  .station-inline-editor { max-width: calc(100vw - 16px); }
-}
