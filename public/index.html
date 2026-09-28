@@ -286,20 +286,6 @@
 
             </div>
 
-            <div class="field">
-
-                <label for="selectedTrainType">
-                    列車種別
-                </label>
-
-                <select id="selectedTrainType">
-                    <option value="">
-                        種別を選択
-                    </option>
-                </select>
-
-            </div>
-
             <div
                 id="lineStationEditor"
                 class="line-station-editor"
@@ -362,8 +348,8 @@
 
             <div class="toolbar-right">
 
-                <button id="undoButton" class="secondary-button">Undo</button>
-                <button id="redoButton" class="secondary-button">Redo</button>
+                <button id="undoButton" class="icon-button history-button" title="元に戻す" aria-label="元に戻す">↶</button>
+                <button id="redoButton" class="icon-button history-button" title="やり直す" aria-label="やり直す">↷</button>
                 <button
                     id="toggleGridButton"
                     class="secondary-button"
@@ -1038,11 +1024,8 @@
     <div class="modal-window login-window">
 
         <div class="modal-header">
-
-            <h2>
-                Discordログイン
-            </h2>
-
+            <h2>Discordログイン</h2>
+            <button type="button" id="closeLoginModal" class="modal-close" aria-label="閉じる">×</button>
         </div>
 
         <div class="modal-body">
@@ -1534,7 +1517,9 @@ function distancePointToSegment(p, a, b) {
 function renderTrainTypeLine(line, trainType, typeIndex, activeTypeCount) {
     const setting = line.trainTypes.find(item => item.trainTypeId === trainType.id);
     if (!setting) return;
-    const stations = (setting.stationIds || []).map(getStation).filter(Boolean).filter(station => station.visible);
+    const routeOrder = new Map((line.stationIds || []).map((id, index) => [id, index]));
+    const stations = (setting.stationIds || []).map(getStation).filter(Boolean).filter(station => station.visible)
+        .sort((a, b) => (routeOrder.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (routeOrder.get(b.id) ?? Number.MAX_SAFE_INTEGER));
     if (stations.length < 2) return;
     const width = Math.max(1, Number(trainType.lineWidth) || 5) + 1.5;
     const baseOffset = Number(trainType.lineOffset) || 0;
@@ -1612,13 +1597,19 @@ function renderStationInlineEditor(group, station, box) {
     if (state.inlineEditStationId !== station.id) return;
     const fo = createSvgElement("foreignObject", {
         x: station.x - 105, y: station.y + box.height / 2 + 10,
-        width: 210, height: 164, class: "station-inline-editor"
+        width: 250, height: 260, class: "station-inline-editor"
     });
     const div = document.createElement("div");
     div.className = "station-inline-editor-box";
     div.innerHTML = `
         <div class="station-inline-row"><label>駅名</label><input data-inline="name" type="text" value="${escapeHtml(station.name || "")}"></div>
         <div class="station-inline-row"><label>ローマ字</label><input data-inline="roman" type="text" value="${escapeHtml(station.roman || "")}"></div>
+        <div class="station-inline-row"><label>駅名サイズ</label><input data-inline="nameSize" type="number" min="6" max="80" value="${Number(station.display.nameSize) || 18}"></div>
+        <div class="station-inline-row"><label>駅名回転</label><input data-inline="nameRotation" type="number" min="-180" max="180" value="${Number(station.display.nameRotation) || 0}"></div>
+        <div class="station-inline-row"><label>駅名方向</label><select data-inline="nameDirection"><option value="vertical" ${station.display.nameDirection !== "horizontal" ? "selected" : ""}>縦書き</option><option value="horizontal" ${station.display.nameDirection === "horizontal" ? "selected" : ""}>横書き</option></select></div>
+        <div class="station-inline-row"><label>ローマ字サイズ</label><input data-inline="romanSize" type="number" min="5" max="60" value="${Number(station.display.romanSize) || 11}"></div>
+        <div class="station-inline-row"><label>ローマ字回転</label><input data-inline="romanRotation" type="number" min="-180" max="180" value="${Number(station.display.romanRotation) || 0}"></div>
+        <div class="station-inline-row"><label>ローマ字方向</label><select data-inline="romanDirection"><option value="vertical" ${station.display.romanDirection !== "horizontal" ? "selected" : ""}>縦書き</option><option value="horizontal" ${station.display.romanDirection === "horizontal" ? "selected" : ""}>横書き</option></select></div>
         <div class="station-inline-row"><label>前間隔</label><input data-inline="before" type="number" min="0" value="${Number(station.display.spacingBefore) || 100}"></div>
         <div class="station-inline-row"><label>次間隔</label><input data-inline="after" type="number" min="0" value="${Number(station.display.spacingAfter) || 100}"></div>
         <div class="station-inline-checks">
@@ -1631,6 +1622,8 @@ function renderStationInlineEditor(group, station, box) {
             const key = e.target.dataset.inline;
             if (key === "nameVisible" || key === "romanVisible") station.display[key] = e.target.checked;
             else if (key === "name" || key === "roman") station[key] = e.target.value;
+            else if (["nameDirection", "romanDirection"].includes(key)) station.display[key] = e.target.value;
+            else if (["nameSize", "romanSize", "nameRotation", "romanRotation"].includes(key)) station.display[key] = Number(e.target.value) || 0;
             else station.display[key === "before" ? "spacingBefore" : "spacingAfter"] = Number(e.target.value) || 0;
             if (key === "before" || key === "after") applyStationSpacing(station);
             renderMap();
@@ -1675,6 +1668,16 @@ function renderStation(station) {
     drawStationText(group, station);
     renderTransferGuides(group, station, box);
     renderStationInlineEditor(group, station, box);
+    if (state.inlineEditStationId === station.id) {
+        for (const [selector, field] of [[".station-name-group", "name"], [".station-roman-group", "roman"]]) {
+            const textGroup = group.querySelector(selector);
+            if (textGroup) textGroup.addEventListener("click", event => {
+                event.stopPropagation();
+                const input = group.querySelector(`[data-inline="${field}"]`);
+                if (input) input.focus();
+            });
+        }
+    }
 
     group.style.touchAction = "none";
     group.addEventListener("pointerdown", event => {
@@ -1710,9 +1713,10 @@ function renderStation(station) {
     stationLayer.appendChild(group);
 }
 
-const history = { undo: [], redo: [], last: "" };
+const history = { undo: [], redo: [], last: "", restoring: false };
 function snapshotMap() { return JSON.stringify(state.map); }
 function pushHistory() {
+    if (history.restoring) return;
     const snap = snapshotMap();
     if (history.last && history.last !== snap) { history.undo.push(history.last); projectDirty = true; }
     history.last = snap;
@@ -1726,7 +1730,9 @@ function restoreHistory(from, to) {
     to.push(current);
     state.map = JSON.parse(from.pop());
     history.last = snapshotMap();
+    history.restoring = true;
     renderMap();
+    history.restoring = false;
 }
 
 function renderMap() {
@@ -1735,6 +1741,7 @@ function renderMap() {
     stationLayer.innerHTML = "";
     lineLayer.innerHTML = "";
     selectionLayer.innerHTML = "";
+    $("mapGrid").style.display = state.gridVisible ? "" : "none";
     for (const line of state.map.lines) {
         const active = (line.trainTypes || []).filter(setting => (setting.stationIds || []).length >= 2);
         active.forEach((setting, index) => {
@@ -1836,6 +1843,14 @@ function updateStationList() {
 
             }
         );
+
+        const openLineStations = () => {
+            state.selectedLineId = line.id;
+            updateSelectors();
+            updateLineStationEditor();
+        };
+        row.querySelector(".line-name-open").addEventListener("click", openLineStations);
+        row.querySelector(".line-name-open").addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openLineStations(); } });
 
         row.querySelector(
             '[data-action="edit"]'
@@ -1949,10 +1964,8 @@ function updateLineList() {
 
             <div class="list-main">
 
-                <strong>
-                    ${escapeHtml(
-                        line.name
-                    )}
+                <strong class="line-name-open" role="button" tabindex="0">
+                    ${escapeHtml(line.name)}
                 </strong>
 
                 <small>
@@ -2238,7 +2251,11 @@ function updateLineStationEditor() {
     const title = document.createElement("h4");
     title.textContent = "路線の駅";
     container.appendChild(title);
-    for (const station of state.map.stations) {
+    const routeStations = [
+        ...line.stationIds.map(getStation).filter(Boolean),
+        ...state.map.stations.filter(station => !line.stationIds.includes(station.id))
+    ];
+    for (const station of routeStations) {
         const item = document.createElement("div");
         item.className = "line-station-item";
         const label = document.createElement("label");
@@ -2261,6 +2278,27 @@ function updateLineStationEditor() {
         span.textContent = station.name;
         label.appendChild(span);
         item.appendChild(label);
+        if (checkbox.checked) {
+            const orderControls = document.createElement("span");
+            orderControls.className = "station-order-controls";
+            const move = (delta) => {
+                const ids = line.stationIds;
+                const from = ids.indexOf(station.id), to = from + delta;
+                if (from < 0 || to < 0 || to >= ids.length) return;
+                const other = getStation(ids[to]);
+                const here = getStation(ids[from]);
+                if (other && here) { const x = here.x; here.x = other.x; other.x = x; const y = here.y; here.y = other.y; other.y = y; }
+                [ids[from], ids[to]] = [ids[to], ids[from]];
+                for (const setting of line.trainTypes) setting.stationIds.sort((a,b) => ids.indexOf(a)-ids.indexOf(b));
+                renderMap();
+            };
+            for (const [labelText, delta] of [["↑",-1],["↓",1]]) {
+                const button = document.createElement("button"); button.type = "button"; button.className = "small-button"; button.textContent = labelText; button.title = delta < 0 ? "上へ移動" : "下へ移動";
+                button.disabled = line.stationIds.indexOf(station.id) + delta < 0 || line.stationIds.indexOf(station.id) + delta >= line.stationIds.length;
+                button.addEventListener("click", () => move(delta)); orderControls.appendChild(button);
+            }
+            item.appendChild(orderControls);
+        }
         if (checkbox.checked && state.map.trainTypes.length) {
             const stopBox = document.createElement("div");
             stopBox.className = "station-stop-settings";
@@ -3443,6 +3481,9 @@ async function saveMap() {
     }
 
 }
+
+$("closeLoginModal")?.addEventListener("click", () => $("loginModal").classList.add("hidden"));
+$("loginModal")?.querySelector(".modal-backdrop")?.addEventListener("click", () => $("loginModal").classList.add("hidden"));
 
 $("saveButton")
     .addEventListener(

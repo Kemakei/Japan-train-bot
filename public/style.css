@@ -2990,3 +2990,37 @@ textarea { resize: vertical; overflow-wrap: anywhere; }
 .map-line-hit { pointer-events: stroke; cursor: pointer; }
 .station-transfer-line { pointer-events:none; }
 .station-transfer-box { pointer-events:none; }
+
+/* Inline station editing and mobile pointer handling */
+.station-inline-editor-box { min-width: 200px; }
+.station-inline-row input[data-inline="name"],
+.station-inline-row input[data-inline="roman"] { flex: 1; width: auto; }
+.station-group { touch-action: none; }
+#mapViewport { overscroll-behavior: contain; }
+#railwayMap { touch-action: pan-x pan-y; }
+
+
+/* Requested UI refinements */
+.modal-header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.modal-close { border:0; background:transparent; font-size:28px; line-height:1; cursor:pointer; padding:2px 8px; color:inherit; }
+.history-button { font-size:24px; line-height:1; min-width:40px; }
+@media (max-width: 600px) {
+  .workspace-toolbar { flex-wrap:wrap; gap:6px; }
+  .toolbar-left, .toolbar-right { flex-wrap:wrap; min-width:0; }
+  #fitButton { white-space:nowrap; }
+  .workspace { min-width:0; }
+}
+
+.line-name-open { cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
+.station-order-controls { display:flex; gap:4px; justify-content:flex-end; }
+.station-order-controls .small-button { min-width:30px; padding:3px 7px; }
+
+/* Expanded inline station typography controls */
+.station-inline-editor-box { min-width: 240px; max-width: min(250px, calc(100vw - 24px)); max-height: min(70vh, 520px); overflow-y: auto; }
+.station-inline-row select { flex: 1; min-width: 0; box-sizing: border-box; padding: 3px 4px; }
+.station-inline-row label { width: 78px; flex: 0 0 78px; }
+@media (max-width: 600px) {
+  .station-inline-editor { max-width: calc(100vw - 12px); }
+  .station-inline-editor-box { font-size: 12px; }
+  .station-inline-row input, .station-inline-row select { min-height: 30px; }
+}
