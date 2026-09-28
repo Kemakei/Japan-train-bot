@@ -1357,46 +1357,22 @@ function getStationMultiplicity(station) {
 }
 
 function getLineLaneGap(line, active) {
-    const baseGap = Math.max(
-        ...active.map(setting => {
-            const type = getTrainType(setting.trainTypeId);
-            return Math.max((Number(type?.lineWidth) || 6.5) + 8, 16);
-        }),
-        20
-    );
-
-    // 3種別以上では、駅BOXが別種別の線を跨がないだけの間隔を自動確保する。
-    if (active.length >= 3) {
-        let requiredGap = baseGap;
-        for (const station of state.map.stations) {
-            if (!station.visible) continue;
-            const stopCount = active.filter(setting =>
-                (setting.stationIds || []).includes(station.id)
-            ).length;
-            if (stopCount >= 2 && station.display?.boxMode !== "manual") {
-                const nameSize = Number(station.display?.nameSize) || 18;
-                const romanSize = Number(station.display?.romanSize) || 11;
-                const name = station.name || "";
-                const vertical = (station.display?.nameDirection || "vertical") === "vertical";
-                const textHeight = vertical
-                    ? Math.max(52, [...name].length * nameSize * 1.08 + 22)
-                    : Math.max(42, nameSize + 18);
-                requiredGap = Math.max(requiredGap, textHeight + romanSize + 24);
-            }
-        }
-        return requiredGap;
-    }
-
-    return baseGap;
+    const widths = active.map(setting => {
+        const type = getTrainType(setting.trainTypeId);
+        return Math.max(2, Number(type?.lineWidth) || 6.5);
+    });
+    const maxWidth = Math.max(...widths, 6.5);
+    const minimum = Math.max(maxWidth + 6, 12);
+    const extra = Math.max(0, active.length - 2);
+    const gradual = Math.min(7, Math.sqrt(extra) * 2.8);
+    return Math.min(20, minimum + gradual);
 }
 
 function getStationLaneContexts(station, includeAllActive = false) {
     const contexts = [];
-
     for (const line of state.map.lines) {
         const active = (line.trainTypes || [])
             .filter(setting => (setting.stationIds || []).length >= 2);
-
         if (!active.length) continue;
 
         const routeOrder = new Map(
@@ -1407,19 +1383,16 @@ function getStationLaneContexts(station, includeAllActive = false) {
         active.forEach((setting, typeIndex) => {
             const type = getTrainType(setting.trainTypeId);
             if (!type) return;
-
             const stopsHere = (setting.stationIds || []).includes(station.id);
             if (!includeAllActive && !stopsHere) return;
 
+            // 登録順：最初が下、新しいものほど上。
             const laneOffset =
                 (Number(type.lineOffset) || 0) +
-                ((active.length - 1 - typeIndex) - (active.length - 1) / 2) * laneGap;
+                ((active.length - 1) / 2 - typeIndex) * laneGap;
 
             contexts.push({
-                line,
-                setting,
-                type,
-                typeIndex,
+                line, setting, type, typeIndex,
                 activeCount: active.length,
                 laneGap,
                 laneOffset,
@@ -1429,7 +1402,6 @@ function getStationLaneContexts(station, includeAllActive = false) {
             });
         });
     }
-
     return contexts;
 }
 
@@ -1489,6 +1461,11 @@ function getTextMetrics(text, size, direction) {
 function getStationBoxSize(station) {
     const display = station.display || {};
     const multiplicity = getStationMultiplicity(station);
+    const name = station.name || "";
+    const roman = station.roman || "";
+    const nameSize = Number(display.nameSize) || 18;
+    const romanSize = Number(display.romanSize) || 11;
+    const vertical = (display.nameDirection || "vertical") === "vertical";
 
     if (display.boxMode === "manual") {
         return {
@@ -1497,50 +1474,37 @@ function getStationBoxSize(station) {
         };
     }
 
-    const nameSize = Number(display.nameSize) || 18;
-    const romanSize = Number(display.romanSize) || 11;
-    const name = station.name || "";
-    const roman = station.roman || "";
-    const nameDir = display.nameDirection || "vertical";
-    const nameMetrics = getTextMetrics(name, nameSize, nameDir);
-    const romanMetrics = getTextMetrics(roman, romanSize, "horizontal");
+    const stops = getStationLaneContexts(station, false);
+    const widths = stops.map(c => Math.max(2, Number(c.type?.lineWidth) || 6.5));
+    const maxLineWidth = Math.max(...widths, 6.5);
 
-    // 駅名は横書きなら2文字ごとに自動改行。縦書きなら全文字を縦に積む。
-    let width = nameMetrics.width + (roman ? romanMetrics.width + 18 : 12) + 20;
-    let height = Math.max(42, nameMetrics.height + 22, romanMetrics.height + 18);
+    const nameHeight = vertical
+        ? Math.max(40, [...name].length * nameSize * 1.08 + 20)
+        : Math.max(40, Math.ceil([...name].length / 2) * nameSize * 1.15 + 18);
 
-    if (multiplicity.boxed) {
-        const stopContexts = getStationLaneContexts(station, false);
-        const allContexts = getStationLaneContexts(station, true);
+    const nameWidth = vertical
+        ? nameSize
+        : Math.max(nameSize * 2, estimateTextWidth(
+            [...name].slice(0, 2).join(""), nameSize
+        ));
 
-        // 複数種別が停車する駅は、停車する一番上～一番下の線を
-        // ひとつの箱で完全に覆う。箱の中心もその範囲の中央へ合わせる。
-        if (stopContexts.length >= 2) {
-            const stopYs = stopContexts.map(c => c.y);
-            const span = Math.max(...stopYs) - Math.min(...stopYs);
-            height = Math.max(height, span + 18);
-        }
+    const romanHeight = roman
+        ? Math.max(romanSize * Math.max(1, [...roman].length) * 1.08, romanSize + 10)
+        : 0;
 
-        // 3種別以上で、停車線の間に非停車線がある場合でも、
-        // 「停車する線を覆う」という条件を優先し、文字が切れないようにする。
-        if (allContexts.length >= 3) {
-            const stopYs = stopContexts.map(c => c.y);
-            if (stopYs.length) {
-                const stopSpan = Math.max(...stopYs) - Math.min(...stopYs);
-                height = Math.max(height, stopSpan + 18);
-            }
-        }
+    let width = Math.max(58, nameWidth + (roman ? romanSize + 14 : 0) + 24);
+    let height = Math.max(nameHeight, romanHeight + 16);
 
-        return {
-            width: Math.max(58, width),
-            height: Math.max(42, height)
-        };
+    // 停車する全種別の線を、箱の中に完全に収める。
+    if (multiplicity.boxed && stops.length >= 2) {
+        const ys = stops.map(c => c.y).sort((a, b) => a - b);
+        const span = ys[ys.length - 1] - ys[0];
+        height = Math.max(height, span + maxLineWidth + 18);
+    } else if (multiplicity.boxed && stops.length === 1) {
+        height = Math.max(height, maxLineWidth + 28);
     }
 
-    return {
-        width: Math.max(70, width),
-        height: Math.max(58, height)
-    };
+    return { width, height: Math.max(40, height) };
 }
 
 function createSvgElement(
@@ -1570,104 +1534,109 @@ function createSvgElement(
 
 }
 
-function drawStationText(group, station) {
+function drawStationText(group, station, options = {}) {
     const display = station.display || {};
-    const box = getStationBoxSize(station);
+    const multiplicity = getStationMultiplicity(station);
+    const box = options.box || getStationBoxSize(station);
     const cx = station.x;
+    const centerY = Number.isFinite(options.centerY) ? options.centerY : station.y;
+
     const name = station.name || "";
     const roman = station.roman || "";
     const nameSize = Number(display.nameSize) || 18;
     const romanSize = Number(display.romanSize) || 11;
-    const nameDir = display.nameDirection || "vertical";
+    const vertical = (display.nameDirection || "vertical") === "vertical";
     const nameOX = Number(display.nameOffsetX) || 0;
     const nameOY = Number(display.nameOffsetY) || 0;
     const romanOX = Number(display.romanOffsetX) || 0;
     const romanOY = Number(display.romanOffsetY) || 0;
-    const stopContexts = getStationLaneContexts(station, false);
-    const large = getStationMultiplicity(station).boxed;
 
-    function addTextGroup(textValue, direction, size, x, centerY, rotation, role) {
-        if (!textValue) return;
-        if (role === "name" && display.nameVisible === false) return;
-        if (role === "roman" && display.romanVisible === false) return;
-
-        const g = createSvgElement("g", {
-            class: role === "name" ? "station-name-group" : "station-roman-group",
-            transform: `rotate(${Number(rotation) || 0} ${x} ${centerY})`,
-            "data-text-role": role
-        });
-
-        if (direction === "vertical") {
-            const chars = [...textValue];
-            const step = size * 1.08;
-            const total = chars.length * step;
-            let y = centerY - total / 2 + step / 2;
-            for (const ch of chars) {
-                const t = createSvgElement("text", {
-                    x, y, "font-size": size, "text-anchor": "middle",
-                    "dominant-baseline": "middle",
-                    class: role === "name" ? "station-name" : "station-roman",
-                    style: `font-size: ${size}px`
-                });
-                t.textContent = ch;
-                g.appendChild(t);
-                y += step;
-            }
-        } else {
-            // 横書きは2文字ごとに自動改行して箱からのはみ出しを防ぐ。
-            const lines = role === "name" ? getHorizontalTextLines(textValue) : [textValue];
-            const step = size * 1.12;
-            const total = lines.length * step;
-            let y = centerY - total / 2 + step / 2;
-            for (const line of lines) {
-                const t = createSvgElement("text", {
-                    x, y, "font-size": size, "text-anchor": "middle",
-                    "dominant-baseline": "middle",
-                    class: role === "name" ? "station-name" : "station-roman",
-                    style: `font-size: ${size}px`
-                });
-                t.textContent = line;
-                g.appendChild(t);
-                y += step;
-            }
+    function verticalText(text, x, y, size, className) {
+        if (!text) return;
+        const g = createSvgElement("g", { class: className + "-group" });
+        const chars = [...text];
+        const step = size * 1.08;
+        const total = chars.length * step;
+        let yy = y - total / 2 + step / 2;
+        for (const ch of chars) {
+            const t = createSvgElement("text", {
+                x, y: yy, "font-size": size,
+                "text-anchor": "middle", "dominant-baseline": "middle",
+                class: className
+            });
+            t.textContent = ch;
+            g.appendChild(t);
+            yy += step;
         }
         group.appendChild(g);
     }
 
-    const stopYs = stopContexts.map(c => c.y);
-    const stopCenterY = stopYs.length
-        ? (Math.min(...stopYs) + Math.max(...stopYs)) / 2
-        : station.y;
+    function horizontalWrappedText(text, x, y, size, className) {
+        if (!text) return;
+        const chars = [...text];
+        const rows = [];
+        for (let i = 0; i < chars.length; i += 2) {
+            rows.push(chars.slice(i, i + 2).join(""));
+        }
+        const gap = size * 1.15;
+        const total = rows.length * gap;
+        rows.forEach((row, i) => {
+            const t = createSvgElement("text", {
+                x, y: y - total / 2 + gap / 2 + i * gap,
+                "font-size": size,
+                "text-anchor": "middle",
+                "dominant-baseline": "middle",
+                class: className
+            });
+            t.textContent = row;
+            group.appendChild(t);
+        });
+    }
 
-    const nameMetrics = getTextMetrics(name, nameSize, nameDir);
-    const romanMetrics = getTextMetrics(roman, romanSize, "horizontal");
+    if (multiplicity.boxed) {
+        // 箱駅では駅名を箱のど真ん中へ。
+        const nameCenterY = centerY + nameOY;
+        if (vertical) {
+            verticalText(name, cx + nameOX, nameCenterY, nameSize, "station-name");
+        } else {
+            horizontalWrappedText(name, cx + nameOX, nameCenterY, nameSize, "station-name");
+        }
 
-    if (large) {
-        // 日本語駅名とローマ字を横方向に並べる。ローマ字のサイズはromanSizeをそのまま使用。
-        const nameX = cx - (roman ? (romanMetrics.width + 10) / 2 : 0) + nameOX;
-        const romanX = cx + (nameMetrics.width + 10) / 2 + romanMetrics.width / 2 + romanOX;
-
-        addTextGroup(name, nameDir, nameSize, nameX, stopCenterY + nameOY, display.nameRotation, "name");
-        if (roman) {
-            addTextGroup(roman, "horizontal", romanSize, romanX, stopCenterY + romanOY, display.romanRotation, "roman");
+        // ローマ字は駅名のすぐ右隣。サイズ指定をそのまま使用し、縦書き。
+        if (roman && display.romanVisible !== false) {
+            const nameWidth = vertical
+                ? nameSize
+                : Math.min(box.width * 0.55, estimateTextWidth(
+                    [...name].slice(0, 2).join(""), nameSize
+                ));
+            const romanX =
+                cx + nameWidth / 2 + romanSize / 2 + 5 + romanOX;
+            verticalText(roman, romanX, nameCenterY + romanOY, romanSize, "station-roman");
         }
         return;
     }
 
-    const labelBaseY = getStationLabelBaseY(station, stopContexts);
-    if (name && display.nameVisible !== false) {
-        const nameCenterY = labelBaseY + nameOY + (nameDir === "vertical" ? nameMetrics.height / 2 - nameSize / 2 : 0);
-        addTextGroup(name, nameDir, nameSize, cx + nameOX, nameCenterY, display.nameRotation, "name");
+    // 丸駅：丸の中心と駅名が重ならない位置にラベルを置く。
+    const markerY = getStationLaneContexts(station, false)[0]?.y ?? station.y;
+    const labelY = markerY + Math.max(20, nameSize + 10) + nameOY;
 
-        if (roman && display.romanVisible !== false) {
-            const romanX = cx + nameMetrics.width / 2 + romanMetrics.width / 2 + 10 + romanOX;
-            addTextGroup(roman, "horizontal", romanSize, romanX, nameCenterY + romanOY, display.romanRotation, "roman");
-        }
-    } else if (roman && display.romanVisible !== false) {
-        addTextGroup(roman, "horizontal", romanSize,
-            cx + romanMetrics.width / 2 + 8 + romanOX,
-            labelBaseY + romanSize / 2 + 8 + romanOY,
-            display.romanRotation, "roman");
+    if (vertical) {
+        verticalText(name, cx + nameOX, labelY, nameSize, "station-name");
+    } else {
+        horizontalWrappedText(name, cx + nameOX, labelY, nameSize, "station-name");
+    }
+
+    if (roman && display.romanVisible !== false) {
+        const nameWidth = vertical
+            ? nameSize
+            : Math.min(70, estimateTextWidth([...name].slice(0, 2).join(""), nameSize));
+        verticalText(
+            roman,
+            cx + nameWidth / 2 + romanSize / 2 + 5 + romanOX,
+            labelY + romanOY,
+            romanSize,
+            "station-roman"
+        );
     }
 }
 
@@ -1845,59 +1814,67 @@ function renderLineLayer() {
 
 function renderStation(station) {
     if (!station.visible) return;
+
     const group = createSvgElement("g", { class: "station-node station-group" });
     group.dataset.stationId = station.id;
+
     const box = getStationBoxSize(station);
     const multiplicity = getStationMultiplicity(station);
-    const stopContexts = getStationLaneContexts(station, false);
+    const stops = getStationLaneContexts(station, false);
+
+    const stopCenterY = stops.length
+        ? (Math.min(...stops.map(c => c.y)) + Math.max(...stops.map(c => c.y))) / 2
+        : station.y;
 
     if (multiplicity.boxed) {
-        const boxWidth = box.width;
-        const boxHeight = box.height;
-        const stopCenterY = stopContexts.length
-            ? stopContexts.reduce((sum, context) => sum + context.y, 0) / stopContexts.length
-            : station.y;
-
+        // 箱駅では丸を描画しない。
         group.appendChild(createSvgElement("rect", {
-            x: station.x - boxWidth / 2,
-            y: stopCenterY - boxHeight / 2,
-            width: boxWidth,
-            height: boxHeight,
-            rx: 4,
-            ry: 4,
+            x: station.x - box.width / 2,
+            y: stopCenterY - box.height / 2,
+            width: box.width,
+            height: box.height,
+            rx: 4, ry: 4,
             fill: "white",
             stroke: "#111",
             "stroke-width": 3,
             class: "station-large-box"
         }));
-
-        // BOX駅では小駅用の丸を残さず、箱そのものが停車駅を表す。
-        // 線は箱の下を通り、箱は停車する線の範囲を自動で覆う。
     } else {
-        const markerY = stopContexts.length
-            ? stopContexts[0].y
-            : station.y;
-        const markerColor = stopContexts[0]?.type?.color || "#111";
+        const markerY = stops[0]?.y ?? station.y;
         group.appendChild(createSvgElement("circle", {
-            cx: station.x,
-            cy: markerY,
-            r: 5,
+            cx: station.x, cy: markerY, r: 5,
             fill: "white",
-            stroke: markerColor,
+            stroke: stops[0]?.type?.color || "#111",
             "stroke-width": 2.5,
             class: "station-small-marker-circle"
         }));
     }
-    drawStationText(group, station);
+
+    drawStationText(group, station, {
+        centerY: multiplicity.boxed ? stopCenterY : undefined,
+        box
+    });
     renderTransferGuides(group, station, box);
 
     group.style.touchAction = "none";
+
     group.addEventListener("pointerdown", event => {
         if (event.target.closest?.("foreignObject")) return;
         if (state.bendMode || !state.dragMode) return;
-        if (!event.target.matches?.("circle, rect")) return;
+        if (!event.target.matches?.("circle, rect, text, tspan")) return;
+
         event.preventDefault();
         event.stopPropagation();
+
+        const viewport = $("mapViewport");
+        if (viewport) {
+            viewport.dataset.stationDragScrollLeft = String(viewport.scrollLeft);
+            viewport.dataset.stationDragScrollTop = String(viewport.scrollTop);
+            viewport.classList.add("station-dragging");
+        }
+        document.documentElement.classList.add("station-dragging-active");
+        document.body.classList.add("station-dragging-active");
+
         state.selectedStationId = station.id;
         const p = svgPointFromEvent(event);
         state.draggingStation = station;
@@ -1905,35 +1882,45 @@ function renderStation(station) {
         state.dragOffsetY = station.y - p.y;
         group.dataset.dragStartX = station.x;
         group.dataset.dragStartY = station.y;
-        const viewport = $("mapViewport");
-        state.dragViewportScrollLeft = viewport.scrollLeft;
-        state.dragViewportScrollTop = viewport.scrollTop;
         group.setPointerCapture(event.pointerId);
     });
+
     group.addEventListener("pointermove", event => {
         if (state.draggingStation !== station) return;
         event.preventDefault();
-        const viewport = $("mapViewport");
-        viewport.scrollLeft = state.dragViewportScrollLeft;
-        viewport.scrollTop = state.dragViewportScrollTop;
+        event.stopPropagation();
+
         const p = svgPointFromEvent(event);
         station.x = clamp(p.x + state.dragOffsetX, 20, 50000);
         station.y = clamp(p.y + state.dragOffsetY, 20, 980);
+
         renderLineLayer();
+
+        const viewport = $("mapViewport");
+        if (viewport) {
+            viewport.scrollLeft = Number(viewport.dataset.stationDragScrollLeft) || 0;
+            viewport.scrollTop = Number(viewport.dataset.stationDragScrollTop) || 0;
+        }
+
         const startX = Number(group.dataset.dragStartX);
         const startY = Number(group.dataset.dragStartY);
-        group.setAttribute("transform", `translate(${station.x - startX} ${station.y - startY})`);
+        group.setAttribute("transform",
+            `translate(${station.x - startX} ${station.y - startY})`);
     });
+
     group.addEventListener("pointerup", event => {
-        if (state.draggingStation === station) {
-            state.draggingStation = null;
-            try { group.releasePointerCapture(event.pointerId); } catch {}
-            const viewport = $("mapViewport");
-            viewport.scrollLeft = state.dragViewportScrollLeft;
-            viewport.scrollTop = state.dragViewportScrollTop;
-            renderMap();
-        }
+        if (state.draggingStation !== station) return;
+        state.draggingStation = null;
+
+        const viewport = $("mapViewport");
+        if (viewport) viewport.classList.remove("station-dragging");
+        document.documentElement.classList.remove("station-dragging-active");
+        document.body.classList.remove("station-dragging-active");
+
+        try { group.releasePointerCapture(event.pointerId); } catch {}
+        renderMap();
     });
+
     stationLayer.appendChild(group);
 }
 
@@ -3118,6 +3105,10 @@ document.addEventListener("pointerup", () => {
     state.bendPointerActive = false;
     if (state.draggingStation) {
         state.draggingStation = null;
+        const viewport = $("mapViewport");
+        if (viewport) viewport.classList.remove("station-dragging");
+        document.documentElement.classList.remove("station-dragging-active");
+        document.body.classList.remove("station-dragging-active");
     }
 });
 
@@ -3768,4 +3759,19 @@ loadUser();
 </script>
 
 </body>
-</html>
+</html><style>
+html.station-dragging-active,
+body.station-dragging-active {
+  overscroll-behavior: none !important;
+}
+
+#mapViewport.station-dragging {
+  overflow: hidden !important;
+  touch-action: none !important;
+  overscroll-behavior: none !important;
+}
+
+.station-group {
+  touch-action: none;
+}
+</style>
