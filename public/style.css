@@ -3131,3 +3131,9 @@ textarea { resize: vertical; overflow-wrap: anywhere; }
   .station-inline-grid { grid-template-columns: 1fr; }
   .embedded-line-editor { padding: 7px; }
 }
+
+
+/* 駅の停車種別ごとの丸 */
+.station-stop-marker-circle {
+  pointer-events: none;
+}
