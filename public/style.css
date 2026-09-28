@@ -2990,3 +2990,120 @@ textarea { resize: vertical; overflow-wrap: anywhere; }
 .map-line-hit { pointer-events: stroke; cursor: pointer; }
 .station-transfer-line { pointer-events:none; }
 .station-transfer-box { pointer-events:none; }
+
+
+/* Railway Map Editor fixes */
+.map-viewport.grid-off {
+  background: #f8fafc !important;
+  background-image: none !important;
+  background-size: auto !important;
+}
+.history-button {
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 700;
+}
+.history-button:disabled {
+  opacity: .35;
+}
+.line-station-order {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.line-station-order-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: #fff;
+}
+.line-station-order-main {
+  flex: 1;
+  min-width: 0;
+}
+.line-station-order-main strong,
+.line-station-order-main small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.line-station-order-main small {
+  color: var(--text-soft);
+  font-size: 10px;
+}
+.line-station-order-controls {
+  display: flex;
+  gap: 4px;
+}
+.line-station-available {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.stop-station-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 6px;
+}
+.station-inline-editor {
+  overflow: visible;
+}
+.station-inline-editor-box {
+  min-width: 250px;
+  max-width: min(290px, calc(100vw - 24px));
+  padding: 8px;
+}
+.station-inline-row input,
+.station-inline-row select {
+  flex: 1;
+  width: auto;
+}
+@media (max-width: 850px) {
+  .app-header {
+    height: auto;
+    min-height: var(--header-height);
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+  .header-left, .header-right {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+  .app-title { font-size: 16px; }
+  .app-subtitle { display: none; }
+  .workspace-toolbar {
+    align-items: stretch;
+    flex-wrap: wrap;
+    padding: 6px 8px;
+  }
+  .toolbar-left, .toolbar-right {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+  .map-viewport {
+    min-width: 0;
+    -webkit-overflow-scrolling: touch;
+  }
+  .modal {
+    padding: 8px;
+  }
+  .modal-window {
+    width: min(720px, calc(100vw - 16px));
+    max-width: calc(100vw - 16px);
+    max-height: calc(100vh - 16px);
+  }
+  .modal-footer {
+    flex-wrap: wrap;
+  }
+  .modal-footer-right {
+    margin-left: auto;
+  }
+}
