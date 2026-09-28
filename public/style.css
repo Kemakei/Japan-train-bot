@@ -932,7 +932,7 @@ a {
 
   stroke: transparent;
 
-  stroke-width: 16;
+  stroke-width: 22;
 
   pointer-events: stroke;
 
@@ -3124,7 +3124,6 @@ textarea { resize: vertical; overflow-wrap: anywhere; }
 .station-inline-grid input, .station-inline-grid select { margin-top: 3px; width: 100%; min-width: 0; padding: 5px 6px; border: 1px solid var(--border); border-radius: 5px; background: #fff; font: inherit; color: var(--text); }
 .station-inline-checks { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 10px; }
 .station-inline-checks label { font-size: 10px; color: var(--text-soft); }
-.station-large-box { width: 58px; height: 82px; }
 .station-small-marker-circle { r: 5; }
 .map-line { stroke-linecap: round; stroke-linejoin: round; }
 @media (max-width: 850px) {

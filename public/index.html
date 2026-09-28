@@ -942,7 +942,7 @@
                     min="1"
                     max="30"
                     step="0.5"
-                    value="5"
+                    value="10"
                 >
 
             </div>
@@ -1280,7 +1280,7 @@ function normalizeMap() {
 
         type.lineOffset ??= 0;
 
-        type.lineWidth ??= 6.5;
+        type.lineWidth ??= 10;
 
     }
 
@@ -1357,15 +1357,14 @@ function getStationMultiplicity(station) {
 }
 
 function getLineLaneGap(line, active) {
+    // 線幅10pxを基準に、隣接する線の「線間」を約8px確保する。
+    // したがってレーン中心間隔は、最大線幅 + 8px を基本値とする。
     const widths = active.map(setting => {
         const type = getTrainType(setting.trainTypeId);
-        return Math.max(2, Number(type?.lineWidth) || 6.5);
+        return Math.max(2, Number(type?.lineWidth) || 10);
     });
-    const maxWidth = Math.max(...widths, 6.5);
-    const minimum = Math.max(maxWidth + 6, 12);
-    const extra = Math.max(0, active.length - 2);
-    const gradual = Math.min(7, Math.sqrt(extra) * 2.8);
-    return Math.min(20, minimum + gradual);
+    const maxWidth = Math.max(...widths, 10);
+    return maxWidth + 8;
 }
 
 function getStationLaneContexts(station, includeAllActive = false) {
@@ -1423,7 +1422,7 @@ function getStationLabelBaseY(station, stopContexts) {
         const nameSize = Number(station.display?.nameSize) || 18;
         const gap = Math.max(
             16,
-            (Number(type?.lineWidth) || 6.5) + 10
+            (Number(type?.lineWidth) || 10) + 10
         );
         return bottomY + gap + nameSize / 2;
     }
@@ -1463,11 +1462,40 @@ function getStationBoxSize(station) {
     const multiplicity = getStationMultiplicity(station);
     const name = station.name || "";
     const roman = station.roman || "";
-    const nameSize = Number(display.nameSize) || 18;
-    const romanSize = Number(display.romanSize) || 11;
+    let nameSize = Number(display.nameSize) || 18;
+    let romanSize = Number(display.romanSize) || 11;
     const vertical = (display.nameDirection || "vertical") === "vertical";
 
+    // 箱駅では、箱の中心位置を固定したまま文字だけを箱内に収める。
+    // 非停車種別線が近い場合は箱をその線まで拡張せず、駅名フォントを縮小する。
+    if (multiplicity.boxed && display.boxMode !== "manual") {
+        const stops = getStationLaneContexts(station, false);
+        const allContexts = getStationLaneContexts(station, true);
+        if (stops.length) {
+            const ys = stops.map(c => c.y).sort((a, b) => a - b);
+            const center = (ys[0] + ys[ys.length - 1]) / 2;
+            const maxLineWidth = Math.max(10, ...stops.map(c => Number(c.type?.lineWidth) || 10));
+            const others = allContexts.filter(c => !c.stopsHere).map(c => c.y);
+            const upper = others.filter(y => y < center).reduce((m, y) => Math.max(m, y), -Infinity);
+            const lower = others.filter(y => y > center).reduce((m, y) => Math.min(m, y), Infinity);
+            const topLimit = Number.isFinite(upper) ? Math.max(0, center - upper - maxLineWidth / 2 - 6) : Infinity;
+            const bottomLimit = Number.isFinite(lower) ? Math.max(0, lower - center - maxLineWidth / 2 - 6) : Infinity;
+            const allowedHeight = (Number.isFinite(topLimit) || Number.isFinite(bottomLimit))
+                ? Math.max(maxLineWidth + 8, 2 * Math.min(topLimit, bottomLimit))
+                : box.height;
+            const nameRequired = vertical
+                ? Math.max(1, [...name].length) * nameSize * 1.08 + 8
+                : Math.max(1, Math.ceil([...name].length / 2)) * nameSize * 1.15 + 8;
+            if (nameRequired > allowedHeight) {
+                const ratio = allowedHeight / nameRequired;
+                nameSize = Math.max(8, nameSize * ratio);
+                romanSize = Math.max(6, romanSize * ratio);
+            }
+        }
+    }
+
     if (display.boxMode === "manual") {
+        // 手動サイズ変更では駅の座標(x/y)を一切変更せず、矩形の寸法だけを返す。
         return {
             width: Math.max(20, Number(display.boxWidth) || 80),
             height: Math.max(20, Number(display.boxHeight) || 120)
@@ -1475,33 +1503,60 @@ function getStationBoxSize(station) {
     }
 
     const stops = getStationLaneContexts(station, false);
-    const widths = stops.map(c => Math.max(2, Number(c.type?.lineWidth) || 6.5));
-    const maxLineWidth = Math.max(...widths, 6.5);
+    const allContexts = getStationLaneContexts(station, true);
+    const widths = stops.map(c => Math.max(2, Number(c.type?.lineWidth) || 10));
+    const maxLineWidth = Math.max(...widths, 10);
 
+    const nameChars = [...name];
     const nameHeight = vertical
-        ? Math.max(40, [...name].length * nameSize * 1.08 + 20)
-        : Math.max(40, Math.ceil([...name].length / 2) * nameSize * 1.15 + 18);
+        ? Math.max(40, nameChars.length * nameSize * 1.08 + 12)
+        : Math.max(40, Math.ceil(nameChars.length / 2) * nameSize * 1.15 + 12);
 
+    // 箱の横幅は駅名に合わせ、不要な左右余白を減らす。
     const nameWidth = vertical
         ? nameSize
-        : Math.max(nameSize * 2, estimateTextWidth(
-            [...name].slice(0, 2).join(""), nameSize
-        ));
-
-    const romanHeight = roman
-        ? Math.max(romanSize * Math.max(1, [...roman].length) * 1.08, romanSize + 10)
+        : Math.max(nameSize * 2, estimateTextWidth(nameChars.slice(0, 2).join(""), nameSize));
+    const romanWidth = roman && display.romanVisible !== false
+        ? romanSize * 1.05
         : 0;
+    const width = Math.max(42, nameWidth + romanWidth + (roman ? 10 : 8));
 
-    let width = Math.max(58, nameWidth + (roman ? romanSize + 14 : 0) + 24);
-    let height = Math.max(nameHeight, romanHeight + 16);
+    const romanHeight = roman && display.romanVisible !== false
+        ? Math.max(romanSize * Math.max(1, [...roman].length) * 1.08, romanSize + 8)
+        : 0;
+    let height = Math.max(nameHeight, romanHeight + 10, maxLineWidth + 12, 40);
 
-    // 停車する全種別の線を、箱の中に完全に収める。
-    if (multiplicity.boxed && stops.length >= 2) {
+    if (multiplicity.boxed && stops.length) {
         const ys = stops.map(c => c.y).sort((a, b) => a - b);
-        const span = ys[ys.length - 1] - ys[0];
-        height = Math.max(height, span + maxLineWidth + 18);
-    } else if (multiplicity.boxed && stops.length === 1) {
-        height = Math.max(height, maxLineWidth + 28);
+        const stopMin = ys[0];
+        const stopMax = ys[ys.length - 1];
+        const stopSpan = stopMax - stopMin;
+        const stopCenter = (stopMin + stopMax) / 2;
+
+        // 箱は「停車する種別線」の中心を基準にする。非停車種別線が上下にある場合は、
+        // その線をまたがない最大高さを算出し、長い駅名は後段でフォントを縮小する。
+        const otherYs = allContexts
+            .filter(c => !c.stopsHere)
+            .map(c => c.y);
+        const upper = otherYs.filter(y => y < stopCenter).reduce((m, y) => Math.max(m, y), -Infinity);
+        const lower = otherYs.filter(y => y > stopCenter).reduce((m, y) => Math.min(m, y), Infinity);
+        const topLimit = Number.isFinite(upper)
+            ? Math.max(0, stopCenter - upper - maxLineWidth / 2 - 4)
+            : Infinity;
+        const bottomLimit = Number.isFinite(lower)
+            ? Math.max(0, lower - stopCenter - maxLineWidth / 2 - 4)
+            : Infinity;
+        const maxHeightWithoutCrossing = Math.max(
+            maxLineWidth + 10,
+            Number.isFinite(topLimit) || Number.isFinite(bottomLimit)
+                ? 2 * Math.min(topLimit, bottomLimit)
+                : Infinity
+        );
+
+        height = Math.max(height, stopSpan + maxLineWidth + 10);
+        if (Number.isFinite(maxHeightWithoutCrossing)) {
+            height = Math.min(height, maxHeightWithoutCrossing);
+        }
     }
 
     return { width, height: Math.max(40, height) };
@@ -1610,7 +1665,7 @@ function drawStationText(group, station, options = {}) {
                     [...name].slice(0, 2).join(""), nameSize
                 ));
             const romanX =
-                cx + nameWidth / 2 + romanSize / 2 + 5 + romanOX;
+                cx + nameWidth / 2 + romanSize / 2 + 2 + romanOX;
             verticalText(roman, romanX, nameCenterY + romanOY, romanSize, "station-roman");
         }
         return;
@@ -1632,7 +1687,7 @@ function drawStationText(group, station, options = {}) {
             : Math.min(70, estimateTextWidth([...name].slice(0, 2).join(""), nameSize));
         verticalText(
             roman,
-            cx + nameWidth / 2 + romanSize / 2 + 5 + romanOX,
+            cx + nameWidth / 2 + romanSize / 2 + 2 + romanOX,
             labelY + romanOY,
             romanSize,
             "station-roman"
@@ -1689,7 +1744,7 @@ function renderTrainTypeLine(line, trainType, typeIndex, activeTypeCount) {
         .filter(station => station.visible)
         .sort((a, b) => (routeOrder.get(a.id) ?? Infinity) - (routeOrder.get(b.id) ?? Infinity));
     if (stations.length < 2) return;
-    const width = Math.max(2, Number(trainType.lineWidth) || 6.5);
+    const width = Math.max(2, Number(trainType.lineWidth) || 10);
     const baseOffset = Number(trainType.lineOffset) || 0;
     const laneGap = getLineLaneGap(line, line.trainTypes.filter(item => (item.stationIds || []).length >= 2));
     const laneOffset = baseOffset + ((activeTypeCount - 1 - typeIndex) - (activeTypeCount - 1) / 2) * laneGap;
@@ -1822,6 +1877,8 @@ function renderStation(station) {
     const multiplicity = getStationMultiplicity(station);
     const stops = getStationLaneContexts(station, false);
 
+    // 箱の位置は駅座標/停車レーンからのみ決める。box.width/height は位置計算に使わない。
+    // これにより高さ変更時に駅自体が上下へ移動することがない。
     const stopCenterY = stops.length
         ? (Math.min(...stops.map(c => c.y)) + Math.max(...stops.map(c => c.y))) / 2
         : station.y;
@@ -2379,7 +2436,7 @@ $("addTrainTypeButton")
                     0,
 
                 lineWidth:
-                    5
+                    10
 
             };
 
