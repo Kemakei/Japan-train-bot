@@ -1574,7 +1574,9 @@ function getStationBoxSize(station) {
     const romanWidth = roman && display.romanVisible !== false
         ? (display.romanDirection === "horizontal" ? estimateTextWidth(roman, romanSize) : romanSize + 4)
         : 0;
-    const width = Math.max(100, nameWidth + romanWidth + (roman ? 14 : 18));
+    // BOXは横幅を少し詰め、縦幅はほんの少し余裕を持たせる。
+    const width = Math.max(88, nameWidth + romanWidth + (roman ? 10 : 14));
+    height += 8;
 
     return { width, height, nameSize, romanSize };
 }
@@ -1664,12 +1666,20 @@ function drawStationText(group, station, options = {}) {
 
         if (roman && display.romanVisible !== false) {
             const nameMetrics = getTextMetrics(name, nameSize, display.nameDirection || "vertical");
-            const romanGap = 6;
-            const romanX = cx + nameMetrics.width / 2 + romanSize / 2 + romanGap + romanOX;
             if (romanVertical) {
+                // ローマ字を縦書きにする場合は、日本語駅名の右側。
+                const romanX = cx + nameMetrics.width / 2 + romanSize / 2 + 6 + romanOX;
                 verticalText(roman, romanX, nameCenterY + romanOY, romanSize, "station-roman");
             } else {
-                horizontalText(roman, romanX, nameCenterY + romanOY, romanSize, "station-roman");
+                // ローマ字を横書きにする場合は、日本語駅名の真下。
+                // 日本語が横書きでも縦書きでも、駅名全体の高さを基準にして重ならないようにする。
+                const romanMetrics = getTextMetrics(roman, romanSize, "horizontal");
+                const romanCenterY = nameCenterY
+                    + nameMetrics.height / 2
+                    + romanMetrics.height / 2
+                    + 4
+                    + romanOY;
+                horizontalText(roman, cx + nameOX + romanOX, romanCenterY, romanSize, "station-roman");
             }
         }
         return;
@@ -1697,12 +1707,17 @@ function drawStationText(group, station, options = {}) {
     }
 
     if (roman && display.romanVisible !== false) {
-        const nameWidth = nameMetrics.width;
-        const romanX = cx + nameWidth / 2 + romanSize / 2 + 6 + romanOX;
         if (romanVertical) {
+            const romanX = cx + nameMetrics.width / 2 + romanSize / 2 + 6 + romanOX;
             verticalText(roman, romanX, nameCenterY + romanOY, romanSize, "station-roman");
         } else {
-            horizontalText(roman, romanX, nameCenterY + romanOY, romanSize, "station-roman");
+            const romanMetrics = getTextMetrics(roman, romanSize, "horizontal");
+            const romanCenterY = nameCenterY
+                + nameMetrics.height / 2
+                + romanMetrics.height / 2
+                + 4
+                + romanOY;
+            horizontalText(roman, cx + nameOX + romanOX, romanCenterY, romanSize, "station-roman");
         }
     }
 }
@@ -1861,8 +1876,16 @@ function renderLineLayer() {
                     "data-line-id": line.id, "data-train-type-id": segment.trainTypeId, "data-point-index": pointIndex
                 });
                 pointNode.style.pointerEvents = "all";
+                // 折れ点追加モード中は、この折れ点をタップしても削除処理へ入らない。
+                pointNode.addEventListener("pointerdown", event => {
+                    if (state.bendMode) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                });
                 pointNode.addEventListener("click", event => {
                     event.stopPropagation();
+                    if (state.bendMode) return;
                     const currentLine = getLine(line.id);
                     const currentSegment = currentLine?.segments?.find(s => s.id === segment.id);
                     if (!currentSegment) return;
