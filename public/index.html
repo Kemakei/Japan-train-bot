@@ -1478,12 +1478,9 @@ function getStationLabelBaseY(station, stopContexts) {
 }
 
 function getHorizontalTextLines(text) {
-    const chars = [...String(text || "")];
-    const lines = [];
-    for (let i = 0; i < chars.length; i += 2) {
-        lines.push(chars.slice(i, i + 2).join(""));
-    }
-    return lines;
+    // 横書きは文字数で強制改行しない。必要な幅は駅名に合わせて確保する。
+    const value = String(text || "");
+    return value ? [value] : [];
 }
 
 function getTextMetrics(text, size, direction) {
@@ -1573,9 +1570,11 @@ function getStationBoxSize(station) {
     // 駅名に合わせて横幅を詰める。ただし極端に細くしない。
     const nameWidth = vertical
         ? nameSize + 4
-        : Math.max(nameSize + 8, Math.min(estimateTextWidth([...name].slice(0, 2).join(""), nameSize), 150));
-    const romanWidth = roman && display.romanVisible !== false ? romanSize + 4 : 0;
-    const width = Math.max(56, Math.min(220, nameWidth + romanWidth + (roman ? 14 : 12)));
+        : Math.max(nameSize + 8, estimateTextWidth(name, nameSize));
+    const romanWidth = roman && display.romanVisible !== false
+        ? (display.romanDirection === "horizontal" ? estimateTextWidth(roman, romanSize) : romanSize + 4)
+        : 0;
+    const width = Math.max(100, nameWidth + romanWidth + (roman ? 14 : 18));
 
     return { width, height, nameSize, romanSize };
 }
@@ -1611,25 +1610,25 @@ function drawStationText(group, station, options = {}) {
     const multiplicity = getStationMultiplicity(station);
     const box = options.box || getStationBoxSize(station);
     const cx = station.x;
-    const centerY = Number.isFinite(options.centerY) ? options.centerY : station.y;
 
     const name = station.name || "";
     const roman = station.roman || "";
     const nameSize = Number(box.nameSize) || Number(display.nameSize) || 18;
     const romanSize = Number(box.romanSize) || Number(display.romanSize) || 9;
     const vertical = (display.nameDirection || "vertical") === "vertical";
+    const romanVertical = (display.romanDirection || "vertical") === "vertical";
     const nameOX = Number(display.nameOffsetX) || 0;
     const nameOY = Number(display.nameOffsetY) || 0;
     const romanOX = Number(display.romanOffsetX) || 0;
     const romanOY = Number(display.romanOffsetY) || 0;
 
-    function verticalText(text, x, y, size, className) {
+    function verticalText(text, x, centerY, size, className) {
         if (!text) return;
         const g = createSvgElement("g", { class: className + "-group" });
         const chars = [...text];
         const step = size * 1.08;
         const total = chars.length * step;
-        let yy = y - total / 2 + step / 2;
+        let yy = centerY - total / 2 + step / 2;
         for (const ch of chars) {
             const t = createSvgElement("text", {
                 x, y: yy, "font-size": size,
@@ -1643,72 +1642,68 @@ function drawStationText(group, station, options = {}) {
         group.appendChild(g);
     }
 
-    function horizontalWrappedText(text, x, y, size, className) {
+    function horizontalText(text, x, centerY, size, className) {
         if (!text) return;
-        const chars = [...text];
-        const rows = [];
-        for (let i = 0; i < chars.length; i += 2) {
-            rows.push(chars.slice(i, i + 2).join(""));
-        }
-        const gap = size * 1.15;
-        const total = rows.length * gap;
-        rows.forEach((row, i) => {
-            const t = createSvgElement("text", {
-                x, y: y - total / 2 + gap / 2 + i * gap,
-                "font-size": size,
-                "text-anchor": "middle",
-                "dominant-baseline": "middle",
-                class: className
-            });
-            t.textContent = row;
-            group.appendChild(t);
+        const t = createSvgElement("text", {
+            x, y: centerY, "font-size": size,
+            "text-anchor": "middle", "dominant-baseline": "middle",
+            class: className
         });
+        t.textContent = text;
+        group.appendChild(t);
     }
 
     if (multiplicity.boxed) {
-        // 箱駅では駅名を箱のど真ん中へ。
-        const nameCenterY = centerY + nameOY;
+        // BOX駅はBOX中央を基準にする。手動オフセットは文字だけを動かす。
+        const nameCenterY = (Number.isFinite(options.centerY) ? options.centerY : station.y) + nameOY;
         if (vertical) {
             verticalText(name, cx + nameOX, nameCenterY, nameSize, "station-name");
         } else {
-            horizontalWrappedText(name, cx + nameOX, nameCenterY, nameSize, "station-name");
+            horizontalText(name, cx + nameOX, nameCenterY, nameSize, "station-name");
         }
 
-        // ローマ字は駅名のすぐ右隣。サイズ指定をそのまま使用し、縦書き。
         if (roman && display.romanVisible !== false) {
-            const nameWidth = vertical
-                ? nameSize
-                : Math.min(box.width * 0.55, estimateTextWidth(
-                    [...name].slice(0, 2).join(""), nameSize
-                ));
-            const romanX =
-                cx + nameWidth / 2 + romanSize / 2 + 2 + romanOX;
-            verticalText(roman, romanX, nameCenterY + romanOY, romanSize, "station-roman");
+            const nameMetrics = getTextMetrics(name, nameSize, display.nameDirection || "vertical");
+            const romanGap = 6;
+            const romanX = cx + nameMetrics.width / 2 + romanSize / 2 + romanGap + romanOX;
+            if (romanVertical) {
+                verticalText(roman, romanX, nameCenterY + romanOY, romanSize, "station-roman");
+            } else {
+                horizontalText(roman, romanX, nameCenterY + romanOY, romanSize, "station-roman");
+            }
         }
         return;
     }
 
-    // 丸駅：丸の中心と駅名が重ならない位置にラベルを置く。
-    const markerY = getStationLaneContexts(station, false)[0]?.y ?? station.y;
-    const labelY = markerY + Math.max(20, nameSize + 10) + nameOY;
+    // 丸駅：丸の中心ではなく「一番下の線路の下」を駅名の開始基準にする。
+    // これにより、駅が上段・中段の停車線にあっても駅名が丸と重ならない。
+    const stops = getStationLaneContexts(station, false);
+    const allContexts = getStationLaneContexts(station, true);
+    const markerY = stops[0]?.y ?? station.y;
+    const bottomLineY = allContexts.length
+        ? Math.max(...allContexts.map(context => context.y))
+        : markerY;
+    const bottomLineWidth = allContexts.length
+        ? Math.max(...allContexts.map(context => Math.max(2, Number(context.type?.lineWidth) || 10)))
+        : 10;
+    const gap = Math.max(10, bottomLineWidth / 2 + 7);
+    const nameMetrics = getTextMetrics(name, nameSize, vertical ? "vertical" : "horizontal");
+    const nameCenterY = bottomLineY + bottomLineWidth / 2 + gap + nameMetrics.height / 2 + nameOY;
 
     if (vertical) {
-        verticalText(name, cx + nameOX, labelY, nameSize, "station-name");
+        verticalText(name, cx + nameOX, nameCenterY, nameSize, "station-name");
     } else {
-        horizontalWrappedText(name, cx + nameOX, labelY, nameSize, "station-name");
+        horizontalText(name, cx + nameOX, nameCenterY, nameSize, "station-name");
     }
 
     if (roman && display.romanVisible !== false) {
-        const nameWidth = vertical
-            ? nameSize
-            : Math.min(70, estimateTextWidth([...name].slice(0, 2).join(""), nameSize));
-        verticalText(
-            roman,
-            cx + nameWidth / 2 + romanSize / 2 + 2 + romanOX,
-            labelY + romanOY,
-            romanSize,
-            "station-roman"
-        );
+        const nameWidth = nameMetrics.width;
+        const romanX = cx + nameWidth / 2 + romanSize / 2 + 6 + romanOX;
+        if (romanVertical) {
+            verticalText(roman, romanX, nameCenterY + romanOY, romanSize, "station-roman");
+        } else {
+            horizontalText(roman, romanX, nameCenterY + romanOY, romanSize, "station-roman");
+        }
     }
 }
 
@@ -1910,7 +1905,7 @@ function renderStation(station) {
             rx: 4, ry: 4,
             fill: "white",
             stroke: "#111",
-            "stroke-width": 2,
+            "stroke-width": 1.5,
             class: "station-large-box"
         }));
     } else {
@@ -3379,31 +3374,54 @@ $("saveButton")
         saveMap
     );
 
-const discordLoginButton = $("discordLoginButton");
-if (discordLoginButton) {
-    discordLoginButton.addEventListener("click", event => {
-        event.preventDefault();
-        const authWindow = window.open(discordLoginButton.href, "railwayDiscordLogin", "width=520,height=760");
-        if (!authWindow) {
-            showToast("ログイン画面を開けませんでした。ポップアップを許可してください");
-            return;
-        }
-        const timer = setInterval(async () => {
-            try {
-                const response = await fetch("/api/user", { cache: "no-store" });
-                const data = await response.json();
-                if (data?.user) {
-                    clearInterval(timer);
-                    try { authWindow.close(); } catch (_) {}
-                    $("loginModal").classList.add("hidden");
-                    await loadMapList();
-                    showToast("Discordログインが完了しました");
-                }
-            } catch (_) {}
-        }, 1000);
-        setTimeout(() => clearInterval(timer), 5 * 60 * 1000);
-    });
+async function refreshLoggedInUser() {
+    try {
+        await loadUser();
+        await loadMapList();
+    } catch (error) {
+        console.error("User refresh error:", error);
+    }
 }
+
+function openDiscordLoginInNewTab(event) {
+    if (event) event.preventDefault();
+    const source = event?.currentTarget || event?.target?.closest?.('a[href="/auth/discord"]');
+    const url = source?.href || "/auth/discord";
+    const authWindow = window.open(url, "railwayDiscordLogin", "width=520,height=760,noopener,noreferrer");
+    if (!authWindow) {
+        showToast("ログイン画面を開けませんでした。ポップアップを許可してください");
+        return false;
+    }
+
+    let finished = false;
+    const finish = async () => {
+        if (finished) return;
+        try {
+            const response = await fetch("/api/user", { cache: "no-store" });
+            const data = await response.json();
+            if (!data?.user) return;
+            finished = true;
+            clearInterval(timer);
+            try { authWindow.close(); } catch (_) {}
+            $("loginModal")?.classList.add("hidden");
+            await refreshLoggedInUser();
+            showToast("Discordログインが完了しました");
+        } catch (_) {}
+    };
+    const timer = setInterval(finish, 800);
+    setTimeout(() => {
+        clearInterval(timer);
+        if (!finished) try { authWindow.close(); } catch (_) {}
+    }, 5 * 60 * 1000);
+    return false;
+}
+
+// ヘッダーのログインリンク、ログインモーダルのボタンの両方を新しいタブに統一。
+document.addEventListener("click", event => {
+    const link = event.target.closest?.('a[href="/auth/discord"]');
+    if (!link) return;
+    openDiscordLoginInNewTab(event);
+});
 
 $("closeLoginModalButton").addEventListener("click", () => {
     $("loginModal").classList.add("hidden");
@@ -3908,6 +3926,6 @@ body.station-dragging-active {
   .workspace-toolbar .toolbar-right #toggleGridButton { grid-column:3; }
   .workspace-toolbar .toolbar-right #toggleDragModeButton { grid-column:4; }
   .workspace-toolbar .toolbar-right { grid-template-columns:repeat(4,minmax(0,1fr)); }
-  .station-large-box { stroke-width:2 !important; }
+  .station-large-box { stroke-width:1.5 !important; }
 }
 </style>
