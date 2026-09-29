@@ -3374,6 +3374,8 @@ $("saveButton")
         saveMap
     );
 
+const DISCORD_AUTH_PENDING_KEY = "railwayDiscordAuthPending";
+
 async function refreshLoggedInUser() {
     try {
         await loadUser();
@@ -3383,12 +3385,45 @@ async function refreshLoggedInUser() {
     }
 }
 
+// Discord OAuth が完了して認証タブ側の /api/user がログイン済みになったら、
+// 元の編集タブへ通知して自分自身を閉じる。
+function notifyDiscordAuthParentIfNeeded(user) {
+    if (!user || !window.opener) return false;
+    let pending = null;
+    try {
+        pending = localStorage.getItem(DISCORD_AUTH_PENDING_KEY);
+    } catch (_) {}
+    if (!pending) return false;
+
+    try {
+        window.opener.postMessage(
+            { type: "railway-discord-auth-complete" },
+            window.location.origin
+        );
+        localStorage.removeItem(DISCORD_AUTH_PENDING_KEY);
+    } catch (_) {}
+
+    // OAuth 後に表示された認証用タブは不要なので閉じる。
+    setTimeout(() => {
+        try { window.close(); } catch (_) {}
+    }, 150);
+    return true;
+}
+
 function openDiscordLoginInNewTab(event) {
     if (event) event.preventDefault();
     const source = event?.currentTarget || event?.target?.closest?.('a[href="/auth/discord"]');
     const url = source?.href || "/auth/discord";
-    const authWindow = window.open(url, "railwayDiscordLogin", "width=520,height=760,noopener,noreferrer");
+
+    try {
+        localStorage.setItem(DISCORD_AUTH_PENDING_KEY, String(Date.now()));
+    } catch (_) {}
+
+    // noopener/noreferrer は付けない。認証完了後にログインタブから
+    // 元の編集タブへ postMessage して、そのタブ自身を閉じるため。
+    const authWindow = window.open(url, "railwayDiscordLogin");
     if (!authWindow) {
+        try { localStorage.removeItem(DISCORD_AUTH_PENDING_KEY); } catch (_) {}
         showToast("ログイン画面を開けませんでした。ポップアップを許可してください");
         return false;
     }
@@ -3397,24 +3432,44 @@ function openDiscordLoginInNewTab(event) {
     const finish = async () => {
         if (finished) return;
         try {
-            const response = await fetch("/api/user", { cache: "no-store" });
+            const response = await fetch(`/api/user?_discord_auth_check=${Date.now()}`, {
+                cache: "no-store",
+                credentials: "same-origin"
+            });
             const data = await response.json();
             if (!data?.user) return;
             finished = true;
             clearInterval(timer);
+            try { localStorage.removeItem(DISCORD_AUTH_PENDING_KEY); } catch (_) {}
             try { authWindow.close(); } catch (_) {}
             $("loginModal")?.classList.add("hidden");
             await refreshLoggedInUser();
             showToast("Discordログインが完了しました");
         } catch (_) {}
     };
+
     const timer = setInterval(finish, 800);
+    finish();
     setTimeout(() => {
         clearInterval(timer);
-        if (!finished) try { authWindow.close(); } catch (_) {}
+        try { localStorage.removeItem(DISCORD_AUTH_PENDING_KEY); } catch (_) {}
+        if (!finished) {
+            try { authWindow.close(); } catch (_) {}
+        }
     }, 5 * 60 * 1000);
     return false;
 }
+
+// 認証タブからの完了通知を元の編集タブで受け取る。
+window.addEventListener("message", event => {
+    if (event.origin !== window.location.origin) return;
+    if (event.data?.type !== "railway-discord-auth-complete") return;
+    try { localStorage.removeItem(DISCORD_AUTH_PENDING_KEY); } catch (_) {}
+    $("loginModal")?.classList.add("hidden");
+    refreshLoggedInUser().then(() => {
+        showToast("Discordログインが完了しました");
+    });
+});
 
 // ヘッダーのログインリンク、ログインモーダルのボタンの両方を新しいタブに統一。
 document.addEventListener("click", event => {
@@ -3758,6 +3813,11 @@ async function loadUser() {
 
             const user =
                 result.user;
+
+            // OAuth 完了後に認証タブ側で実行された場合、元タブへ通知して閉じる。
+            if (notifyDiscordAuthParentIfNeeded(user)) {
+                return;
+            }
 
             let avatar =
                 "";
