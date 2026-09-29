@@ -550,6 +550,13 @@
 
             </div>
 
+            <div class="field station-offset-grid">
+                <label for="detailNameOffsetX">駅名 左右位置</label>
+                <input id="detailNameOffsetX" type="number" step="1" value="0">
+                <label for="detailNameOffsetY">駅名 上下位置</label>
+                <input id="detailNameOffsetY" type="number" step="1" value="0">
+            </div>
+
             <hr>
 
             <h3>
@@ -587,7 +594,7 @@
                     type="number"
                     min="5"
                     max="80"
-                    value="11"
+                    value="9"
                 >
 
             </div>
@@ -600,6 +607,13 @@
 
                 <input id="detailRomanRotation" type="number" step="1" value="0">
 
+            </div>
+
+            <div class="field station-offset-grid">
+                <label for="detailRomanOffsetX">ローマ字 左右位置</label>
+                <input id="detailRomanOffsetX" type="number" step="1" value="0">
+                <label for="detailRomanOffsetY">ローマ字 上下位置</label>
+                <input id="detailRomanOffsetY" type="number" step="1" value="0">
             </div>
 
             <hr>
@@ -682,7 +696,7 @@
                         type="number"
                         min="20"
                         max="500"
-                        value="80"
+                        value="100"
                     >
 
                 </div>
@@ -1014,6 +1028,7 @@
 
             <a
                 href="/auth/discord"
+                id="discordLoginButton"
                 class="primary-button login-button"
             >
                 Discordでログイン
@@ -1209,7 +1224,7 @@ function normalizeMap() {
 
         station.display.nameSize ??= 18;
 
-        station.display.romanSize ??= 11;
+        station.display.romanSize ??= 9;
 
         station.display.nameDirection ??= "vertical";
 
@@ -1227,7 +1242,7 @@ function normalizeMap() {
 
         station.display.boxMode ??= "auto";
 
-        station.display.boxWidth ??= 80;
+        station.display.boxWidth ??= 100;
 
         station.display.boxHeight ??= 120;
 
@@ -1343,27 +1358,27 @@ function estimateTextWidth(text, size) {
 }
 
 function getStationMultiplicity(station) {
-    // 「箱」は、同じ駅を複数の列車種別が停車する場合だけ。
-    // 別路線が交差しているだけでは箱にしない。
     let routeCount = 0;
-    let typeCount = 0;
-    let boxed = false;
+    const stopKeys = new Set();
+    const stopTypeIds = new Set();
 
     for (const line of state.map.lines) {
         if (!(line.stationIds || []).includes(station.id)) continue;
         routeCount++;
-
-        const stopTypeIds = new Set(
-            (line.trainTypes || [])
-                .filter(setting => (setting.stationIds || []).includes(station.id))
-                .map(setting => setting.trainTypeId)
-        );
-
-        typeCount = Math.max(typeCount, stopTypeIds.size);
-        if (stopTypeIds.size >= 2) boxed = true;
+        for (const setting of line.trainTypes || []) {
+            if ((setting.stationIds || []).includes(station.id)) {
+                stopKeys.add(`${line.id}:${setting.trainTypeId}`);
+                stopTypeIds.add(setting.trainTypeId);
+            }
+        }
     }
 
-    return { routeCount, typeCount, boxed };
+    return {
+        routeCount,
+        typeCount: stopKeys.size,
+        distinctTypeCount: stopTypeIds.size,
+        boxed: stopKeys.size >= 2
+    };
 }
 
 function getLineLaneGap(line, active) {
@@ -1377,6 +1392,17 @@ function getLineLaneGap(line, active) {
     return maxWidth + 8;
 }
 
+function getTrainTypeDisplayOrder() {
+    return new Map((state.map.trainTypes || []).map((type, index) => [type.id, index]));
+}
+
+function sortTrainTypeSettings(settings) {
+    const order = getTrainTypeDisplayOrder();
+    return [...settings].sort((a, b) =>
+        (order.get(a.trainTypeId) ?? 999999) - (order.get(b.trainTypeId) ?? 999999)
+    );
+}
+
 function getStationLaneContexts(station, includeAllActive = false) {
     const contexts = [];
 
@@ -1384,8 +1410,8 @@ function getStationLaneContexts(station, includeAllActive = false) {
         // この駅を実際に含む路線だけを対象にする。
         if (!(line.stationIds || []).includes(station.id)) continue;
 
-        const active = (line.trainTypes || [])
-            .filter(setting => (setting.stationIds || []).length >= 2);
+        const active = sortTrainTypeSettings((line.trainTypes || [])
+            .filter(setting => (setting.stationIds || []).length >= 2));
         if (!active.length) continue;
 
         const routeOrder = new Map(
@@ -1480,17 +1506,14 @@ function getStationBoxSize(station) {
     const name = station.name || "";
     const roman = station.roman || "";
     let nameSize = Number(display.nameSize) || 18;
-    let romanSize = Number(display.romanSize) || 11;
+    let romanSize = Number(display.romanSize) || 9;
     const vertical = (display.nameDirection || "vertical") === "vertical";
 
-    // 手動BOXは完全に寸法だけを返す。
-    // station.x / station.y はここでは絶対に変更しない。
     if (display.boxMode === "manual") {
         return {
-            width: Math.max(20, Number(display.boxWidth) || 80),
+            width: Math.max(20, Number(display.boxWidth) || 100),
             height: Math.max(20, Number(display.boxHeight) || 120),
-            nameSize,
-            romanSize
+            nameSize, romanSize
         };
     }
 
@@ -1499,126 +1522,62 @@ function getStationBoxSize(station) {
     const widths = stops.map(c => Math.max(2, Number(c.type?.lineWidth) || 10));
     const maxLineWidth = Math.max(...widths, 10);
 
-    let height = 40;
-
-    if (multiplicity.boxed && stops.length >= 2) {
-        const ys = stops.map(c => c.y).sort((a, b) => a - b);
-        const stopMin = ys[0];
-        const stopMax = ys[ys.length - 1];
-        const stopCenter = (stopMin + stopMax) / 2;
-        const stopSpan = stopMax - stopMin;
-
-        // 非停車種別線を箱がまたがないよう、停車レーンの中心から
-        // 最寄りの非停車レーンまでを上下それぞれの上限として扱う。
-        const otherYs = allContexts
-            .filter(c => !c.stopsHere)
-            .map(c => c.y);
-
-        const upper = otherYs
-            .filter(y => y < stopCenter)
-            .reduce((max, y) => Math.max(max, y), -Infinity);
-        const lower = otherYs
-            .filter(y => y > stopCenter)
-            .reduce((min, y) => Math.min(min, y), Infinity);
-
-        const topRoom = Number.isFinite(upper)
-            ? stopCenter - upper - maxLineWidth / 2 - 4
-            : Infinity;
-        const bottomRoom = Number.isFinite(lower)
-            ? lower - stopCenter - maxLineWidth / 2 - 4
-            : Infinity;
-
-        const hasLimit = Number.isFinite(topRoom) || Number.isFinite(bottomRoom);
-        const maxHeightWithoutCrossing = hasLimit
-            ? 2 * Math.min(topRoom, bottomRoom)
-            : Infinity;
-
-        // まず停車する線を完全に内包できる高さを確保。
-        const requiredForStops = stopSpan + maxLineWidth + 10;
-        height = requiredForStops;
-
-        // 余裕がある範囲だけ自動BOXを伸ばす。
-        // ここで駅座標を動かすことは絶対にしない。
-        if (Number.isFinite(maxHeightWithoutCrossing)) {
-            height = Math.max(
-                requiredForStops,
-                Math.max(maxLineWidth + 10, maxHeightWithoutCrossing)
-            );
-        }
-
-        // 長い駅名がその高さに収まらない場合は、BOXを移動・拡大するのではなく
-        // 後段で文字サイズを縮小するための上限を保持する。
-        const nameRequired = vertical
-            ? Math.max(1, [...name].length) * nameSize * 1.08 + 8
-            : Math.max(1, Math.ceil([...name].length / 2)) * nameSize * 1.15 + 8;
-
-        const allowedTextHeight = Number.isFinite(maxHeightWithoutCrossing)
-            ? Math.max(20, maxHeightWithoutCrossing - 8)
-            : Infinity;
-
-        if (nameRequired > allowedTextHeight && Number.isFinite(allowedTextHeight)) {
-            const ratio = allowedTextHeight / nameRequired;
-            nameSize = Math.max(8, nameSize * ratio);
-            romanSize = Math.max(6, romanSize * ratio);
-        }
-
-        // フォント縮小後の実サイズを使ってBOXの必要高さを再計算。
-        const fittedNameHeight = vertical
-            ? Math.max(40, [...name].length * nameSize * 1.08 + 12)
-            : Math.max(40, Math.ceil([...name].length / 2) * nameSize * 1.15 + 12);
-
-        const fittedRomanHeight = roman && display.romanVisible !== false
-            ? Math.max(romanSize * Math.max(1, [...roman].length) * 1.08, romanSize + 8)
-            : 0;
-
-        height = Math.max(
-            requiredForStops,
-            fittedNameHeight,
-            fittedRomanHeight + 10,
-            maxLineWidth + 12
-        );
-
-        // 非停車線をまたがない上限が存在する場合でも、停車線を内包することを優先。
-        // 停車線自体の配置が非停車線を挟んでいるケースは物理的に両立しないため、
-        // その場合はBOX位置を動かさず停車線を優先する。
-        if (Number.isFinite(maxHeightWithoutCrossing)) {
-            height = Math.min(height, Math.max(requiredForStops, maxHeightWithoutCrossing));
-        }
-    } else {
-        const nameChars = [...name];
-        const nameHeight = vertical
-            ? Math.max(40, nameChars.length * nameSize * 1.08 + 12)
-            : Math.max(40, Math.ceil(nameChars.length / 2) * nameSize * 1.15 + 12);
-
-        const romanHeight = roman && display.romanVisible !== false
-            ? Math.max(romanSize * Math.max(1, [...roman].length) * 1.08, romanSize + 8)
-            : 0;
-
-        height = Math.max(nameHeight, romanHeight + 10, maxLineWidth + 12, 40);
+    if (!multiplicity.boxed || stops.length < 2) {
+        return { width: 100, height: 40, nameSize, romanSize };
     }
 
-    const nameChars = [...name];
+    const ys = stops.map(c => c.y).sort((a, b) => a - b);
+    const stopMin = ys[0], stopMax = ys[ys.length - 1];
+    const stopCenter = (stopMin + stopMax) / 2;
+    const stopSpan = stopMax - stopMin;
 
-    // 箱の幅は駅名に合わせて必要最小限にする。
-    const nameWidth = vertical
-        ? nameSize
-        : Math.max(nameSize * 2, estimateTextWidth(nameChars.slice(0, 2).join(""), nameSize));
+    // BOX中心は停車線の中心から動かさない。非停車線が近い側はその手前までを上限とする。
+    const otherYs = allContexts.filter(c => !c.stopsHere).map(c => c.y);
+    const upper = otherYs.filter(y => y < stopCenter).reduce((m, y) => Math.max(m, y), -Infinity);
+    const lower = otherYs.filter(y => y > stopCenter).reduce((m, y) => Math.min(m, y), Infinity);
+    const topLimit = Number.isFinite(upper) ? stopCenter - upper - maxLineWidth / 2 - 3 : Infinity;
+    const bottomLimit = Number.isFinite(lower) ? lower - stopCenter - maxLineWidth / 2 - 3 : Infinity;
+    const maxHalf = Math.min(topLimit, bottomLimit);
+    const maxHeight = Number.isFinite(maxHalf) ? Math.max(20, maxHalf * 2) : Infinity;
+    const minHeight = stopSpan + maxLineWidth + 8;
 
-    const romanWidth = roman && display.romanVisible !== false
-        ? romanSize * 1.05
+    const allowedTextHeight = Number.isFinite(maxHeight) ? Math.max(24, maxHeight - 8) : Infinity;
+    const nameRequired = vertical
+        ? Math.max(1, [...name].length) * nameSize * 1.08 + 8
+        : Math.max(1, Math.ceil([...name].length / 2)) * nameSize * 1.15 + 8;
+    if (nameRequired > allowedTextHeight && Number.isFinite(allowedTextHeight)) {
+        const ratio = allowedTextHeight / nameRequired;
+        nameSize = Math.max(8, nameSize * ratio);
+        romanSize = Math.max(6, romanSize * ratio);
+    }
+
+    const fittedNameHeight = vertical
+        ? Math.max(24, [...name].length * nameSize * 1.08 + 8)
+        : Math.max(24, Math.ceil([...name].length / 2) * nameSize * 1.15 + 8);
+    const fittedRomanHeight = roman && display.romanVisible !== false
+        ? Math.max(romanSize * Math.max(1, [...roman].length) * 1.08, romanSize + 8)
         : 0;
 
-    const width = Math.max(
-        42,
-        nameWidth + (roman ? romanWidth + 8 : 8)
-    );
+    let height = Math.max(minHeight, fittedNameHeight, fittedRomanHeight + 8);
+    if (Number.isFinite(maxHeight)) height = Math.min(height, maxHeight);
+    height = Math.max(minHeight, height);
 
-    return {
-        width,
-        height: Math.max(40, height),
-        nameSize,
-        romanSize
-    };
+    // 長い駅名でも位置は変えず、収まらない場合はさらに文字だけを縮小。
+    if (Number.isFinite(maxHeight) && height > maxHeight) {
+        const ratio = Math.max(0.45, (maxHeight - 8) / Math.max(fittedNameHeight, fittedRomanHeight + 8, 1));
+        nameSize = Math.max(6, nameSize * ratio);
+        romanSize = Math.max(5, romanSize * ratio);
+        height = maxHeight;
+    }
+
+    // 駅名に合わせて横幅を詰める。ただし極端に細くしない。
+    const nameWidth = vertical
+        ? nameSize + 4
+        : Math.max(nameSize + 8, Math.min(estimateTextWidth([...name].slice(0, 2).join(""), nameSize), 150));
+    const romanWidth = roman && display.romanVisible !== false ? romanSize + 4 : 0;
+    const width = Math.max(56, Math.min(220, nameWidth + romanWidth + (roman ? 14 : 12)));
+
+    return { width, height, nameSize, romanSize };
 }
 function createSvgElement(
     tag,
@@ -1657,7 +1616,7 @@ function drawStationText(group, station, options = {}) {
     const name = station.name || "";
     const roman = station.roman || "";
     const nameSize = Number(box.nameSize) || Number(display.nameSize) || 18;
-    const romanSize = Number(box.romanSize) || Number(display.romanSize) || 11;
+    const romanSize = Number(box.romanSize) || Number(display.romanSize) || 9;
     const vertical = (display.nameDirection || "vertical") === "vertical";
     const nameOX = Number(display.nameOffsetX) || 0;
     const nameOY = Number(display.nameOffsetY) || 0;
@@ -1886,7 +1845,7 @@ function applyStationSpacing(station) {
 function renderLineLayer() {
     lineLayer.innerHTML = "";
     for (const line of state.map.lines) {
-        const active = (line.trainTypes || []).filter(setting => (setting.stationIds || []).length >= 2);
+        const active = sortTrainTypeSettings((line.trainTypes || []).filter(setting => (setting.stationIds || []).length >= 2));
         active.forEach((setting, index) => {
             const type = getTrainType(setting.trainTypeId);
             if (type) renderTrainTypeLine(line, type, index, active.length);
@@ -1951,7 +1910,7 @@ function renderStation(station) {
             rx: 4, ry: 4,
             fill: "white",
             stroke: "#111",
-            "stroke-width": 3,
+            "stroke-width": 2,
             class: "station-large-box"
         }));
     } else {
@@ -2172,23 +2131,30 @@ function updateTrainTypeList() {
 </div>
 
             <div class="list-actions">
-
-                <button
-                    class="small-button"
-                    data-action="edit"
-                >
-                    編集
-                </button>
-
-                <button
-                    class="danger-small-button"
-                    data-action="delete"
-                >
-                    削除
-                </button>
-
+                <button class="small-button" data-action="up" title="上へ">↑</button>
+                <button class="small-button" data-action="down" title="下へ">↓</button>
+                <button class="small-button" data-action="edit">編集</button>
+                <button class="danger-small-button" data-action="delete">削除</button>
             </div>
         `;
+
+        row.querySelector('[data-action="up"]').addEventListener("click", () => {
+            const index = state.map.trainTypes.findIndex(item => item.id === type.id);
+            if (index > 0) {
+                [state.map.trainTypes[index - 1], state.map.trainTypes[index]] =
+                    [state.map.trainTypes[index], state.map.trainTypes[index - 1]];
+                renderMap();
+            }
+        });
+
+        row.querySelector('[data-action="down"]').addEventListener("click", () => {
+            const index = state.map.trainTypes.findIndex(item => item.id === type.id);
+            if (index >= 0 && index < state.map.trainTypes.length - 1) {
+                [state.map.trainTypes[index], state.map.trainTypes[index + 1]] =
+                    [state.map.trainTypes[index + 1], state.map.trainTypes[index]];
+                renderMap();
+            }
+        });
 
         row.querySelector(
             '[data-action="edit"]'
@@ -2339,7 +2305,7 @@ $("addStationButton")
 
                     nameSize: 18,
 
-                    romanSize: 11,
+                    romanSize: 9,
 
                     nameDirection:
                         "vertical",
@@ -2357,7 +2323,7 @@ $("addStationButton")
                     boxMode:
                         "auto",
 
-                    boxWidth: 80,
+                    boxWidth: 100,
 
                     boxHeight: 120,
 
@@ -2556,6 +2522,9 @@ function openStationModal(
     $("detailNameRotation").value =
         d.nameRotation;
 
+    $("detailNameOffsetX").value = d.nameOffsetX || 0;
+    $("detailNameOffsetY").value = d.nameOffsetY || 0;
+
     $("detailRomanDirection").value =
         d.romanDirection;
 
@@ -2564,6 +2533,9 @@ function openStationModal(
 
     $("detailRomanRotation").value =
         d.romanRotation;
+
+    $("detailRomanOffsetX").value = d.romanOffsetX || 0;
+    $("detailRomanOffsetY").value = d.romanOffsetY || 0;
 
     $("detailSpacingBefore").value =
         d.spacingBefore;
@@ -2667,10 +2639,10 @@ $("saveStationDetailButton")
                         $("detailRomanRotation")
                             .value
                     ),
-                    nameOffsetX: station.display.nameOffsetX || 0,
-                    nameOffsetY: station.display.nameOffsetY || 0,
-                    romanOffsetX: station.display.romanOffsetX || 0,
-                    romanOffsetY: station.display.romanOffsetY || 0,
+                    nameOffsetX: Number($("detailNameOffsetX").value) || 0,
+                    nameOffsetY: Number($("detailNameOffsetY").value) || 0,
+                    romanOffsetX: Number($("detailRomanOffsetX").value) || 0,
+                    romanOffsetY: Number($("detailRomanOffsetY").value) || 0,
 
                 spacingBefore:
                     Number(
@@ -3172,7 +3144,7 @@ svg.addEventListener("pointerdown", event => {
     const line = getLine(state.selectedLineId);
     if (!line) { showToast("路線を選択してください"); return; }
     const p = svgPointFromEvent(event);
-    const active = (line.trainTypes || []).filter(setting => (setting.stationIds || []).length >= 2);
+    const active = sortTrainTypeSettings((line.trainTypes || []).filter(setting => (setting.stationIds || []).length >= 2));
     const candidates = [];
 
     active.forEach((setting, typeIndex) => {
@@ -3406,6 +3378,32 @@ $("saveButton")
         "click",
         saveMap
     );
+
+const discordLoginButton = $("discordLoginButton");
+if (discordLoginButton) {
+    discordLoginButton.addEventListener("click", event => {
+        event.preventDefault();
+        const authWindow = window.open(discordLoginButton.href, "railwayDiscordLogin", "width=520,height=760");
+        if (!authWindow) {
+            showToast("ログイン画面を開けませんでした。ポップアップを許可してください");
+            return;
+        }
+        const timer = setInterval(async () => {
+            try {
+                const response = await fetch("/api/user", { cache: "no-store" });
+                const data = await response.json();
+                if (data?.user) {
+                    clearInterval(timer);
+                    try { authWindow.close(); } catch (_) {}
+                    $("loginModal").classList.add("hidden");
+                    await loadMapList();
+                    showToast("Discordログインが完了しました");
+                }
+            } catch (_) {}
+        }, 1000);
+        setTimeout(() => clearInterval(timer), 5 * 60 * 1000);
+    });
+}
 
 $("closeLoginModalButton").addEventListener("click", () => {
     $("loginModal").classList.add("hidden");
@@ -3888,5 +3886,28 @@ body.station-dragging-active {
 
 .station-group {
   touch-action: none;
+}
+</style>
+<style>
+.station-offset-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(80px,1fr); gap:6px 10px; align-items:center; }
+.station-offset-grid input { width:100%; box-sizing:border-box; }
+@media (max-width: 700px) {
+  .workspace-toolbar { display:flex !important; flex-direction:column !important; gap:6px !important; align-items:stretch !important; }
+  .workspace-toolbar .toolbar-left, .workspace-toolbar .toolbar-right { display:grid !important; grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px !important; width:100%; }
+  .workspace-toolbar .toolbar-right { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .workspace-toolbar button { min-width:0 !important; padding:8px 5px !important; font-size:12px !important; white-space:nowrap; }
+  .workspace-toolbar .toolbar-left .icon-button { min-width:0 !important; }
+  .workspace-toolbar .toolbar-left .icon-button:first-child,
+  .workspace-toolbar .toolbar-left .icon-button:last-of-type { display:none; }
+  .workspace-toolbar .toolbar-left .icon-button:nth-child(2) { grid-column:1; }
+  .workspace-toolbar .toolbar-left #addBendButton { grid-column:2; }
+  .workspace-toolbar .toolbar-left #toggleBendPointsButton { grid-column:3; }
+  .workspace-toolbar .toolbar-left #fitButton { grid-column:4; }
+  .workspace-toolbar .toolbar-right #undoButton { grid-column:1; }
+  .workspace-toolbar .toolbar-right #redoButton { grid-column:2; }
+  .workspace-toolbar .toolbar-right #toggleGridButton { grid-column:3; }
+  .workspace-toolbar .toolbar-right #toggleDragModeButton { grid-column:4; }
+  .workspace-toolbar .toolbar-right { grid-template-columns:repeat(4,minmax(0,1fr)); }
+  .station-large-box { stroke-width:2 !important; }
 }
 </style>
