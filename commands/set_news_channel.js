@@ -7,10 +7,6 @@ import {
 import * as cheerio from "cheerio";
 
 const NEWS_GG_BOT_ID = process.env.NEWS_GG_BOT_ID;
-const TEST_USER_ID = "1263016864477351936";
-const ALLOWED_NEWS_SENDERS = new Set(
-    [NEWS_GG_BOT_ID, TEST_USER_ID].filter(Boolean)
-);
 const SETTINGS_COLLECTION = "newsChannelSettings";
 
 export const data = new SlashCommandBuilder()
@@ -37,26 +33,13 @@ export async function execute(interaction, { client }) {
     }
 
     try {
-        const member = await interaction.guild.members.fetch({
+        await interaction.guild.members.fetch({
             user: NEWS_GG_BOT_ID,
             force: true
         });
-
-        console.log(
-            "News.gg member found:",
-            member.user.tag,
-            member.id
-        );
-    } catch (error) {
-        console.error("News.gg member check failed:", {
-            guildId: interaction.guild.id,
-            newsBotId: NEWS_GG_BOT_ID,
-            code: error.code,
-            message: error.message
-        });
-
+    } catch {
         await interaction.reply({
-            content: "News.ggの参加確認に失敗しました。Botのログを確認してください。",
+            content: "News.ggがサーバーに参加していません。",
             ephemeral: true
         });
         return;
@@ -78,9 +61,7 @@ export async function execute(interaction, { client }) {
             content: `監視チャンネルを ${interaction.channel} に設定しました。`,
             ephemeral: true
         });
-    } catch (error) {
-        console.error("News channel configuration error:", error);
-
+    } catch {
         await interaction.reply({
             content: "監視チャンネルの設定に失敗しました。",
             ephemeral: true
@@ -92,25 +73,23 @@ function extractUrls(message) {
     const urls = new Set();
     const pattern = /https?:\/\/[^\s<>]+/g;
 
-    for (const match of message.content.matchAll(pattern)) {
-        urls.add(match[0].replace(/[),.!?]+$/, ""));
-    }
+    const addUrls = text => {
+        for (const match of text.matchAll(pattern)) {
+            urls.add(match[0].replace(/[),.!?]+$/, ""));
+        }
+    };
+
+    addUrls(message.content);
 
     for (const embed of message.embeds) {
         if (embed.url) {
             urls.add(embed.url);
         }
 
-        const description = embed.description ?? "";
-
-        for (const match of description.matchAll(pattern)) {
-            urls.add(match[0].replace(/[),.!?]+$/, ""));
-        }
+        addUrls(embed.description ?? "");
 
         for (const field of embed.fields ?? []) {
-            for (const match of field.value.matchAll(pattern)) {
-                urls.add(match[0].replace(/[),.!?]+$/, ""));
-            }
+            addUrls(field.value);
         }
     }
 
@@ -127,7 +106,7 @@ async function fetchPage(url) {
     });
 
     if (!response.ok) {
-        throw new Error(`ページ取得失敗: HTTP ${response.status}`);
+        throw new Error(`HTTP ${response.status}`);
     }
 
     return {
@@ -191,35 +170,22 @@ async function extractArticle(articlePageUrl) {
         }
     });
 
-    if (!sourceUrl) {
-        return null;
-    }
+    if (!sourceUrl) return null;
 
-    try {
-        const sourcePage = await fetchPage(sourceUrl);
-        const sourcePage$ = cheerio.load(sourcePage.html);
-        const title = extractTitle(sourcePage$);
+    const sourcePage = await fetchPage(sourceUrl);
+    const sourcePage$ = cheerio.load(sourcePage.html);
+    const title = extractTitle(sourcePage$);
 
-        if (!title) {
-            console.error("元記事のタイトルを取得できませんでした:", sourceUrl);
-            return null;
-        }
+    if (!title) return null;
 
-        return {
-            title,
-            sourceUrl: sourcePage.url
-        };
-    } catch (error) {
-        console.error("Original article extraction error:", error);
-        return null;
-    }
+    return {
+        title,
+        sourceUrl: sourcePage.url
+    };
 }
 
 export async function handleMessage(message, client) {
-    if (
-        !message.guild ||
-        !ALLOWED_NEWS_SENDERS.has(message.author.id)
-    ) {
+    if (!message.guild || message.author.id !== NEWS_GG_BOT_ID) {
         return;
     }
 
@@ -247,22 +213,24 @@ export async function handleMessage(message, client) {
 
     try {
         article = await extractArticle(articlePageUrl);
-    } catch (error) {
-        console.error("News article extraction error:", error);
+    } catch {
         return;
     }
 
-    if (!article) {
-        console.error("元記事のタイトルまたはURLを取得できませんでした。");
-        return;
-    }
+    if (!article) return;
 
     try {
         await message.channel.send({
             content: `**${article.title}**\n${article.sourceUrl}`,
             allowedMentions: { parse: [] }
         });
-    } catch (error) {
-        console.error("News article posting error:", error);
+    } catch {
+        return;
+    }
+
+    try {
+        await message.delete();
+    } catch {
+        // メッセージを削除できない場合は何もしない
     }
 }
