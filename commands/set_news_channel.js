@@ -11,7 +11,7 @@ const SETTINGS_COLLECTION = "newsChannelSettings";
 
 export const data = new SlashCommandBuilder()
     .setName("set_news_channel")
-    .setDescription("このチャンネルをNews.ggニュースの監視対象に設定する")
+    .setDescription("このチャンネルのNews.ggニュース監視を切り替える")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .setContexts(InteractionContextType.Guild);
 
@@ -24,48 +24,68 @@ export async function execute(interaction, { client }) {
         return;
     }
 
-    if (!NEWS_GG_BOT_ID) {
-        await interaction.reply({
-            content: "NEWS_GG_BOT_ID が設定されていません。.envを確認してください。",
-            ephemeral: true
-        });
-        return;
-    }
+    const guildId = interaction.guild.id;
+    const channelId = interaction.channel.id;
+    const collection = client.db.collection(SETTINGS_COLLECTION);
 
     try {
-        await interaction.guild.members.fetch({
-            user: NEWS_GG_BOT_ID,
-            force: true
+        // このサーバーの、このチャンネルの設定だけを確認
+        const existing = await collection.findOne({
+            guildId,
+            channelId
+        });
+
+        // すでに監視中なら、このチャンネルだけ解除
+        if (existing) {
+            await collection.deleteMany({
+                guildId,
+                channelId
+            });
+
+            await interaction.reply({
+                content: `このチャンネル（${interaction.channel}）のNews.gg監視を解除しました。`,
+                ephemeral: true
+            });
+            return;
+        }
+
+        // ここからは監視開始処理
+        if (!NEWS_GG_BOT_ID) {
+            await interaction.reply({
+                content: "NEWS_GG_BOT_ID が設定されていません。.envを確認してください。",
+                ephemeral: true
+            });
+            return;
+        }
+
+        try {
+            await interaction.guild.members.fetch(NEWS_GG_BOT_ID);
+        } catch {
+            await interaction.reply({
+                content: "News.ggがサーバーに参加していません。",
+                ephemeral: true
+            });
+            return;
+        }
+
+        // サーバーIDとチャンネルIDの組み合わせで保存
+        await collection.insertOne({
+            guildId,
+            channelId,
+            updatedAt: new Date()
+        });
+
+        await interaction.reply({
+            content: `このチャンネル（${interaction.channel}）のNews.gg監視を開始しました。`,
+            ephemeral: true
         });
     } catch {
-        await interaction.reply({
-            content: "News.ggがサーバーに参加していません。",
-            ephemeral: true
-        });
-        return;
-    }
-
-    try {
-        await client.db.collection(SETTINGS_COLLECTION).updateOne(
-            { guildId: interaction.guild.id },
-            {
-                $set: {
-                    channelId: interaction.channel.id,
-                    updatedAt: new Date()
-                }
-            },
-            { upsert: true }
-        );
-
-        await interaction.reply({
-            content: `監視チャンネルを ${interaction.channel} に設定しました。`,
-            ephemeral: true
-        });
-    } catch {
-        await interaction.reply({
-            content: "監視チャンネルの設定に失敗しました。",
-            ephemeral: true
-        });
+        if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({
+                content: "News.gg監視設定の更新に失敗しました。データベースを確認してください。",
+                ephemeral: true
+            });
+        }
     }
 }
 
@@ -74,6 +94,8 @@ function extractUrls(message) {
     const pattern = /https?:\/\/[^\s<>]+/g;
 
     const addUrls = text => {
+        if (!text) return;
+
         for (const match of text.matchAll(pattern)) {
             urls.add(match[0].replace(/[),.!?]+$/, ""));
         }
@@ -166,7 +188,7 @@ async function extractArticle(articlePageUrl) {
                 sourceUrl = parsedUrl.href;
             }
         } catch {
-            // 不正なURLは無視する
+            // 不正なURLは無視
         }
     });
 
@@ -185,17 +207,24 @@ async function extractArticle(articlePageUrl) {
 }
 
 export async function handleMessage(message, client) {
-    if (!message.guild || message.author.id !== NEWS_GG_BOT_ID) {
+    if (
+        !message.guild ||
+        !NEWS_GG_BOT_ID ||
+        message.author.id !== NEWS_GG_BOT_ID
+    ) {
         return;
     }
 
+    // サーバーIDとチャンネルIDの両方で判定
     const settings = await client.db
         .collection(SETTINGS_COLLECTION)
-        .findOne({ guildId: message.guild.id });
+        .findOne({
+            guildId: message.guild.id,
+            channelId: message.channel.id
+        });
 
-    if (!settings || settings.channelId !== message.channel.id) {
-        return;
-    }
+    // このチャンネルが監視対象でなければ何もしない
+    if (!settings) return;
 
     const urls = extractUrls(message);
 
