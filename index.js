@@ -1040,26 +1040,22 @@ client.on(Events.GuildMemberAdd, async member => {
 client.updateTimers ??= new Map();
 
 client.on(Events.MessageCreate, async message => {
-  const allowedNewsSenders = new Set([
-    process.env.NEWS_GG_BOT_ID,
-    "1263016864477351936"
-  ]);
+    if (message.author.id === process.env.NEWS_GG_BOT_ID) {
+        const newsCommand = client.commands.get("set_news_channel");
 
-  if (allowedNewsSenders.has(message.author.id)) {
-    const newsCommand = client.commands.get("set_news_channel");
+        if (newsCommand?.handleMessage) {
+            try {
+                await newsCommand.handleMessage(message, client);
+            } catch (error) {
+                console.error("News.gg message handler error:", error);
+            }
+        }
 
-    if (newsCommand?.handleMessage) {
-      try {
-        await newsCommand.handleMessage(message, client);
-      } catch (error) {
-        console.error("News message handler error:", error);
-      }
+        return;
     }
 
     if (message.author.bot) return;
-  }
-
-  if (message.author.bot) return;
+});
   
   const channelId = message.channel.id;
   const monitoredMessageId = client.monitoredMessages.get(channelId);
