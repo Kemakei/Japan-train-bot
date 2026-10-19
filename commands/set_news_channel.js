@@ -1,3 +1,4 @@
+
 import {
     SlashCommandBuilder,
     PermissionFlagsBits,
@@ -5,8 +6,13 @@ import {
 } from "discord.js";
 import * as cheerio from "cheerio";
 
+const NEWS_GG_BOT_ID = process.env.NEWS_GG_BOT_ID;
+const TEST_USER_ID = "1263016864477351936";
+const ALLOWED_NEWS_SENDERS = new Set([
+    NEWS_GG_BOT_ID,
+    TEST_USER_ID
+].filter(Boolean));
 const SETTINGS_COLLECTION = "newsChannelSettings";
-const NEWS_GG_DOMAIN = "newsdiscordbot.xyz";
 
 export const data = new SlashCommandBuilder()
     .setName("set_news_channel")
@@ -15,12 +21,38 @@ export const data = new SlashCommandBuilder()
     .setContexts(InteractionContextType.Guild);
 
 export async function execute(interaction, { client }) {
+    if (!interaction.guild || !interaction.channel) {
+        await interaction.reply({
+            content: "サーバーのテキストチャンネルで実行してください。",
+            ephemeral: true
+        });
+        return;
+    }
+
+    if (!NEWS_GG_BOT_ID) {
+        await interaction.reply({
+            content: "環境変数 NEWS_GG_BOT_ID が設定されていません。",
+            ephemeral: true
+        });
+        return;
+    }
+
+    try {
+        await interaction.guild.members.fetch(NEWS_GG_BOT_ID);
+    } catch {
+        await interaction.reply({
+            content: "エラー：News.gg Bot がこのサーバーに参加していません。",
+            ephemeral: true
+        });
+        return;
+    }
+
     try {
         await client.db.collection(SETTINGS_COLLECTION).updateOne(
-            { guildId: interaction.guildId },
+            { guildId: interaction.guild.id },
             {
                 $set: {
-                    channelId: interaction.channelId,
+                    channelId: interaction.channel.id,
                     updatedAt: new Date()
                 }
             },
@@ -28,14 +60,14 @@ export async function execute(interaction, { client }) {
         );
 
         await interaction.reply({
-            content: `このチャンネル（${interaction.channel}）をNews.ggニュースの監視対象に設定しました。`,
+            content: `監視チャンネルを ${interaction.channel} に設定しました。`,
             ephemeral: true
         });
     } catch (error) {
-        console.error("News.ggチャンネル設定エラー:", error);
+        console.error("News channel configuration error:", error);
 
         await interaction.reply({
-            content: "チャンネル設定中にエラーが発生しました。",
+            content: "監視チャンネルの設定に失敗しました。",
             ephemeral: true
         });
     }
@@ -45,100 +77,72 @@ function extractUrls(message) {
     const urls = new Set();
     const pattern = /https?:\/\/[^\s<>]+/g;
 
-    function addUrls(text) {
-        if (!text) return;
-
-        const matches = text.match(pattern) || [];
-
-        for (let url of matches) {
-            url = url.replace(/[.,!?;:)]+$/g, "");
-            urls.add(url);
-        }
+    for (const match of message.content.matchAll(pattern)) {
+        urls.add(match[0].replace(/[),.!?]+$/, ""));
     }
 
-    addUrls(message.content);
-
     for (const embed of message.embeds) {
-        addUrls(embed.url);
-        addUrls(embed.description);
-
-        for (const field of embed.fields || []) {
-            addUrls(field.name);
-            addUrls(field.value);
+        if (embed.url) {
+            urls.add(embed.url);
         }
 
-        for (const image of [
-            embed.image,
-            embed.thumbnail,
-            embed.author
-        ]) {
-            if (image?.url) addUrls(image.url);
+        const description = embed.description ?? "";
+
+        for (const match of description.matchAll(pattern)) {
+            urls.add(match[0].replace(/[),.!?]+$/, ""));
+        }
+
+        for (const field of embed.fields ?? []) {
+            for (const match of field.value.matchAll(pattern)) {
+                urls.add(match[0].replace(/[),.!?]+$/, ""));
+            }
         }
     }
 
     return [...urls];
 }
 
-function isNewsGgUrl(url) {
-    try {
-        const parsed = new URL(url);
-
-        return (
-            (parsed.protocol === "https:" || parsed.protocol === "http:") &&
-            (
-                parsed.hostname === NEWS_GG_DOMAIN ||
-                parsed.hostname.endsWith(`.${NEWS_GG_DOMAIN}`)
-            )
-        );
-    } catch {
-        return false;
-    }
-}
-
 async function extractArticle(articlePageUrl) {
     const response = await fetch(articlePageUrl, {
+        signal: AbortSignal.timeout(15000),
         headers: {
             "User-Agent": "Mozilla/5.0 (compatible; NewsArticleBot/1.0)"
-        },
-        signal: AbortSignal.timeout(15000)
+        }
     });
 
     if (!response.ok) {
-        throw new Error(`News.ggページ取得失敗: HTTP ${response.status}`);
+        throw new Error(`記事ページ取得失敗: HTTP ${response.status}`);
     }
 
     const html = await response.text();
     const $ = cheerio.load(html);
 
-    const title =
-        $('meta[property="og:title"]').attr("content")?.trim() ||
-        $('meta[name="twitter:title"]').attr("content")?.trim() ||
-        $("h1").first().text().trim() ||
-        $("title").first().text().trim();
+    const title = (
+        $('meta[property="og:title"]').attr("content") ||
+        $("h1").first().text() ||
+        $("title").text()
+    ).trim();
 
     let sourceUrl = null;
 
-    $('a[href]').each((_, element) => {
-        const text = $(element).text().replace(/\s+/g, " ").trim();
+    $("a[href]").each((_, element) => {
+        if (sourceUrl) return;
 
-        if (/read\s+full\s+article/i.test(text)) {
-            const href = $(element).attr("href");
+        const linkText = $(element).text().replace(/\s+/g, " ").trim();
 
-            if (!href) return;
+        if (!/read\s+full\s+article/i.test(linkText)) return;
 
-            try {
-                const parsed = new URL(href, articlePageUrl);
+        const href = $(element).attr("href");
+        if (!href) return;
 
-                if (
-                    parsed.protocol === "https:" ||
-                    parsed.protocol === "http:"
-                ) {
-                    sourceUrl = parsed.href;
-                    return false;
-                }
-            } catch {
-                // 無効なURLは無視
+        try {
+            const parsedUrl = new URL(href, articlePageUrl);
+
+            if (["http:", "https:"].includes(parsedUrl.protocol)) {
+                sourceUrl = parsedUrl.href;
             }
+        } catch {
+            // 不正なリンクは無視する
         }
     });
 
@@ -150,7 +154,7 @@ async function extractArticle(articlePageUrl) {
 }
 
 export async function handleMessage(message, client) {
-    if (!message.guild || message.author.id === client.user.id) {
+    if (!message.guild || !ALLOWED_NEWS_SENDERS.has(message.author.id)) {
         return;
     }
 
@@ -163,7 +167,15 @@ export async function handleMessage(message, client) {
     }
 
     const urls = extractUrls(message);
-    const articlePageUrl = urls.find(isNewsGgUrl);
+
+    // News.ggの記事ページURLを優先する
+    const articlePageUrl = urls.find(url => {
+        try {
+            return new URL(url).hostname === "newsdiscordbot.xyz";
+        } catch {
+            return false;
+        }
+    });
 
     if (!articlePageUrl) return;
 
@@ -172,22 +184,19 @@ export async function handleMessage(message, client) {
     try {
         article = await extractArticle(articlePageUrl);
     } catch (error) {
-        console.error("News.gg記事の取得エラー:", error);
+        console.error("News article extraction error:", error);
         return;
     }
 
     if (!article) {
-        console.error(
-            "記事タイトルまたは元記事URLを取得できませんでした:",
-            articlePageUrl
-        );
+        console.error("記事タイトルまたは元記事URLを取得できませんでした。");
         return;
     }
 
     try {
         await message.delete();
     } catch (error) {
-        console.error("News.gg元メッセージの削除に失敗:", error);
+        console.error("News message deletion error:", error);
         return;
     }
 
@@ -197,6 +206,6 @@ export async function handleMessage(message, client) {
             allowedMentions: { parse: [] }
         });
     } catch (error) {
-        console.error("ニュースの再投稿に失敗:", error);
+        console.error("News article posting error:", error);
     }
 }
