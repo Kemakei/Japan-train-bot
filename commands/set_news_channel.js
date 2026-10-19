@@ -5,8 +5,8 @@ import {
 } from "discord.js";
 import * as cheerio from "cheerio";
 
-const NEWS_GG_BOT_ID = process.env.NEWS_GG_BOT_ID;
 const SETTINGS_COLLECTION = "newsChannelSettings";
+const NEWS_GG_DOMAIN = "newsdiscordbot.xyz";
 
 export const data = new SlashCommandBuilder()
     .setName("set_news_channel")
@@ -15,30 +15,12 @@ export const data = new SlashCommandBuilder()
     .setContexts(InteractionContextType.Guild);
 
 export async function execute(interaction, { client }) {
-    if (!NEWS_GG_BOT_ID) {
-        await interaction.reply({
-            content: "環境変数 NEWS_GG_BOT_ID が設定されていません。",
-            ephemeral: true
-        });
-        return;
-    }
-
-    try {
-        await interaction.guild.members.fetch(NEWS_GG_BOT_ID);
-    } catch {
-        await interaction.reply({
-            content: "News.gg Botがこのサーバーに参加していません。",
-            ephemeral: true
-        });
-        return;
-    }
-
     try {
         await client.db.collection(SETTINGS_COLLECTION).updateOne(
-            { guildId: interaction.guild.id },
+            { guildId: interaction.guildId },
             {
                 $set: {
-                    channelId: interaction.channel.id,
+                    channelId: interaction.channelId,
                     updatedAt: new Date()
                 }
             },
@@ -84,9 +66,33 @@ function extractUrls(message) {
             addUrls(field.name);
             addUrls(field.value);
         }
+
+        for (const image of [
+            embed.image,
+            embed.thumbnail,
+            embed.author
+        ]) {
+            if (image?.url) addUrls(image.url);
+        }
     }
 
     return [...urls];
+}
+
+function isNewsGgUrl(url) {
+    try {
+        const parsed = new URL(url);
+
+        return (
+            (parsed.protocol === "https:" || parsed.protocol === "http:") &&
+            (
+                parsed.hostname === NEWS_GG_DOMAIN ||
+                parsed.hostname.endsWith(`.${NEWS_GG_DOMAIN}`)
+            )
+        );
+    } catch {
+        return false;
+    }
 }
 
 async function extractArticle(articlePageUrl) {
@@ -106,6 +112,7 @@ async function extractArticle(articlePageUrl) {
 
     const title =
         $('meta[property="og:title"]').attr("content")?.trim() ||
+        $('meta[name="twitter:title"]').attr("content")?.trim() ||
         $("h1").first().text().trim() ||
         $("title").first().text().trim();
 
@@ -120,10 +127,13 @@ async function extractArticle(articlePageUrl) {
             if (!href) return;
 
             try {
-                const url = new URL(href, articlePageUrl);
+                const parsed = new URL(href, articlePageUrl);
 
-                if (url.protocol === "https:" || url.protocol === "http:") {
-                    sourceUrl = url.href;
+                if (
+                    parsed.protocol === "https:" ||
+                    parsed.protocol === "http:"
+                ) {
+                    sourceUrl = parsed.href;
                     return false;
                 }
             } catch {
@@ -140,7 +150,7 @@ async function extractArticle(articlePageUrl) {
 }
 
 export async function handleMessage(message, client) {
-    if (!message.guild || message.author.id !== NEWS_GG_BOT_ID) {
+    if (!message.guild || message.author.id === client.user.id) {
         return;
     }
 
@@ -153,14 +163,7 @@ export async function handleMessage(message, client) {
     }
 
     const urls = extractUrls(message);
-
-    const articlePageUrl = urls.find(url => {
-        try {
-            return new URL(url).hostname === "newsdiscordbot.xyz";
-        } catch {
-            return false;
-        }
-    });
+    const articlePageUrl = urls.find(isNewsGgUrl);
 
     if (!articlePageUrl) return;
 
@@ -174,7 +177,10 @@ export async function handleMessage(message, client) {
     }
 
     if (!article) {
-        console.error("記事タイトルまたは元記事URLを取得できませんでした。");
+        console.error(
+            "記事タイトルまたは元記事URLを取得できませんでした:",
+            articlePageUrl
+        );
         return;
     }
 
