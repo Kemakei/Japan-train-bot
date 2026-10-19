@@ -1054,8 +1054,7 @@ client.on(Events.MessageCreate, async message => {
         return;
     }
 
-    if (message.author.bot) return;
-});
+  if (message.author.bot) return;
   
   const channelId = message.channel.id;
   const monitoredMessageId = client.monitoredMessages.get(channelId);
