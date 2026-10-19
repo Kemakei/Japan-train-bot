@@ -29,27 +29,46 @@ export async function execute(interaction, { client }) {
     const collection = client.db.collection(SETTINGS_COLLECTION);
 
     try {
-        // このサーバーの、このチャンネルの設定だけを確認
+        // 現在のチャンネルが監視対象か確認
         const existing = await collection.findOne({
             guildId,
             channelId
         });
 
-        // すでに監視中なら、このチャンネルだけ解除
         if (existing) {
+            // 監視設定を解除
             await collection.deleteMany({
                 guildId,
                 channelId
             });
 
-            await interaction.reply({
-                content: `このチャンネル（${interaction.channel}）のNews.gg監視を解除しました。`,
-                ephemeral: true
-            });
+            // 解除後の監視チャンネル一覧を取得
+            const settings = await collection
+                .find({ guildId })
+                .toArray();
+
+            if (settings.length === 0) {
+                await interaction.reply({
+                    content: "このチャンネルのNews.gg監視を解除しました。現在、監視中のチャンネルはありません。",
+                    ephemeral: true
+                });
+            } else {
+                const channelMentions = settings.map(
+                    setting => `<#${setting.channelId}>`
+                );
+
+                await interaction.reply({
+                    content:
+                        `このチャンネルのNews.gg監視を解除しました。\n` +
+                        `監視チャンネルを ${channelMentions.join("")} に設定しました。`,
+                    ephemeral: true
+                });
+            }
+
             return;
         }
 
-        // ここからは監視開始処理
+        // 監視開始に必要な設定を確認
         if (!NEWS_GG_BOT_ID) {
             await interaction.reply({
                 content: "NEWS_GG_BOT_ID が設定されていません。.envを確認してください。",
@@ -58,6 +77,7 @@ export async function execute(interaction, { client }) {
             return;
         }
 
+        // News.ggがサーバーに参加しているか確認
         try {
             await interaction.guild.members.fetch(NEWS_GG_BOT_ID);
         } catch {
@@ -68,18 +88,35 @@ export async function execute(interaction, { client }) {
             return;
         }
 
-        // サーバーIDとチャンネルIDの組み合わせで保存
-        await collection.insertOne({
-            guildId,
-            channelId,
-            updatedAt: new Date()
-        });
+        // このチャンネルを監視対象に追加
+        await collection.updateOne(
+            { guildId, channelId },
+            {
+                $setOnInsert: {
+                    guildId,
+                    channelId,
+                    updatedAt: new Date()
+                }
+            },
+            { upsert: true }
+        );
+
+        // サーバー内の監視チャンネル一覧を取得
+        const settings = await collection
+            .find({ guildId })
+            .toArray();
+
+        const channelMentions = settings.map(
+            setting => `<#${setting.channelId}>`
+        );
 
         await interaction.reply({
-            content: `このチャンネル（${interaction.channel}）のNews.gg監視を開始しました。`,
+            content: `監視チャンネルを ${channelMentions.join("")} に設定しました。`,
             ephemeral: true
         });
-    } catch {
+    } catch (error) {
+        console.error("News.gg channel settings error:", error);
+
         if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({
                 content: "News.gg監視設定の更新に失敗しました。データベースを確認してください。",
@@ -215,7 +252,7 @@ export async function handleMessage(message, client) {
         return;
     }
 
-    // サーバーIDとチャンネルIDの両方で判定
+    // サーバーIDとチャンネルIDの両方で監視設定を確認
     const settings = await client.db
         .collection(SETTINGS_COLLECTION)
         .findOne({
@@ -223,9 +260,9 @@ export async function handleMessage(message, client) {
             channelId: message.channel.id
         });
 
-    // このチャンネルが監視対象でなければ何もしない
     if (!settings) return;
 
+    // News.ggのメッセージから記事URLを抽出
     const urls = extractUrls(message);
 
     const articlePageUrl = urls.find(url => {
@@ -242,21 +279,25 @@ export async function handleMessage(message, client) {
 
     try {
         article = await extractArticle(articlePageUrl);
-    } catch {
+    } catch (error) {
+        console.error("News.gg article extraction failed:", error);
         return;
     }
 
     if (!article) return;
 
+    // 記事タイトルと元記事URLを投稿
     try {
         await message.channel.send({
             content: `**${article.title}**\n${article.sourceUrl}`,
             allowedMentions: { parse: [] }
         });
-    } catch {
+    } catch (error) {
+        console.error("News.gg article posting failed:", error);
         return;
     }
 
+    // 処理後にNews.ggの元メッセージを削除
     try {
         await message.delete();
     } catch {
