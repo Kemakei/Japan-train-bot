@@ -1039,7 +1039,7 @@ client.on(Events.GuildMemberAdd, async member => {
 // -------------------- メッセージ監視 --------------------
 client.updateTimers ??= new Map();
 
-  if (message.author.bot) return;
+if (message.author.bot) return;
   
   const channelId = message.channel.id;
   const monitoredMessageId = client.monitoredMessages.get(channelId);
