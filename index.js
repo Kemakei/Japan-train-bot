@@ -23,6 +23,7 @@ import { scheduleDailyLoanUpdate } from './utils/dailyLoanUpdater.js';
 import { getLatestDrawId, getNextDrawId } from "./utils/draw.js";
 import { scheduleUnemployCheck } from './commands/takasumi_unemploy_timer.js';
 import { scheduleDailyStockDividend } from "./utils/dailyStockDividend.js";
+import { handleMessage as handleNewsMessage } from "./commands/set_news_channel.js";
 
 // ESMで__dirnameを使う
 const __filename = fileURLToPath(import.meta.url);
@@ -1113,17 +1114,8 @@ client.on(Events.MessageCreate, async message => {
 client.on(Events.MessageCreate, async message => {
     if (message.author.id !== process.env.NEWS_GG_BOT_ID) return;
 
-    const newsCommand = client.commands.get("set_news_channel");
-
-    if (typeof newsCommand?.handleMessage !== "function") {
-        console.error(
-            "News.gg handler not found: set_news_channel.handleMessage"
-        );
-        return;
-    }
-
     try {
-        await newsCommand.handleMessage(message, client);
+        await handleNewsMessage(message, client);
     } catch (error) {
         console.error("News.gg message handler error:", error);
     }
