@@ -1112,12 +1112,10 @@ client.on(Events.MessageCreate, async message => {
 
 //-------------------- news.gg用メッセージ監視 --------------------
 client.on(Events.MessageCreate, async message => {
-    if (message.author.id !== process.env.NEWS_GG_BOT_ID) return;
-
     try {
         await handleNewsMessage(message, client);
     } catch (error) {
-        console.error("News.gg message handler error:", error);
+        console.error("[News.gg] Message handler error:", error);
     }
 });
 
