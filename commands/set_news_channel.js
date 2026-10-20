@@ -1,3 +1,4 @@
+
 import {
     SlashCommandBuilder,
     PermissionFlagsBits,
@@ -7,6 +8,7 @@ import * as cheerio from "cheerio";
 
 const NEWS_GG_BOT_ID = process.env.NEWS_GG_BOT_ID;
 const SETTINGS_COLLECTION = "newsChannelSettings";
+const NEWS_GG_HOST = "newsdiscordbot.xyz";
 
 export const data = new SlashCommandBuilder()
     .setName("set_news_channel")
@@ -18,6 +20,14 @@ export async function execute(interaction, { client }) {
     if (!interaction.guild || !interaction.channel) {
         await interaction.reply({
             content: "サーバーのテキストチャンネルで実行してください。",
+            ephemeral: true
+        });
+        return;
+    }
+
+    if (!NEWS_GG_BOT_ID) {
+        await interaction.reply({
+            content: "NEWS_GG_BOT_ID が設定されていません。.envを確認してください。",
             ephemeral: true
         });
         return;
@@ -43,30 +53,14 @@ export async function execute(interaction, { client }) {
                 .find({ guildId })
                 .toArray();
 
-            if (settings.length === 0) {
-                await interaction.reply({
-                    content: "このチャンネルのNews.gg監視を解除しました。現在、監視中のチャンネルはありません。",
-                    ephemeral: true
-                });
-            } else {
-                const channelMentions = settings.map(
-                    setting => `<#${setting.channelId}>`
-                );
+            const channelMentions = settings.map(
+                setting => `<#${setting.channelId}>`
+            );
 
-                await interaction.reply({
-                    content:
-                        `このチャンネルのNews.gg監視を解除しました。\n` +
-                        `監視チャンネルを ${channelMentions.join(" ")} に設定しました。`,
-                    ephemeral: true
-                });
-            }
-
-            return;
-        }
-
-        if (!NEWS_GG_BOT_ID) {
             await interaction.reply({
-                content: "NEWS_GG_BOT_ID が設定されていません。.envを確認してください。",
+                content: settings.length
+                    ? `このチャンネルのNews.gg監視を解除しました。\n監視チャンネル: ${channelMentions.join(" ")}`
+                    : "このチャンネルのNews.gg監視を解除しました。現在、監視中のチャンネルはありません。",
                 ephemeral: true
             });
             return;
@@ -74,7 +68,9 @@ export async function execute(interaction, { client }) {
 
         try {
             await interaction.guild.members.fetch(NEWS_GG_BOT_ID);
-        } catch {
+        } catch (error) {
+            console.error("[News.gg] Bot member fetch failed:", error);
+
             await interaction.reply({
                 content: "News.ggがサーバーに参加していません。",
                 ephemeral: true
@@ -85,7 +81,7 @@ export async function execute(interaction, { client }) {
         await collection.updateOne(
             { guildId, channelId },
             {
-                $setOnInsert: {
+                $set: {
                     guildId,
                     channelId,
                     updatedAt: new Date()
@@ -107,7 +103,7 @@ export async function execute(interaction, { client }) {
             ephemeral: true
         });
     } catch (error) {
-        console.error("News.gg channel settings error:", error);
+        console.error("[News.gg] Settings update failed:", error);
 
         if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({
@@ -131,7 +127,10 @@ function extractUrls(message) {
             try {
                 const parsedUrl = new URL(cleanedUrl);
 
-                if (["http:", "https:"].includes(parsedUrl.protocol)) {
+                if (
+                    parsedUrl.protocol === "http:" ||
+                    parsedUrl.protocol === "https:"
+                ) {
                     urls.add(parsedUrl.href);
                 }
             } catch {
@@ -146,18 +145,12 @@ function extractUrls(message) {
         addUrls(embed.url);
         addUrls(embed.title);
         addUrls(embed.description);
-
         addUrls(embed.author?.name);
         addUrls(embed.author?.url);
-        addUrls(embed.author?.iconURL);
-
         addUrls(embed.footer?.text);
-        addUrls(embed.footer?.iconURL);
-
         addUrls(embed.thumbnail?.url);
         addUrls(embed.image?.url);
         addUrls(embed.video?.url);
-
         addUrls(embed.provider?.name);
         addUrls(embed.provider?.url);
 
@@ -180,7 +173,7 @@ async function fetchPage(url) {
     });
 
     if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        throw new Error(`HTTP ${response.status}: ${url}`);
     }
 
     return {
@@ -202,21 +195,16 @@ function extractTitle($) {
     for (const candidate of candidates) {
         const title = candidate?.replace(/\s+/g, " ").trim();
 
-        if (title) {
-            return title;
-        }
+        if (title) return title;
     }
 
     return null;
 }
 
-async function extractArticle(articlePageUrl) {
-    const articlePage = await fetchPage(articlePageUrl);
-    const $ = cheerio.load(articlePage.html);
-
+function extractSourceUrl($, pageUrl) {
     let sourceUrl = null;
 
-    $("a[href]").each((_, element) => {
+    $('a[href]').each((_, element) => {
         if (sourceUrl) return;
 
         const linkText = $(element)
@@ -227,15 +215,14 @@ async function extractArticle(articlePageUrl) {
         if (!/read\s+full\s+article/i.test(linkText)) return;
 
         const href = $(element).attr("href");
-
         if (!href) return;
 
         try {
-            const parsedUrl = new URL(href, articlePage.url);
+            const parsedUrl = new URL(href, pageUrl);
 
             if (
                 ["http:", "https:"].includes(parsedUrl.protocol) &&
-                parsedUrl.hostname.toLowerCase() !== "newsdiscordbot.xyz"
+                parsedUrl.hostname.toLowerCase() !== NEWS_GG_HOST
             ) {
                 sourceUrl = parsedUrl.href;
             }
@@ -244,13 +231,32 @@ async function extractArticle(articlePageUrl) {
         }
     });
 
-    if (!sourceUrl) return null;
+    return sourceUrl;
+}
+
+async function extractArticle(articlePageUrl) {
+    console.log("[News.gg] Fetching article page:", articlePageUrl);
+
+    const articlePage = await fetchPage(articlePageUrl);
+    const $ = cheerio.load(articlePage.html);
+
+    const sourceUrl = extractSourceUrl($, articlePage.url);
+
+    if (!sourceUrl) {
+        console.warn("[News.gg] Source article link not found:", articlePage.url);
+        return null;
+    }
+
+    console.log("[News.gg] Fetching source article:", sourceUrl);
 
     const sourcePage = await fetchPage(sourceUrl);
     const sourcePage$ = cheerio.load(sourcePage.html);
     const title = extractTitle(sourcePage$);
 
-    if (!title) return null;
+    if (!title) {
+        console.warn("[News.gg] Article title not found:", sourcePage.url);
+        return null;
+    }
 
     return {
         title,
@@ -259,59 +265,68 @@ async function extractArticle(articlePageUrl) {
 }
 
 export async function handleMessage(message, client) {
-    if (
-        !message.guild ||
-        !NEWS_GG_BOT_ID ||
-        message.author.id !== NEWS_GG_BOT_ID
-    ) {
-        return;
-    }
+    if (!message.guild || !NEWS_GG_BOT_ID) return;
+    if (message.author.id !== NEWS_GG_BOT_ID) return;
 
-    const settings = await client.db
-        .collection(SETTINGS_COLLECTION)
-        .findOne({
-            guildId: message.guild.id,
-            channelId: message.channel.id
-        });
-
-    if (!settings) return;
-
-    const urls = extractUrls(message);
-
-    const articlePageUrl = urls.find(url => {
-        try {
-            return new URL(url).hostname.toLowerCase() === "newsdiscordbot.xyz";
-        } catch {
-            return false;
-        }
+    console.log("[News.gg] Target message detected:", {
+        guildId: message.guild.id,
+        channelId: message.channel.id,
+        messageId: message.id,
+        content: message.content,
+        embeds: message.embeds.length
     });
 
-    if (!articlePageUrl) return;
-
-    let article;
-
     try {
-        article = await extractArticle(articlePageUrl);
-    } catch (error) {
-        console.error("News.gg article extraction failed:", error);
-        return;
-    }
+        const settings = await client.db
+            .collection(SETTINGS_COLLECTION)
+            .findOne({
+                guildId: message.guild.id,
+                channelId: message.channel.id
+            });
 
-    if (!article) return;
+        if (!settings) {
+            console.log("[News.gg] Channel is not monitored:", message.channel.id);
+            return;
+        }
 
-    try {
-        await message.channel.send({
+        const urls = extractUrls(message);
+
+        console.log("[News.gg] Extracted URLs:", urls);
+
+        const articlePageUrl = urls.find(url => {
+            try {
+                return new URL(url).hostname.toLowerCase() === NEWS_GG_HOST;
+            } catch {
+                return false;
+            }
+        });
+
+        if (!articlePageUrl) {
+            console.warn("[News.gg] News article URL not found.");
+            return;
+        }
+
+        const article = await extractArticle(articlePageUrl);
+
+        if (!article) {
+            console.warn("[News.gg] Article extraction returned no result.");
+            return;
+        }
+
+        const sentMessage = await message.channel.send({
             content: `**${article.title}**\n${article.sourceUrl}`,
             allowedMentions: { parse: [] }
         });
-    } catch (error) {
-        console.error("News.gg article posting failed:", error);
-        return;
-    }
 
-    try {
-        await message.delete();
-    } catch {
-        // メッセージを削除できない場合は何もしない
+        console.log("[News.gg] Article reposted:", sentMessage.id);
+
+        try {
+            await message.delete();
+            console.log("[News.gg] Original message deleted:", message.id);
+        } catch (error) {
+            console.error("[News.gg] Original message deletion failed:", error);
+        }
+    } catch (error) {
+        console.error("[News.gg] Message processing failed:", error);
     }
 }
