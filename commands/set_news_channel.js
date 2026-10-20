@@ -120,26 +120,49 @@ export async function execute(interaction, { client }) {
 
 function extractUrls(message) {
     const urls = new Set();
-    const pattern = /https?:\/\/[^\s<>]+/g;
+    const pattern = /https?:\/\/[^\s<>"']+/gi;
 
-    const addUrls = text => {
-        if (!text) return;
+    const addUrls = value => {
+        if (typeof value !== "string" || !value) return;
 
-        for (const match of text.matchAll(pattern)) {
-            urls.add(match[0].replace(/[),.!?]+$/, ""));
+        for (const match of value.matchAll(pattern)) {
+            const cleanedUrl = match[0].replace(/[),.!?;:}\]]+$/, "");
+
+            try {
+                const parsedUrl = new URL(cleanedUrl);
+
+                if (["http:", "https:"].includes(parsedUrl.protocol)) {
+                    urls.add(parsedUrl.href);
+                }
+            } catch {
+                // 不正なURLは無視
+            }
         }
     };
 
     addUrls(message.content);
 
-    for (const embed of message.embeds) {
-        if (embed.url) {
-            urls.add(embed.url);
-        }
+    for (const embed of message.embeds ?? []) {
+        addUrls(embed.url);
+        addUrls(embed.title);
+        addUrls(embed.description);
 
-        addUrls(embed.description ?? "");
+        addUrls(embed.author?.name);
+        addUrls(embed.author?.url);
+        addUrls(embed.author?.iconURL);
+
+        addUrls(embed.footer?.text);
+        addUrls(embed.footer?.iconURL);
+
+        addUrls(embed.thumbnail?.url);
+        addUrls(embed.image?.url);
+        addUrls(embed.video?.url);
+
+        addUrls(embed.provider?.name);
+        addUrls(embed.provider?.url);
 
         for (const field of embed.fields ?? []) {
+            addUrls(field.name);
             addUrls(field.value);
         }
     }
@@ -212,7 +235,7 @@ async function extractArticle(articlePageUrl) {
 
             if (
                 ["http:", "https:"].includes(parsedUrl.protocol) &&
-                parsedUrl.hostname !== "newsdiscordbot.xyz"
+                parsedUrl.hostname.toLowerCase() !== "newsdiscordbot.xyz"
             ) {
                 sourceUrl = parsedUrl.href;
             }
@@ -257,7 +280,7 @@ export async function handleMessage(message, client) {
 
     const articlePageUrl = urls.find(url => {
         try {
-            return new URL(url).hostname === "newsdiscordbot.xyz";
+            return new URL(url).hostname.toLowerCase() === "newsdiscordbot.xyz";
         } catch {
             return false;
         }
