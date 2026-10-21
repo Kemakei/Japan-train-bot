@@ -278,7 +278,11 @@ export async function handleMessage(message, client) {
     components: message.components.map(component => component.toJSON()),
     reference: message.reference
 });
-
+    console.dir({
+    content: message.content,
+    components: message.components.map(component => component.toJSON())
+}, { depth: null });
+    
     console.log("[News.gg] Target message detected:", {
         guildId: message.guild.id,
         channelId: message.channel.id,
