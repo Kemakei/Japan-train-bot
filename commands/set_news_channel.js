@@ -264,25 +264,21 @@ async function extractArticle(articlePageUrl) {
     };
 }
 
-export async function handleMessage(message, client) {
+    export async function handleMessage(message, client) {
     if (!message.guild || !NEWS_GG_BOT_ID) return;
     if (message.author.id !== NEWS_GG_BOT_ID) return;
 
-    console.log("[News.gg] Message structure:", {
-    content: message.content,
-    embeds: message.embeds.map(embed => embed.toJSON()),
-    attachments: [...message.attachments.values()].map(file => ({
-        name: file.name,
-        url: file.url
-    })),
-    components: message.components.map(component => component.toJSON()),
-    reference: message.reference
-});
     console.dir({
-    content: message.content,
-    components: message.components.map(component => component.toJSON())
-}, { depth: null });
-    
+        content: message.content,
+        embeds: message.embeds.map(embed => embed.toJSON()),
+        attachments: [...message.attachments.values()].map(file => ({
+            name: file.name,
+            url: file.url
+        })),
+        components: message.components.map(component => component.toJSON()),
+        reference: message.reference
+    }, { depth: null });
+
     console.log("[News.gg] Target message detected:", {
         guildId: message.guild.id,
         channelId: message.channel.id,
