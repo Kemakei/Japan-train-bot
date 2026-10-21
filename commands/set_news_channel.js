@@ -49,10 +49,7 @@ export async function execute(interaction, { client }) {
                 channelId
             });
 
-            const settings = await collection
-                .find({ guildId })
-                .toArray();
-
+            const settings = await collection.find({ guildId }).toArray();
             const channelMentions = settings.map(
                 setting => `<#${setting.channelId}>`
             );
@@ -68,9 +65,7 @@ export async function execute(interaction, { client }) {
 
         try {
             await interaction.guild.members.fetch(NEWS_GG_BOT_ID);
-        } catch (error) {
-            console.error("[News.gg] Bot member fetch failed:", error);
-
+        } catch {
             await interaction.reply({
                 content: "News.ggがサーバーに参加していません。",
                 ephemeral: true
@@ -90,10 +85,7 @@ export async function execute(interaction, { client }) {
             { upsert: true }
         );
 
-        const settings = await collection
-            .find({ guildId })
-            .toArray();
-
+        const settings = await collection.find({ guildId }).toArray();
         const channelMentions = settings.map(
             setting => `<#${setting.channelId}>`
         );
@@ -102,9 +94,7 @@ export async function execute(interaction, { client }) {
             content: `監視チャンネルを ${channelMentions.join(" ")} に設定しました。`,
             ephemeral: true
         });
-    } catch (error) {
-        console.error("[News.gg] Settings update failed:", error);
-
+    } catch {
         if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({
                 content: "News.gg監視設定の更新に失敗しました。データベースを確認してください。",
@@ -118,7 +108,7 @@ function extractUrls(message) {
     const urls = new Set();
     const pattern = /https?:\/\/[^\s<>"']+/gi;
 
-    const addUrls = value => {
+    function addUrls(value) {
         if (typeof value !== "string" || !value) return;
 
         for (const match of value.matchAll(pattern)) {
@@ -127,37 +117,47 @@ function extractUrls(message) {
             try {
                 const parsedUrl = new URL(cleanedUrl);
 
-                if (
-                    parsedUrl.protocol === "http:" ||
-                    parsedUrl.protocol === "https:"
-                ) {
+                if (["http:", "https:"].includes(parsedUrl.protocol)) {
                     urls.add(parsedUrl.href);
                 }
             } catch {
                 // 不正なURLは無視
             }
         }
-    };
+    }
+
+    function traverse(value) {
+        if (!value || typeof value !== "object") return;
+
+        if (Array.isArray(value)) {
+            for (const item of value) {
+                traverse(item);
+            }
+            return;
+        }
+
+        addUrls(value.content);
+        addUrls(value.url);
+
+        for (const child of Object.values(value)) {
+            if (child && typeof child === "object") {
+                traverse(child);
+            }
+        }
+    }
 
     addUrls(message.content);
 
     for (const embed of message.embeds ?? []) {
-        addUrls(embed.url);
-        addUrls(embed.title);
-        addUrls(embed.description);
-        addUrls(embed.author?.name);
-        addUrls(embed.author?.url);
-        addUrls(embed.footer?.text);
-        addUrls(embed.thumbnail?.url);
-        addUrls(embed.image?.url);
-        addUrls(embed.video?.url);
-        addUrls(embed.provider?.name);
-        addUrls(embed.provider?.url);
+        traverse(embed.toJSON());
+    }
 
-        for (const field of embed.fields ?? []) {
-            addUrls(field.name);
-            addUrls(field.value);
-        }
+    for (const component of message.components ?? []) {
+        traverse(component.toJSON());
+    }
+
+    for (const attachment of message.attachments?.values() ?? []) {
+        addUrls(attachment.url);
     }
 
     return [...urls];
@@ -235,28 +235,17 @@ function extractSourceUrl($, pageUrl) {
 }
 
 async function extractArticle(articlePageUrl) {
-    console.log("[News.gg] Fetching article page:", articlePageUrl);
-
     const articlePage = await fetchPage(articlePageUrl);
     const $ = cheerio.load(articlePage.html);
-
     const sourceUrl = extractSourceUrl($, articlePage.url);
 
-    if (!sourceUrl) {
-        console.warn("[News.gg] Source article link not found:", articlePage.url);
-        return null;
-    }
-
-    console.log("[News.gg] Fetching source article:", sourceUrl);
+    if (!sourceUrl) return null;
 
     const sourcePage = await fetchPage(sourceUrl);
     const sourcePage$ = cheerio.load(sourcePage.html);
     const title = extractTitle(sourcePage$);
 
-    if (!title) {
-        console.warn("[News.gg] Article title not found:", sourcePage.url);
-        return null;
-    }
+    if (!title) return null;
 
     return {
         title,
@@ -264,28 +253,9 @@ async function extractArticle(articlePageUrl) {
     };
 }
 
-    export async function handleMessage(message, client) {
+export async function handleMessage(message, client) {
     if (!message.guild || !NEWS_GG_BOT_ID) return;
     if (message.author.id !== NEWS_GG_BOT_ID) return;
-
-    console.dir({
-        content: message.content,
-        embeds: message.embeds.map(embed => embed.toJSON()),
-        attachments: [...message.attachments.values()].map(file => ({
-            name: file.name,
-            url: file.url
-        })),
-        components: message.components.map(component => component.toJSON()),
-        reference: message.reference
-    }, { depth: null });
-
-    console.log("[News.gg] Target message detected:", {
-        guildId: message.guild.id,
-        channelId: message.channel.id,
-        messageId: message.id,
-        content: message.content,
-        embeds: message.embeds.length
-    });
 
     try {
         const settings = await client.db
@@ -295,49 +265,40 @@ async function extractArticle(articlePageUrl) {
                 channelId: message.channel.id
             });
 
-        if (!settings) {
-            console.log("[News.gg] Channel is not monitored:", message.channel.id);
-            return;
-        }
+        if (!settings) return;
 
         const urls = extractUrls(message);
 
-        console.log("[News.gg] Extracted URLs:", urls);
-
         const articlePageUrl = urls.find(url => {
             try {
-                return new URL(url).hostname.toLowerCase() === NEWS_GG_HOST;
+                const parsedUrl = new URL(url);
+
+                return (
+                    parsedUrl.hostname.toLowerCase() === NEWS_GG_HOST &&
+                    parsedUrl.pathname.startsWith("/articles/")
+                );
             } catch {
                 return false;
             }
         });
 
-        if (!articlePageUrl) {
-            console.warn("[News.gg] News article URL not found.");
-            return;
-        }
+        if (!articlePageUrl) return;
 
         const article = await extractArticle(articlePageUrl);
 
-        if (!article) {
-            console.warn("[News.gg] Article extraction returned no result.");
-            return;
-        }
+        if (!article) return;
 
-        const sentMessage = await message.channel.send({
+        await message.channel.send({
             content: `**${article.title}**\n${article.sourceUrl}`,
             allowedMentions: { parse: [] }
         });
 
-        console.log("[News.gg] Article reposted:", sentMessage.id);
-
         try {
             await message.delete();
-            console.log("[News.gg] Original message deleted:", message.id);
-        } catch (error) {
-            console.error("[News.gg] Original message deletion failed:", error);
+        } catch {
+            // 元メッセージを削除できない場合は何もしない
         }
-    } catch (error) {
-        console.error("[News.gg] Message processing failed:", error);
+    } catch {
+        // メッセージ処理に失敗した場合は何もしない
     }
 }
