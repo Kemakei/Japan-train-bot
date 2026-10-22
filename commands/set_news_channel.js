@@ -46,7 +46,6 @@ export async function execute(interaction, { client }) {
             channelId
         });
 
-        // 監視中なら解除
         if (existing) {
             await collection.deleteMany({
                 guildId,
@@ -71,7 +70,6 @@ export async function execute(interaction, { client }) {
             return;
         }
 
-        // News.gg Botの参加を確認
         try {
             await interaction.guild.members.fetch(NEWS_GG_BOT_ID);
         } catch (error) {
@@ -88,7 +86,6 @@ export async function execute(interaction, { client }) {
             return;
         }
 
-        // 監視設定を保存
         await collection.updateOne(
             { guildId, channelId },
             {
@@ -154,12 +151,11 @@ function addUrl(value, urls) {
 }
 
 /**
- * テキストから通常URLとMarkdownリンクを抽出
+ * Markdownリンクと通常のテキストからURLを抽出
  */
 function extractUrlsFromText(value, urls) {
     if (typeof value !== "string" || !value) return;
 
-    // Markdownリンク: [タイトル](URL)
     const markdownPattern =
         /\]\(\s*<?(https?:\/\/[^)\s>]+)>?\s*\)/gi;
 
@@ -167,7 +163,6 @@ function extractUrlsFromText(value, urls) {
         addUrl(match[1], urls);
     }
 
-    // Markdownリンク全体を除外して通常URLを抽出
     const textWithoutMarkdown = value.replace(
         /\[([^\]]*)\]\(\s*<?https?:\/\/[^)\s>]+>?\s*\)/gi,
         ""
@@ -207,6 +202,55 @@ function extractComponentUrls(components, urls) {
 }
 
 /**
+ * Components V2からタイトル候補を抽出
+ */
+function extractComponentTexts(components, texts = []) {
+    for (const component of components ?? []) {
+        if (!component) continue;
+
+        if (
+            typeof component.content === "string" &&
+            component.content.trim()
+        ) {
+            texts.push(
+                component.content
+                    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+                    .replace(/\s+/g, " ")
+                    .trim()
+            );
+        }
+
+        if (component.accessory) {
+            extractComponentTexts(
+                [component.accessory],
+                texts
+            );
+        }
+
+        if (component.components) {
+            extractComponentTexts(
+                component.components,
+                texts
+            );
+        }
+    }
+
+    return texts;
+}
+
+/**
+ * ページ取得失敗時のタイトル候補
+ */
+function getFallbackTitle(message) {
+    const texts = extractComponentTexts(message.components);
+
+    return texts.find(text =>
+        text.length >= 15 &&
+        !/read full article|original article|invite|join server/i.test(text)
+    ) || null;
+}
+
+/**
  * Discordメッセージ全体からURLを抽出
  */
 function extractUrls(message) {
@@ -214,7 +258,6 @@ function extractUrls(message) {
 
     extractUrlsFromText(message.content, urls);
 
-    // Embed
     for (const embed of message.embeds ?? []) {
         extractUrlsFromText(embed.url, urls);
         extractUrlsFromText(embed.title, urls);
@@ -234,10 +277,8 @@ function extractUrls(message) {
         }
     }
 
-    // Components V2
     extractComponentUrls(message.components, urls);
 
-    // 添付ファイル
     for (const attachment of message.attachments?.values() ?? []) {
         extractUrlsFromText(attachment.url, urls);
     }
@@ -247,31 +288,67 @@ function extractUrls(message) {
 
 /**
  * Webページを取得
+ * タイムアウトや一時的なエラーは再試行する
  */
-async function fetchPage(url) {
-    const response = await fetch(url, {
-        signal: AbortSignal.timeout(15000),
-        headers: {
-            "User-Agent":
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-                "AppleWebKit/537.36 (KHTML, like Gecko) " +
-                "Chrome/130.0.0.0 Safari/537.36",
-            "Accept":
-                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-        },
-        redirect: "follow"
-    });
+async function fetchPage(url, retries = 2) {
+    let lastError;
 
-    if (!response.ok) {
-        throw new Error(
-            `HTTP ${response.status}: ${response.url}`
-        );
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            const response = await fetch(url, {
+                signal: AbortSignal.timeout(25000),
+                headers: {
+                    "User-Agent":
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+                        "AppleWebKit/537.36 (KHTML, like Gecko) " +
+                        "Chrome/131.0.0.0 Safari/537.36",
+                    "Accept":
+                        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9,ja;q=0.8"
+                },
+                redirect: "follow"
+            });
+
+            if (!response.ok) {
+                const error = new Error(
+                    `HTTP ${response.status}: ${response.url}`
+                );
+
+                if (
+                    response.status === 403 ||
+                    response.status === 404 ||
+                    response.status === 410
+                ) {
+                    error.noRetry = true;
+                }
+
+                throw error;
+            }
+
+            return {
+                html: await response.text(),
+                url: response.url
+            };
+        } catch (error) {
+            lastError = error;
+
+            console.warn(
+                `[News.gg] Fetch attempt ${attempt + 1}/${retries + 1} failed:`,
+                url,
+                error.message
+            );
+
+            if (error.noRetry || attempt === retries) {
+                break;
+            }
+
+            await new Promise(resolve =>
+                setTimeout(resolve, 1000 * (attempt + 1))
+            );
+        }
     }
 
-    return {
-        html: await response.text(),
-        url: response.url
-    };
+    throw lastError;
 }
 
 /**
@@ -292,16 +369,14 @@ function extractTitle($) {
             ?.replace(/\s+/g, " ")
             .trim();
 
-        if (title) {
-            return title;
-        }
+        if (title) return title;
     }
 
     return null;
 }
 
 /**
- * URLがNews.gg内部のURLか判定
+ * News.gg内部のURLか判定
  */
 function isNewsGgUrl(url) {
     try {
@@ -333,12 +408,13 @@ function isGoogleNewsUrl(url) {
 }
 
 /**
- * Google NewsのURLから元記事URLを探す
- *
- * リダイレクト先、埋め込みURL、ページ内リンクを調べる。
- * Google側の仕様によっては取得できない場合がある。
+ * Google NewsのURLから元記事を探す
  */
 async function resolveGoogleNewsUrl(googleUrl) {
+    if (!isGoogleNewsUrl(googleUrl)) {
+        return googleUrl;
+    }
+
     console.log(
         "[News.gg] Resolving Google News URL:",
         googleUrl
@@ -346,24 +422,25 @@ async function resolveGoogleNewsUrl(googleUrl) {
 
     try {
         const page = await fetchPage(googleUrl);
+        const finalUrl = page.url;
 
-        // HTTPリダイレクト後に外部記事へ移動していた場合
+        // 通常のHTTPリダイレクトで出版社に到達した場合
         if (
-            !isGoogleNewsUrl(page.url) &&
-            !isNewsGgUrl(page.url)
+            !isGoogleNewsUrl(finalUrl) &&
+            !isNewsGgUrl(finalUrl)
         ) {
             console.log(
                 "[News.gg] Google News redirect destination:",
-                page.url
+                finalUrl
             );
 
-            return page.url;
+            return finalUrl;
         }
 
         const $ = cheerio.load(page.html);
-        const candidates = new Set();
+        const externalUrls = new Set();
 
-        // Google NewsのHTML内にあるリンクを調べる
+        // HTML内のリンクを調べる
         $("a[href], [data-n-au], [data-url]").each((_, element) => {
             const values = [
                 $(element).attr("href"),
@@ -377,22 +454,21 @@ async function resolveGoogleNewsUrl(googleUrl) {
                 try {
                     const parsed = new URL(value, page.url);
 
-                    // URLパラメータに元記事URLが入っている場合
                     for (const key of [
                         "url",
                         "u",
                         "article_url",
                         "target"
                     ]) {
-                        const nestedUrl = parsed.searchParams.get(key);
+                        const nested = parsed.searchParams.get(key);
 
                         if (
-                            nestedUrl &&
-                            /^https?:\/\//i.test(nestedUrl) &&
-                            !isGoogleNewsUrl(nestedUrl) &&
-                            !isNewsGgUrl(nestedUrl)
+                            nested &&
+                            /^https?:\/\//i.test(nested) &&
+                            !isGoogleNewsUrl(nested) &&
+                            !isNewsGgUrl(nested)
                         ) {
-                            candidates.add(nestedUrl);
+                            externalUrls.add(nested);
                         }
                     }
 
@@ -401,7 +477,7 @@ async function resolveGoogleNewsUrl(googleUrl) {
                         !isGoogleNewsUrl(parsed.href) &&
                         !isNewsGgUrl(parsed.href)
                     ) {
-                        candidates.add(parsed.href);
+                        externalUrls.add(parsed.href);
                     }
                 } catch {
                     // 不正なURLは無視
@@ -409,16 +485,8 @@ async function resolveGoogleNewsUrl(googleUrl) {
             }
         });
 
-        const externalUrls = [...candidates];
-
-        console.log(
-            "[News.gg] Google News external links:",
-            externalUrls
-        );
-
-        // Google News内のナビゲーションではなく、
-        // 外部ニュースサイトのリンクを優先する
-        const newsDomains = [
+        // よく使われるニュース出版社を優先
+        const preferredDomains = [
             "reuters.com",
             "apnews.com",
             "bbc.com",
@@ -430,56 +498,46 @@ async function resolveGoogleNewsUrl(googleUrl) {
             "yomiuri.co.jp"
         ];
 
-        const preferred = externalUrls.find(url => {
-            try {
-                const hostname = new URL(url).hostname.toLowerCase();
+        for (const url of externalUrls) {
+            const hostname = new URL(url).hostname.toLowerCase();
 
-                return newsDomains.some(domain =>
+            if (
+                preferredDomains.some(domain =>
                     hostname === domain ||
                     hostname.endsWith(`.${domain}`)
+                )
+            ) {
+                console.log(
+                    "[News.gg] Publisher URL found:",
+                    url
                 );
-            } catch {
-                return false;
+
+                return url;
             }
-        });
-
-        if (preferred) {
-            console.log(
-                "[News.gg] Preferred publisher URL found:",
-                preferred
-            );
-
-            return preferred;
         }
 
-        // ニュースサイトのドメインを特定できない場合は、
-        // Google Newsから得られた外部URLを使用する
-        if (externalUrls.length > 0) {
+        const firstExternal = externalUrls.values().next().value;
+
+        if (firstExternal) {
             console.log(
-                "[News.gg] Using external Google News link:",
-                externalUrls[0]
+                "[News.gg] External Google News link found:",
+                firstExternal
             );
 
-            return externalUrls[0];
+            return firstExternal;
         }
-
-        console.warn(
-            "[News.gg] Original publisher URL not found in Google News."
-        );
-
-        return null;
     } catch (error) {
         console.warn(
             "[News.gg] Google News resolution failed:",
             error.message
         );
-
-        return null;
     }
+
+    return null;
 }
 
 /**
- * News.ggページから元記事URLを抽出
+ * News.ggページから元記事URLを探す
  */
 function extractSourceUrl($, pageUrl) {
     const candidates = [];
@@ -489,48 +547,43 @@ function extractSourceUrl($, pageUrl) {
 
         if (!href) return;
 
-        const linkText = $(element)
+        const text = $(element)
             .text()
             .replace(/\s+/g, " ")
             .trim();
 
         try {
-            const parsed = new URL(href, pageUrl);
+            const url = new URL(href, pageUrl);
 
             if (
-                !["http:", "https:"].includes(parsed.protocol)
+                !["http:", "https:"].includes(url.protocol) ||
+                isNewsGgUrl(url.href)
             ) {
                 return;
             }
 
-            if (isNewsGgUrl(parsed.href)) {
-                return;
-            }
-
             candidates.push({
-                text: linkText,
-                url: parsed.href
+                text,
+                url: url.href
             });
         } catch {
             // 不正なURLは無視
         }
     });
 
-    // Read full articleのリンクを優先
-    const source = candidates.find(item =>
+    const preferred = candidates.find(item =>
         /read\s+full\s+article/i.test(item.text)
     );
 
-    if (source) {
+    if (preferred) {
         console.log(
             "[News.gg] Source article link found:",
-            source
+            preferred
         );
 
-        return source.url;
+        return preferred.url;
     }
 
-    // 別表記にも対応
     const alternate = candidates.find(item =>
         /original\s+article|read\s+more|full\s+story|元記事|記事を読む|全文を読む|続きを読む/i.test(
             item.text
@@ -547,22 +600,15 @@ function extractSourceUrl($, pageUrl) {
     }
 
     console.warn(
-        "[News.gg] Source article link not found.",
-        {
-            pageUrl,
-            externalLinks: candidates
-        }
+        "[News.gg] Source article link not found:",
+        candidates
     );
 
     return null;
 }
 
 /**
- * News.ggページから元記事を取得する。
- *
- * 元記事リンクがGoogle Newsの場合は遷移先を探す。
- * 元記事リンクや元記事タイトルを取得できない場合は、
- * News.ggのタイトルと記事URLを使用する。
+ * News.ggページから記事情報を取得
  */
 async function extractArticle(articlePageUrl) {
     console.log(
@@ -570,7 +616,7 @@ async function extractArticle(articlePageUrl) {
         articlePageUrl
     );
 
-    // News.gg記事ページの取得は必須
+    // News.ggページが取得できなければ呼び出し元でフォールバック
     const articlePage = await fetchPage(articlePageUrl);
     const $ = cheerio.load(articlePage.html);
 
@@ -579,43 +625,28 @@ async function extractArticle(articlePageUrl) {
         $("title").text()
     );
 
-    // News.ggタイトルを先に取得しておく
     const newsGgTitle = extractTitle($)
         ?.replace(/\s*\|\s*News\.gg\s*$/i, "")
         .trim();
 
-    // News.ggページ内の元記事リンクを取得
     let sourceUrl = extractSourceUrl(
         $,
         articlePage.url
     );
 
-    // 元記事リンクが見つからない場合の診断情報
+    // 元記事リンクが見つからない場合はページ情報を記録
     if (!sourceUrl) {
-        console.warn(
-            "[News.gg] Page link diagnostics:",
-            $("a[href]")
+        console.warn("[News.gg] Link diagnostics:", {
+            canonical: $('link[rel="canonical"]').attr("href"),
+            ogUrl: $('meta[property="og:url"]').attr("content"),
+            links: $("a[href]")
                 .map((_, element) => ({
-                    text: $(element)
-                        .text()
-                        .replace(/\s+/g, " ")
-                        .trim(),
+                    text: $(element).text().trim(),
                     href: $(element).attr("href")
                 }))
                 .get()
-        );
+        });
 
-        console.warn(
-            "[News.gg] Canonical URL:",
-            $('link[rel="canonical"]').attr("href")
-        );
-
-        console.warn(
-            "[News.gg] Open Graph URL:",
-            $('meta[property="og:url"]').attr("content")
-        );
-
-        // 元記事リンクが見つからない場合はNews.gg記事を投稿
         if (newsGgTitle) {
             return {
                 title: newsGgTitle,
@@ -626,60 +657,57 @@ async function extractArticle(articlePageUrl) {
         return null;
     }
 
-    // Google News経由の場合、出版社のURLを探す
+    // Google Newsのリンクから出版社URLを解決
     if (isGoogleNewsUrl(sourceUrl)) {
-        const publisherUrl = await resolveGoogleNewsUrl(sourceUrl);
+        const resolvedUrl = await resolveGoogleNewsUrl(sourceUrl);
 
-        if (publisherUrl) {
-            sourceUrl = publisherUrl;
+        if (resolvedUrl) {
+            sourceUrl = resolvedUrl;
         } else {
             console.warn(
-                "[News.gg] Could not resolve Google News publisher URL."
+                "[News.gg] Publisher URL could not be resolved."
             );
 
-            // 元記事URLが解決できなければNews.gg記事を投稿
-            if (newsGgTitle) {
-                return {
+            return newsGgTitle
+                ? {
                     title: newsGgTitle,
                     sourceUrl: articlePage.url
-                };
-            }
-
-            return null;
+                }
+                : null;
         }
     }
 
-    console.log(
-        "[News.gg] Fetching source article:",
-        sourceUrl
-    );
-
-    // 元記事サイトの取得に失敗してもフォールバックする
+    // 元記事サイトからタイトルを取得
     try {
+        console.log(
+            "[News.gg] Fetching source article:",
+            sourceUrl
+        );
+
         const sourcePage = await fetchPage(sourceUrl);
-        const sourcePage$ = cheerio.load(sourcePage.html);
+        const source$ = cheerio.load(sourcePage.html);
+        const sourceTitle = extractTitle(source$);
 
-        const title = extractTitle(sourcePage$);
-
-        if (title) {
+        if (sourceTitle) {
             return {
-                title,
+                title: sourceTitle,
                 sourceUrl: sourcePage.url
             };
         }
 
         console.warn(
-            "[News.gg] Source title not found. Using News.gg title:",
+            "[News.gg] Source title not found:",
             sourcePage.url
         );
     } catch (error) {
         console.warn(
-            "[News.gg] Source page fetch failed. Using News.gg title:",
+            "[News.gg] Source fetch failed; preserving URL:",
             sourceUrl,
             error.message
         );
     }
 
+    // 元記事の取得に失敗しても、分かっている元記事URLを保持
     if (newsGgTitle) {
         return {
             title: newsGgTitle,
@@ -687,19 +715,14 @@ async function extractArticle(articlePageUrl) {
         };
     }
 
-    console.warn(
-        "[News.gg] Neither source title nor News.gg title was found."
-    );
-
     return null;
 }
 
 /**
- * News.ggニュース投稿の監視処理
+ * News.gg投稿を監視
  */
 export async function handleMessage(message, client) {
     if (!message.guild || !NEWS_GG_BOT_ID) return;
-
     if (message.author.id !== NEWS_GG_BOT_ID) return;
 
     console.log("[News.gg] Target message detected:", {
@@ -712,7 +735,7 @@ export async function handleMessage(message, client) {
     });
 
     try {
-        // 監視対象チャンネルか確認
+        // 監視チャンネルか確認
         const settings = await client.db
             .collection(SETTINGS_COLLECTION)
             .findOne({
@@ -725,11 +748,9 @@ export async function handleMessage(message, client) {
                 "[News.gg] Channel is not monitored:",
                 message.channel.id
             );
-
             return;
         }
 
-        // メッセージからURLを抽出
         const urls = extractUrls(message);
 
         console.log(
@@ -737,7 +758,7 @@ export async function handleMessage(message, client) {
             urls
         );
 
-        // newsdiscordbot.xyz の記事URLを抽出
+        // News.gg記事URLを特定
         const articlePageUrl = urls.find(url => {
             try {
                 const parsed = new URL(url);
@@ -755,26 +776,50 @@ export async function handleMessage(message, client) {
             console.warn(
                 "[News.gg] News article URL not found."
             );
-
             return;
         }
 
-        // 元記事を取得。失敗した場合はNews.ggタイトルを使用
-        const article = await extractArticle(
-            articlePageUrl
-        );
+        let article = null;
 
-        if (!article) {
-            console.warn(
-                "[News.gg] Article extraction returned no result."
+        try {
+            article = await extractArticle(articlePageUrl);
+        } catch (error) {
+            console.error(
+                "[News.gg] Article extraction failed; using fallback:",
+                error.message
             );
+        }
 
+        // News.ggページ自体の取得失敗時も投稿を試みる
+        if (!article) {
+            article = {
+                title: getFallbackTitle(message) || "News.gg News",
+                sourceUrl: articlePageUrl
+            };
+
+            console.warn(
+                "[News.gg] Using fallback article:",
+                article
+            );
+        }
+
+        // 投稿する前に空のタイトルとURLを検証
+        if (
+            typeof article.title !== "string" ||
+            !article.title.trim() ||
+            typeof article.sourceUrl !== "string" ||
+            !/^https?:\/\//i.test(article.sourceUrl)
+        ) {
+            console.error(
+                "[News.gg] Invalid article data:",
+                article
+            );
             return;
         }
 
-        // 元記事のタイトルとURLを投稿
+        // 再投稿が成功した場合のみ元メッセージを削除
         const sentMessage = await message.channel.send({
-            content: `**${article.title}**\n${article.sourceUrl}`,
+            content: `**${article.title.trim()}**\n${article.sourceUrl}`,
             allowedMentions: {
                 parse: []
             }
@@ -785,7 +830,6 @@ export async function handleMessage(message, client) {
             sentMessage.id
         );
 
-        // 再投稿成功後に元メッセージを削除
         try {
             await message.delete();
 
@@ -796,7 +840,7 @@ export async function handleMessage(message, client) {
         } catch (error) {
             console.error(
                 "[News.gg] Original message deletion failed:",
-                error
+                error.message
             );
         }
     } catch (error) {
