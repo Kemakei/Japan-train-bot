@@ -16,9 +16,6 @@ export const data = new SlashCommandBuilder()
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .setContexts(InteractionContextType.Guild);
 
-/**
- * 監視チャンネルの切り替え
- */
 export async function execute(interaction, { client }) {
     if (!interaction.guild || !interaction.channel) {
         await interaction.reply({
@@ -111,10 +108,7 @@ export async function execute(interaction, { client }) {
             ephemeral: true
         });
     } catch (error) {
-        console.error(
-            "[News.gg] Settings update failed:",
-            error
-        );
+        console.error("[News.gg] Settings update failed:", error);
 
         if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({
@@ -125,9 +119,6 @@ export async function execute(interaction, { client }) {
     }
 }
 
-/**
- * URLを正規化してSetに追加
- */
 function addUrl(value, urls) {
     if (typeof value !== "string" || !value) return;
 
@@ -147,17 +138,13 @@ function addUrl(value, urls) {
             urls.add(parsed.href);
         }
     } catch {
-        // 不正なURLは無視
+        // 無効なURLは無視
     }
 }
 
-/**
- * Markdownリンクと通常URLを抽出
- */
 function extractUrlsFromText(value, urls) {
     if (typeof value !== "string" || !value) return;
 
-    // MarkdownリンクのURL部分を取得
     const markdownPattern =
         /\]\(\s*<?(https?:\/\/[^)\s>]+)>?\s*\)/gi;
 
@@ -165,7 +152,6 @@ function extractUrlsFromText(value, urls) {
         addUrl(match[1], urls);
     }
 
-    // Markdownリンクを除いて、通常URLを取得
     const withoutMarkdown = value.replace(
         /\[([^\]]*)\]\(\s*<?https?:\/\/[^)\s>]+>?\s*\)/gi,
         ""
@@ -178,9 +164,6 @@ function extractUrlsFromText(value, urls) {
     }
 }
 
-/**
- * Components V2を再帰的に走査してURLを抽出
- */
 function extractComponentUrls(components, urls) {
     for (const component of components ?? []) {
         if (!component) continue;
@@ -198,9 +181,6 @@ function extractComponentUrls(components, urls) {
     }
 }
 
-/**
- * Components V2からテキストを抽出
- */
 function extractComponentTexts(components, texts = []) {
     for (const component of components ?? []) {
         if (!component) continue;
@@ -229,9 +209,6 @@ function extractComponentTexts(components, texts = []) {
     return texts;
 }
 
-/**
- * Discordメッセージ全体からURLを抽出
- */
 function extractUrls(message) {
     const urls = new Set();
 
@@ -265,9 +242,6 @@ function extractUrls(message) {
     return [...urls];
 }
 
-/**
- * News.ggのURLか判定
- */
 function isNewsGgUrl(url) {
     try {
         const hostname = new URL(url).hostname.toLowerCase();
@@ -281,25 +255,6 @@ function isNewsGgUrl(url) {
     }
 }
 
-/**
- * Google NewsのURLか判定
- */
-function isGoogleNewsUrl(url) {
-    try {
-        const hostname = new URL(url).hostname.toLowerCase();
-
-        return (
-            hostname === "news.google.com" ||
-            hostname.endsWith(".news.google.com")
-        );
-    } catch {
-        return false;
-    }
-}
-
-/**
- * タイトルを整形
- */
 function cleanTitle(value) {
     if (typeof value !== "string") return null;
 
@@ -316,9 +271,40 @@ function cleanTitle(value) {
     return title || null;
 }
 
-/**
- * JSON-LDからタイトルを取得
- */
+function extractMessageTitle(components) {
+    for (const component of components ?? []) {
+        if (!component) continue;
+
+        if (typeof component.content === "string") {
+            const match = component.content.match(
+                /^##\s+\[([^\]]+)\]\((https?:\/\/[^)]+)\)/m
+            );
+
+            if (match) {
+                const title = cleanTitle(match[1]);
+
+                if (title) return title;
+            }
+        }
+
+        const nestedTitle = extractMessageTitle(
+            component.components
+        );
+
+        if (nestedTitle) return nestedTitle;
+
+        if (component.accessory) {
+            const accessoryTitle = extractMessageTitle([
+                component.accessory
+            ]);
+
+            if (accessoryTitle) return accessoryTitle;
+        }
+    }
+
+    return null;
+}
+
 function extractJsonLdTitle($) {
     let result = null;
 
@@ -363,16 +349,13 @@ function extractJsonLdTitle($) {
                 }
             }
         } catch {
-            // 壊れたJSON-LDは無視
+            // 無効なJSON-LDは無視
         }
     });
 
     return result;
 }
 
-/**
- * ページからタイトルを抽出
- */
 function extractTitle($) {
     const candidates = [
         $('meta[property="og:title"]').attr("content"),
@@ -394,9 +377,6 @@ function extractTitle($) {
     return null;
 }
 
-/**
- * News.ggのタイトルからサイト名などを除去
- */
 function cleanNewsGgTitle(title) {
     return cleanTitle(title)
         ?.replace(/\s*\|\s*News\.gg\s*$/i, "")
@@ -405,13 +385,6 @@ function cleanNewsGgTitle(title) {
         ?.trim() || null;
 }
 
-/**
- * News.ggの記事ページからリンクを抽出する。
- *
- * Google Newsのリンクがあれば優先して返す。
- * なければ、Read full articleなどの直接リンクを返す。
- * 元記事サイトやGoogle Newsの内部APIにはアクセスしない。
- */
 function extractSourceUrl($, pageUrl) {
     const candidates = [];
 
@@ -446,48 +419,29 @@ function extractSourceUrl($, pageUrl) {
                 url: url.href
             });
         } catch {
-            // 不正なURLは無視
+            // 無効なURLは無視
         }
     });
 
     console.log("[News.gg] Source link candidates:", candidates);
 
-    // Google Newsのリンクがある場合は、必ずGoogle Newsを優先
-    const googleNewsLink = candidates.find(
-        item => isGoogleNewsUrl(item.url)
-    );
-
-    if (googleNewsLink) {
-        console.log(
-            "[News.gg] Google News URL found:",
-            googleNewsLink.url
-        );
-
-        return googleNewsLink.url;
-    }
-
-    // Google Newsがなければ直接リンクを使う
     const directLink = candidates.find(
-        item => !isGoogleNewsUrl(item.url)
+        item => !isNewsGgUrl(item.url)
     );
 
     if (directLink) {
         console.log(
-            "[News.gg] Direct source URL found:",
+            "[News.gg] Source URL found:",
             directLink.url
         );
 
         return directLink.url;
     }
 
-    console.log("[News.gg] No source link found.");
+    console.log("[News.gg] Source URL not found.");
     return null;
 }
 
-/**
- * News.ggの記事ページからタイトルとリンクを取得
- * 外部サイトにはアクセスしない
- */
 async function extractArticle(articlePageUrl, message) {
     console.log(
         "[News.gg] Fetching News.gg article:",
@@ -503,7 +457,7 @@ async function extractArticle(articlePageUrl, message) {
                 "Chrome/131.0.0.0 Safari/537.36",
             "Accept":
                 "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9,ja;q=0.8"
+            "Accept-Language": "ja,en-US;q=0.9,en;q=0.8"
         },
         redirect: "follow"
     });
@@ -514,7 +468,6 @@ async function extractArticle(articlePageUrl, message) {
         );
     }
 
-    // 外部サイトへリダイレクトした場合は取得しない
     if (!isNewsGgUrl(response.url)) {
         throw new Error(
             `Unexpected redirect destination: ${response.url}`
@@ -523,6 +476,10 @@ async function extractArticle(articlePageUrl, message) {
 
     const html = await response.text();
     const $ = cheerio.load(html);
+
+    const messageTitle = extractMessageTitle(
+        message.components
+    );
 
     const newsGgTitle = cleanNewsGgTitle(extractTitle($));
 
@@ -536,36 +493,25 @@ async function extractArticle(articlePageUrl, message) {
     );
 
     const title =
+        messageTitle ||
         newsGgTitle ||
         cleanTitle(componentTitle) ||
         "News.gg News";
 
-    const sourceUrl = extractSourceUrl($, response.url)
-        || response.url;
+    const sourceUrl =
+        extractSourceUrl($, response.url) ||
+        response.url;
 
-    const article = {
+    return {
         title,
         sourceUrl
     };
-
-    console.log("[News.gg] Article result:", article);
-
-    return article;
 }
 
-/**
- * News.gg投稿を監視して再投稿する
- */
 export async function handleMessage(message, client) {
     if (!message.guild || !NEWS_GG_BOT_ID) return;
     if (message.author.id !== NEWS_GG_BOT_ID) return;
 
-    console.dir({
-    content: message.content,
-    embeds: message.embeds.map(embed => embed.toJSON()),
-    components: message.components.map(component => component.toJSON())
-}, { depth: null });
-    
     console.log("[News.gg] Target message detected:", {
         guildId: message.guild.id,
         channelId: message.channel.id,
@@ -610,24 +556,20 @@ export async function handleMessage(message, client) {
         let article;
 
         try {
-            article = await extractArticle(articlePageUrl, message);
+            article = await extractArticle(
+                articlePageUrl,
+                message
+            );
         } catch (error) {
             console.error(
                 "[News.gg] Article extraction failed:",
                 error.message
             );
 
-            const componentTexts = extractComponentTexts(
-                message.components
-            );
-
-            const fallbackTitle = componentTexts.find(text =>
-                text.length >= 15 &&
-                !/read full article|original article|full story|invite|join server/i.test(text)
-            );
-
             article = {
-                title: cleanTitle(fallbackTitle) || "News.gg News",
+                title:
+                    extractMessageTitle(message.components) ||
+                    "News.gg News",
                 sourceUrl: articlePageUrl
             };
         }
@@ -643,7 +585,6 @@ export async function handleMessage(message, client) {
             return;
         }
 
-        // 再投稿に成功した場合のみ元メッセージを削除
         const sentMessage = await message.channel.send({
             content: `**${article.title}**\n${article.sourceUrl}`,
             allowedMentions: {
