@@ -560,6 +560,12 @@ export async function handleMessage(message, client) {
     if (!message.guild || !NEWS_GG_BOT_ID) return;
     if (message.author.id !== NEWS_GG_BOT_ID) return;
 
+    console.dir({
+    content: message.content,
+    embeds: message.embeds.map(embed => embed.toJSON()),
+    components: message.components.map(component => component.toJSON())
+}, { depth: null });
+    
     console.log("[News.gg] Target message detected:", {
         guildId: message.guild.id,
         channelId: message.channel.id,
