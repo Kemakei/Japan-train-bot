@@ -10,16 +10,6 @@ const NEWS_GG_BOT_ID = process.env.NEWS_GG_BOT_ID;
 const SETTINGS_COLLECTION = "newsChannelSettings";
 const NEWS_GG_HOST = "newsdiscordbot.xyz";
 
-const DEEPL_API_KEY = process.env.DEEPL_API_KEY;
-const DEEPL_API_TYPE = (
-    process.env.DEEPL_API_TYPE || "free"
-).toLowerCase();
-
-const DEEPL_API_URL =
-    DEEPL_API_TYPE === "pro"
-        ? "https://api.deepl.com/v2/translate"
-        : "https://api-free.deepl.com/v2/translate";
-
 export const data = new SlashCommandBuilder()
     .setName("set_news_channel")
     .setDescription("このチャンネルのNews.ggニュース監視を切り替える")
@@ -167,6 +157,7 @@ function addUrl(value, urls) {
 function extractUrlsFromText(value, urls) {
     if (typeof value !== "string" || !value) return;
 
+    // MarkdownリンクのURL部分を取得
     const markdownPattern =
         /\]\(\s*<?(https?:\/\/[^)\s>]+)>?\s*\)/gi;
 
@@ -174,6 +165,7 @@ function extractUrlsFromText(value, urls) {
         addUrl(match[1], urls);
     }
 
+    // Markdownリンクを除いて、通常URLを取得
     const withoutMarkdown = value.replace(
         /\[([^\]]*)\]\(\s*<?https?:\/\/[^)\s>]+>?\s*\)/gi,
         ""
@@ -207,7 +199,7 @@ function extractComponentUrls(components, urls) {
 }
 
 /**
- * Components V2からタイトル候補のテキストを取得
+ * Components V2からテキストを抽出
  */
 function extractComponentTexts(components, texts = []) {
     for (const component of components ?? []) {
@@ -306,7 +298,7 @@ function isGoogleNewsUrl(url) {
 }
 
 /**
- * タイトル文字列を整形
+ * タイトルを整形
  */
 function cleanTitle(value) {
     if (typeof value !== "string") return null;
@@ -322,85 +314,6 @@ function cleanTitle(value) {
         .trim();
 
     return title || null;
-}
-
-/**
- * タイトルがすでに日本語を含んでいるか判定
- */
-function containsJapanese(text) {
-    return /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(
-        text
-    );
-}
-
-/**
- * DeepL APIでタイトルを日本語に翻訳
- * API未設定・失敗時は元のタイトルを返す
- */
-async function translateTitleToJapanese(title) {
-    const originalTitle = cleanTitle(title);
-
-    if (!originalTitle) return "News.gg News";
-
-    // 日本語が含まれていれば再翻訳しない
-    if (containsJapanese(originalTitle)) {
-        return originalTitle;
-    }
-
-    if (!DEEPL_API_KEY) {
-        console.warn(
-            "[News.gg] DEEPL_API_KEY is not configured. Using original title."
-        );
-
-        return originalTitle;
-    }
-
-    try {
-        const response = await fetch(DEEPL_API_URL, {
-            method: "POST",
-            signal: AbortSignal.timeout(15000),
-            headers: {
-                "Authorization": `DeepL-Auth-Key ${DEEPL_API_KEY}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                text: [originalTitle],
-                source_lang: "EN",
-                target_lang: "JA"
-            })
-        });
-
-        if (!response.ok) {
-            const details = await response.text();
-
-            throw new Error(
-                `DeepL HTTP ${response.status}: ${details.slice(0, 300)}`
-            );
-        }
-
-        const data = await response.json();
-        const translated = cleanTitle(
-            data.translations?.[0]?.text
-        );
-
-        if (!translated) {
-            throw new Error("DeepL returned an empty translation.");
-        }
-
-        console.log("[News.gg] Title translated:", {
-            original: originalTitle,
-            translated
-        });
-
-        return translated;
-    } catch (error) {
-        console.error(
-            "[News.gg] Title translation failed:",
-            error.message
-        );
-
-        return originalTitle;
-    }
 }
 
 /**
@@ -458,9 +371,9 @@ function extractJsonLdTitle($) {
 }
 
 /**
- * News.ggのHTMLからタイトルを取得
+ * ページからタイトルを抽出
  */
-function extractPageTitle($) {
+function extractTitle($) {
     const candidates = [
         $('meta[property="og:title"]').attr("content"),
         $('meta[name="twitter:title"]').attr("content"),
@@ -493,9 +406,11 @@ function cleanNewsGgTitle(title) {
 }
 
 /**
- * 元記事リンクを選択
- * Google Newsがあれば優先して返す。
- * 外部ページへのアクセスやリダイレクト解決はしない。
+ * News.ggの記事ページからリンクを抽出する。
+ *
+ * Google Newsのリンクがあれば優先して返す。
+ * なければ、Read full articleなどの直接リンクを返す。
+ * 元記事サイトやGoogle Newsの内部APIにはアクセスしない。
  */
 function extractSourceUrl($, pageUrl) {
     const candidates = [];
@@ -537,6 +452,7 @@ function extractSourceUrl($, pageUrl) {
 
     console.log("[News.gg] Source link candidates:", candidates);
 
+    // Google Newsのリンクがある場合は、必ずGoogle Newsを優先
     const googleNewsLink = candidates.find(
         item => isGoogleNewsUrl(item.url)
     );
@@ -550,6 +466,7 @@ function extractSourceUrl($, pageUrl) {
         return googleNewsLink.url;
     }
 
+    // Google Newsがなければ直接リンクを使う
     const directLink = candidates.find(
         item => !isGoogleNewsUrl(item.url)
     );
@@ -569,6 +486,7 @@ function extractSourceUrl($, pageUrl) {
 
 /**
  * News.ggの記事ページからタイトルとリンクを取得
+ * 外部サイトにはアクセスしない
  */
 async function extractArticle(articlePageUrl, message) {
     console.log(
@@ -606,11 +524,8 @@ async function extractArticle(articlePageUrl, message) {
     const html = await response.text();
     const $ = cheerio.load(html);
 
-    const pageTitle = cleanNewsGgTitle(
-        extractPageTitle($)
-    );
+    const newsGgTitle = cleanNewsGgTitle(extractTitle($));
 
-    // News.ggのDiscord投稿本文・Components V2を優先
     const componentTexts = extractComponentTexts(
         message.components
     );
@@ -621,18 +536,21 @@ async function extractArticle(articlePageUrl, message) {
     );
 
     const title =
-        cleanNewsGgTitle(componentTitle) ||
-        pageTitle ||
+        newsGgTitle ||
+        cleanTitle(componentTitle) ||
         "News.gg News";
 
-    const sourceUrl =
-        extractSourceUrl($, response.url) ||
-        response.url;
+    const sourceUrl = extractSourceUrl($, response.url)
+        || response.url;
 
-    return {
+    const article = {
         title,
         sourceUrl
     };
+
+    console.log("[News.gg] Article result:", article);
+
+    return article;
 }
 
 /**
@@ -686,10 +604,7 @@ export async function handleMessage(message, client) {
         let article;
 
         try {
-            article = await extractArticle(
-                articlePageUrl,
-                message
-            );
+            article = await extractArticle(articlePageUrl, message);
         } catch (error) {
             console.error(
                 "[News.gg] Article extraction failed:",
@@ -706,15 +621,10 @@ export async function handleMessage(message, client) {
             );
 
             article = {
-                title: cleanNewsGgTitle(fallbackTitle) || "News.gg News",
+                title: cleanTitle(fallbackTitle) || "News.gg News",
                 sourceUrl: articlePageUrl
             };
         }
-
-        // タイトルを日本語に翻訳する
-        article.title = await translateTitleToJapanese(
-            article.title
-        );
 
         if (
             !article.title ||
